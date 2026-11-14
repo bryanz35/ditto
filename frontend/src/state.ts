@@ -51,7 +51,9 @@ export interface RunState {
   specRev: number
   stages: Partial<Record<Stage, StageState>>
   artifacts: Record<string, Artifact>
-  /** Stages the engine marked stale and that haven't passed since. */
+  /** Stages the engine marked stale and that haven't passed since: their files are out of date
+   * (isStale), even when the rerun failed or was skipped. The checks panel shows each stage's own
+   * status instead, so a failed rerun reads as failed. */
   stale: Stage[]
   todos: Todo[]
   question: (Question & { stage: Stage }) | null

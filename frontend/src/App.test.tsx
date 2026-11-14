@@ -207,6 +207,25 @@ describe('App', () => {
     expect(screen.queryByText(/Out of date/)).toBeNull()
   })
 
+  it('shows a failed rerun as failed while its files stay out of date', () => {
+    const stream = openRun()
+    stream.emit(lines)
+    stream.emit(editLines.slice(0, 5)) // layout, enclosure and assembly marked stale
+    const enclosure = () => screen.getByLabelText('Checks').querySelector('[data-stage="enclosure"] .badge')!.textContent
+    expect(enclosure()).toBe('stale')
+    const event = (seq: number, status: string, extra = {}) =>
+      JSON.stringify({ ...JSON.parse(editLines[7]), seq, status, message: `enclosure ${status}`, artifacts: {}, ...extra })
+    stream.emit([
+      event(33, 'running'),
+      event(34, 'failed', {
+        errors: [{ code: 'not_watertight', message: 'base.stl has open edges', field: null, hint: null, severity: 'error' }],
+      }),
+    ])
+    expect(enclosure()).toBe('failed')
+    screen.getByText(/base\.stl has open edges/)
+    screen.getByText(/Out of date/) // the 3D view still shows the rev 2 enclosure
+  })
+
   it('offers the assembly view once assembly.glb exists', async () => {
     const stream = openRun()
     stream.emit(lines.slice(0, 13)) // enclosure passed, assembly not built yet

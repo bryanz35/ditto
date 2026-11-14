@@ -184,7 +184,7 @@ export function ChecksPanel({ state }: { state: RunState }) {
           const s = state.stages[stage]
           return (
             <li key={stage} data-stage={stage} data-status={s?.status ?? 'queued'}>
-              <b>{stage}</b> <Badge status={state.stale.includes(stage) ? 'stale' : (s?.status ?? 'queued')} />{' '}
+              <b>{stage}</b> <Badge status={s?.status ?? 'queued'} />{' '}
               {s?.status === 'running' && s.attempt !== null && s.attempt > 1 && <>attempt {s.attempt}: </>}
               {s?.message}
               {stage === 'checks' && (s?.status === 'passed' || s?.status === 'failed') ? (
