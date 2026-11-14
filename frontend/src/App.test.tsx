@@ -151,7 +151,7 @@ describe('Start', () => {
     const [, init] = lastCall('/api/runs', 'POST')!
     const body = init!.body as FormData
     expect(body.get('prompt')).toBe('plant monitor')
-    expect(JSON.parse(body.get('user_context') as string)).toEqual(PLANT_MEMORY)
+    expect(JSON.parse(body.get('user_context') as string)).toEqual({ ...PLANT_MEMORY, level: 'beginner' })
     expect(location.search).toBe('?run=r1')
     expect(openStream().url).toBe('/api/runs/r1/events')
 
@@ -160,6 +160,29 @@ describe('Start', () => {
     render(<App />)
     const row = within(screen.getByRole('navigation', { name: 'Projects' })).getByRole('button', { name: /plant monitor/ })
     expect(row.textContent).toMatch(/Planning…/)
+  })
+
+  it('sends the chosen skill level with the run and shows the saved name (T37)', async () => {
+    memory = { ...PLANT_MEMORY, level: 'intermediate', name: 'Ada Lovelace' }
+    render(<App />)
+    const account = await screen.findByText('Ada Lovelace')
+    expect(account.closest('.account')!.querySelector('.avatar')!.textContent).toBe('AL')
+    const level = screen.getByRole('group', { name: 'Skill level' })
+    expect(level.title).toBe('') // connected: no "Not connected yet (T37)"
+    fireEvent.click(within(level).getByRole('button', { name: 'Expert' }))
+    fireEvent.change(screen.getByLabelText('Describe what you want to make'), { target: { value: 'door chime' } })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Plan it' })))
+    const user = JSON.parse((lastCall('/api/runs', 'POST')![1]!.body as FormData).get('user_context') as string)
+    expect(user).toMatchObject({ level: 'expert', name: 'Ada Lovelace', owned: { bme280_breakout: 1 } })
+  })
+
+  it('sends the level even without the memory API', async () => {
+    render(<App />)
+    fireEvent.change(screen.getByLabelText('Describe what you want to make'), { target: { value: 'lamp' } })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Plan it' })))
+    const user = JSON.parse((lastCall('/api/runs', 'POST')![1]!.body as FormData).get('user_context') as string)
+    expect(user).toEqual({ level: 'beginner' })
+    screen.getByText('Your kit')
   })
 
   it('sends with Enter, while Shift+Enter starts a new line', async () => {

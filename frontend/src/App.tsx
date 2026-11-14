@@ -29,7 +29,7 @@ export default function App() {
     setPage('home')
   }
   const start = async (prompt: string, files: File[]) => {
-    const id = await startRun(prompt, files, memory)
+    const id = await startRun(prompt, files, { ...memory, level: level.toLowerCase() as UserContext['level'] })
     note({ id, title: prompt.trim().slice(0, 60), prompt, files: files.map((f) => ({ name: f.name, size: f.size })), level, status: 'Planning…', at: Date.now() })
     open(id)
   }
@@ -44,7 +44,7 @@ export default function App() {
     await save({ ...now, owned: { ...now.owned, [partId]: (now.owned[partId] ?? 0) + 1 } })
   }
   const kit = memory && Object.values(memory.owned).reduce((a, b) => a + b, 0)
-  const shell = { page, runId, recent, kit, onPage: setPage, onOpen: open }
+  const shell = { page, runId, recent, kit, name: memory?.name ?? null, onPage: setPage, onOpen: open }
 
   if (page === 'parts') {
     return (
