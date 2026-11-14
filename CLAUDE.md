@@ -23,7 +23,8 @@ python3 scripts/board.py next
 
 It reads who you are from `.env.worktree` (the main checkout is the Integrator) and prints one ACTION
 with exact instructions: `START`, `WORK`, `SUBMIT`-related steps, `FIX_REVIEW`, `REVIEW`, `SIGNOFF`,
-`REBASE`, `QA_UPDATE`, `MERGE`, `DECIDE_CONTRACT`, `WAIT` or `DONE`.
+`REBASE`, `QA_UPDATE`, `NOTE` (a fix or follow-up the Integrator sent you), `MERGE`, `DECIDE_CONTRACT`,
+`WAIT` or `DONE`.
 The board knows the dependency graph, who consumes whose output, every review verdict and sign-off
 (tied to the exact commit they were given for), and every merge.
 

@@ -478,10 +478,17 @@ Fix anything the rebase broke. If you were faking any of these with a stub, swit
 reason names {tid}, remove xfail from the ones that pass, report the ones that still fail (with the
 error) in your status file, then:  python3 scripts/board.py ack {tid}"""))
 
+    # Notes addressed to me (announce --to), until I ack them
+    read = set(st.get("notes_read", {}).get(agent, []))
+    notes = [action("NOTE", f"""
+From {a.get('by', 'I')}: {a['text']}
+When it's handled (fixed, or filed as a request): python3 scripts/board.py ack --note {i}""")
+             for i, a in enumerate(st.get("announcements", [])) if a.get("to") == agent and i not in read]
+
     # Priority: unblock others first, then my own work
     fix = [a for a in mine if a[0] == "FIX_REVIEW"]
     rest = [a for a in mine if a[0] != "FIX_REVIEW"]
-    acts = acts + fix + signoffs + rebase + qa + rest
+    acts = acts + fix + signoffs + rebase + qa + notes + rest
 
     if role == "human":
         for tid in board.ready_to_start():
@@ -792,13 +799,24 @@ def cmd_announce(args):
     main = rev(ref("main"))
 
     def m(s):
-        s.setdefault("announcements", []).append({"text": args.text, "rebase": args.rebase, "main_sha": main, "at": now()})
-    update(m, f"announcement: {args.text}", me["agent"])
-    print("Announced." + (" Every active branch without this main commit will be told to rebase." if args.rebase else ""))
+        s.setdefault("announcements", []).append({"text": args.text, "rebase": args.rebase, "main_sha": main,
+                                                  "at": now(), "to": args.to, "by": me["agent"]})
+    update(m, f"{'note for ' + args.to if args.to else 'announcement'}: {args.text}", me["agent"])
+    print(("Note sent; it shows in their `next` until they ack it." if args.to else "Announced.") + (" Every active branch without this main commit will be told to rebase." if args.rebase else ""))
 
 
 def cmd_ack(args):
     me = whoami(args)
+    if args.note is not None:
+        def n(s):
+            read = s.setdefault("notes_read", {}).setdefault(me["agent"], [])
+            if args.note not in read:
+                read.append(args.note)
+        update(n, f"{me['agent']} handled note {args.note}", me["agent"])
+        print(f"Note {args.note} marked handled.")
+        return
+    if not args.task:
+        raise BoardError("ack needs a task (QA) or --note N")
 
     def m(s):
         if args.task not in s.setdefault("qa_ack", []):
@@ -879,9 +897,11 @@ def main(argv=None):
     s = sub.add_parser("announce", help="Integrator: tell everyone something (--rebase makes active branches rebase)")
     s.add_argument("text")
     s.add_argument("--rebase", action="store_true")
+    s.add_argument("--to", help="send it to one agent (e.g. B-fw): it shows as NOTE in their `next` until acked")
     s.set_defaults(fn=cmd_announce)
-    s = sub.add_parser("ack", help="QA: mark a merge as handled")
-    s.add_argument("task")
+    s = sub.add_parser("ack", help="QA: mark a merge as handled; anyone: --note N marks a note handled")
+    s.add_argument("task", nargs="?")
+    s.add_argument("--note", type=int)
     s.set_defaults(fn=cmd_ack)
 
     args = p.parse_args(argv)
