@@ -1,6 +1,6 @@
 // The API calls the UI makes (backend/app/routers/runs.py and files.py, behind the /api proxy).
 import { useEffect, useReducer, useState } from 'react'
-import type { Event as RunEvent } from './contracts'
+import type { AnswerRequest, EditRequest, Event as RunEvent } from './contracts'
 import { initialState, reduce } from './state'
 
 /** ?v busts the browser cache when a stage rewrites the same file. */
@@ -16,18 +16,47 @@ export async function startRun(prompt: string, files: File[]): Promise<string> {
   return ((await res.json()) as { run_id: string }).run_id
 }
 
+async function postJson(url: string, body: unknown): Promise<void> {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`Sending it failed (${res.status}): ${await res.text()}`)
+}
+
+export const editRun = (runId: string, request: EditRequest) =>
+  postJson(`/api/runs/${encodeURIComponent(runId)}/edit`, request)
+
+export const answerQuestion = (runId: string, request: AnswerRequest) =>
+  postJson(`/api/runs/${encodeURIComponent(runId)}/answer`, request)
+
+export type Connection = 'live' | 'reconnecting' | 'lost'
+
 /** Streams the run's events into the reducer. The stream starts at seq 1 on every mount (a page
  * refresh rebuilds the whole state); EventSource's own reconnects resume after Last-Event-ID. The
- * stream stays open after `done`, so the events of a later edit arrive too. */
+ * server ends the stream at `done` and EventSource reconnects on its own, so the events of a later
+ * edit arrive too. `reconnect` reopens a stream EventSource gave up on (the reducer drops repeats). */
 export function useRun(runId: string | null) {
   const [state, dispatch] = useReducer(reduce, initialState)
+  const [connection, setConnection] = useState<Connection>('live')
+  const [opened, setOpened] = useState(0)
   useEffect(() => {
     if (!runId) return
     const source = new EventSource(`/api/runs/${encodeURIComponent(runId)}/events`)
-    source.onmessage = (message) => dispatch(JSON.parse(message.data) as RunEvent)
+    source.onopen = () => setConnection('live')
+    source.onmessage = (message) => {
+      setConnection('live')
+      dispatch(JSON.parse(message.data) as RunEvent)
+    }
+    source.onerror = () => setConnection(source.readyState === EventSource.CLOSED ? 'lost' : 'reconnecting')
     return () => source.close()
-  }, [runId])
-  return state
+  }, [runId, opened])
+  const reconnect = () => {
+    setConnection('live')
+    setOpened((n) => n + 1)
+  }
+  return { state, connection, reconnect }
 }
 
 export function useText(url: string | null): { text: string | null; error: string | null } {

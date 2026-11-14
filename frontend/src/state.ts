@@ -31,6 +31,8 @@ export interface StageState {
   message: string
   errors: ToolError[]
   spec_rev: number
+  /** 1-based retry counter of the latest event (data.attempt), if the stage sends one. */
+  attempt: number | null
   /** Finished outcomes (passed, failed, skipped) in order, so a retried stage shows its history. */
   attempts: Attempt[]
 }
@@ -82,6 +84,7 @@ export function reduce(state: RunState, event: Event): RunState {
     message: event.message,
     errors: event.errors,
     spec_rev: event.spec_rev,
+    attempt,
     attempts: FINISHED.includes(event.status)
       ? [...attempts, { status: event.status, attempt, message: event.message, errors: event.errors }]
       : attempts,

@@ -39,6 +39,12 @@ describe('reduce', () => {
     expect(s.todos.every((t) => t.status === 'completed')).toBe(true)
   })
 
+  it('keeps the attempt number of a stage being retried', () => {
+    expect(fold(run.slice(0, 5)).stages.validate?.attempt).toBe(1)
+    expect(fold(run.slice(0, 6)).stages.validate?.attempt).toBe(2)
+    expect(fold(run.slice(0, 9)).stages.layout?.attempt).toBeNull()
+  })
+
   it('holds the question until its stage moves on', () => {
     const s = fold(run.slice(0, 2))
     expect(s.question?.id).toBe('q1')

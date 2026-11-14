@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { useText } from './api'
-import type { Bom, ToolError, Wiring } from './contracts'
-import { STAGES, type RunState, type Status } from './state'
+import type { Bom, Question, ToolError, Wiring } from './contracts'
+import { STAGES, type RunState, type StageState, type Status } from './state'
 
 /** Resolves an artifact name to its file URL (null until a stage has produced it). */
 export type UrlOf = (name: string) => string | null
@@ -10,29 +10,45 @@ const Badge = ({ status }: { status: Status | 'stale' }) => (
   <span className={`badge ${status}`}>{status}</span>
 )
 
-export function ChatPanel({
-  state,
-  onStart,
-}: {
-  state: RunState
-  onStart: (prompt: string, files: File[]) => Promise<void>
-}) {
-  const [prompt, setPrompt] = useState('')
-  const [files, setFiles] = useState<File[]>([])
-  const [error, setError] = useState<string | null>(null)
+/** Runs one request at a time and keeps its error for the form to show. */
+function useSend() {
   const [sending, setSending] = useState(false)
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault()
+  const [error, setError] = useState<string | null>(null)
+  const send = async (request: () => Promise<void>): Promise<boolean> => {
     setSending(true)
     setError(null)
     try {
-      await onStart(prompt, files)
+      await request()
+      return true
     } catch (err) {
       setError((err as Error).message)
+      return false
     } finally {
       setSending(false)
     }
+  }
+  return { sending, error, send }
+}
+
+export function ChatPanel({
+  state,
+  onStart,
+  onEdit,
+  onAnswer,
+}: {
+  state: RunState
+  onStart: (prompt: string, files: File[]) => Promise<void>
+  /** null until there is a run to change */
+  onEdit: ((instruction: string) => Promise<void>) | null
+  onAnswer: (questionId: string, answer: string) => Promise<void>
+}) {
+  const [prompt, setPrompt] = useState('')
+  const [files, setFiles] = useState<File[]>([])
+  const { sending, error, send } = useSend()
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    void send(() => onStart(prompt, files))
   }
 
   return (
@@ -46,10 +62,7 @@ export function ChatPanel({
         ))}
       </ol>
       {state.question && (
-        <div className="question" role="status">
-          <p>{state.question.text}</p>
-          {state.question.options.length > 0 && <p>Options: {state.question.options.join(' · ')}</p>}
-        </div>
+        <QuestionBox key={state.question.id} question={state.question} onAnswer={onAnswer} />
       )}
       {state.todos.length > 0 && (
         <ul className="todos" aria-label="Plan">
@@ -82,7 +95,83 @@ export function ChatPanel({
         </button>
         {error && <p role="alert">{error}</p>}
       </form>
+      {onEdit && <EditForm state={state} onEdit={onEdit} />}
     </aside>
+  )
+}
+
+function QuestionBox({
+  question,
+  onAnswer,
+}: {
+  question: Question
+  onAnswer: (questionId: string, answer: string) => Promise<void>
+}) {
+  const [text, setText] = useState('')
+  const [sent, setSent] = useState<string | null>(null)
+  const { sending, error, send } = useSend()
+  const answer = async (value: string) => {
+    if (await send(() => onAnswer(question.id, value))) setSent(value)
+  }
+  return (
+    <div className="question" role="status">
+      <p>{question.text}</p>
+      {sent !== null ? (
+        <p className="empty">You answered: {sent}</p>
+      ) : (
+        <>
+          {question.options.map((option) => (
+            <button key={option} type="button" disabled={sending} onClick={() => void answer(option)}>
+              {option}
+            </button>
+          ))}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              void answer(text)
+            }}
+          >
+            <input aria-label="Your answer" value={text} onChange={(e) => setText(e.target.value)} />
+            <button type="submit" disabled={sending || !text.trim()}>
+              Answer
+            </button>
+          </form>
+        </>
+      )}
+      {error && <p role="alert">{error}</p>}
+    </div>
+  )
+}
+
+/** "add a buzzer": only while the run is idle (the API answers 409 while it works). */
+function EditForm({ state, onEdit }: { state: RunState; onEdit: (instruction: string) => Promise<void> }) {
+  const [instruction, setInstruction] = useState('')
+  // lastSeq when the edit was accepted: stay disabled until its first event arrives
+  const [sentAt, setSentAt] = useState<number | null>(null)
+  const { sending, error, send } = useSend()
+  const idle = state.done && sentAt !== state.lastSeq
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (await send(() => onEdit(instruction))) {
+      setSentAt(state.lastSeq)
+      setInstruction('')
+    }
+  }
+  return (
+    <form onSubmit={submit}>
+      <label htmlFor="edit">Change the design</label>
+      <textarea
+        id="edit"
+        value={instruction}
+        onChange={(e) => setInstruction(e.target.value)}
+        placeholder="add a buzzer"
+        rows={2}
+      />
+      <button type="submit" disabled={sending || !idle || !instruction.trim()}>
+        {idle ? 'Apply change' : 'Working…'}
+      </button>
+      {error && <p role="alert">{error}</p>}
+    </form>
   )
 }
 
@@ -96,8 +185,11 @@ export function ChecksPanel({ state }: { state: RunState }) {
           return (
             <li key={stage} data-stage={stage}>
               <b>{stage}</b> <Badge status={state.stale.includes(stage) ? 'stale' : (s?.status ?? 'queued')} />{' '}
+              {s?.status === 'running' && s.attempt !== null && s.attempt > 1 && <>attempt {s.attempt}: </>}
               {s?.message}
-              {s && s.attempts.length > 1 && (
+              {stage === 'checks' && (s?.status === 'passed' || s?.status === 'failed') ? (
+                <CrossChecks errors={s.errors} />
+              ) : s && s.attempts.length > 1 ? (
                 <ol className="attempts">
                   {s.attempts.map((a, i) => (
                     <li key={i}>
@@ -106,13 +198,45 @@ export function ChecksPanel({ state }: { state: RunState }) {
                     </li>
                   ))}
                 </ol>
+              ) : (
+                s && <Errors errors={s.errors} />
               )}
-              {s && s.attempts.length <= 1 && <Errors errors={s.errors} />}
             </li>
           )
         })}
       </ul>
     </section>
+  )
+}
+
+// One row per error code of backend/tools/cross_checks.py; codes not listed here still show below.
+const CROSS_CHECKS = [
+  ['pins_mismatch', 'pins.h matches the connections'],
+  ['wiring_mismatch', 'wiring table matches the connections'],
+  ['layout_mismatch', 'every part fits in the cavity'],
+  ['cutout_mismatch', 'every part feature has a cutout'],
+  ['bom_mismatch', 'BOM matches the parts'],
+  ['stale_artifact', 'every file is at the current spec rev'],
+  ['missing_artifact', 'every listed file exists'],
+] as const
+
+function CrossChecks({ errors }: { errors: ToolError[] }) {
+  const listed: string[] = CROSS_CHECKS.map(([code]) => code)
+  return (
+    <>
+      <ul className="cross-checks">
+        {CROSS_CHECKS.map(([code, label]) => {
+          const found = errors.filter((e) => e.code === code)
+          return (
+            <li key={code} data-check={code}>
+              <Badge status={found.length > 0 ? 'failed' : 'passed'} /> {label}
+              <Errors errors={found} />
+            </li>
+          )
+        })}
+      </ul>
+      <Errors errors={errors.filter((e) => !listed.includes(e.code))} />
+    </>
   )
 }
 
@@ -149,6 +273,33 @@ function ArtifactView({
     <>
       {stale && <p className="stale-note"><Badge status="stale" /> Out of date: the spec changed since this was made.</p>}
       {children(text)}
+    </>
+  )
+}
+
+export function SimulationTab({
+  stage,
+  urlOf,
+  staleOf,
+}: {
+  stage: StageState
+  urlOf: UrlOf
+  staleOf: (name: string) => boolean
+}) {
+  const screenshot = urlOf('screenshot')
+  return (
+    <>
+      <p>
+        <Badge status={stage.status} /> {stage.message}
+      </p>
+      <Errors errors={stage.errors} />
+      {screenshot && <img className="sim-shot" src={screenshot} alt="Simulator screenshot" />}
+      <section className="code">
+        <h3>Serial log</h3>
+        <ArtifactView url={urlOf('serial_log')} stale={staleOf('serial_log')}>
+          {(text) => <pre aria-label="Serial log">{text}</pre>}
+        </ArtifactView>
+      </section>
     </>
   )
 }
