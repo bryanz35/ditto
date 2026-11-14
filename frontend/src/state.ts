@@ -31,6 +31,8 @@ export interface StageState {
   message: string
   errors: ToolError[]
   spec_rev: number
+  /** 1-based retry counter of the latest event (data.attempt), if the stage sends one. */
+  attempt: number | null
   /** Finished outcomes (passed, failed, skipped) in order, so a retried stage shows its history. */
   attempts: Attempt[]
 }
@@ -49,7 +51,9 @@ export interface RunState {
   specRev: number
   stages: Partial<Record<Stage, StageState>>
   artifacts: Record<string, Artifact>
-  /** Stages the engine marked stale and that haven't passed since. */
+  /** Stages the engine marked stale and that haven't passed since: their files are out of date
+   * (isStale), even when the rerun failed or was skipped. The checks panel shows each stage's own
+   * status instead, so a failed rerun reads as failed. */
   stale: Stage[]
   todos: Todo[]
   question: (Question & { stage: Stage }) | null
@@ -74,7 +78,11 @@ const FINISHED: Status[] = ['passed', 'failed', 'skipped']
 export function reduce(state: RunState, event: Event): RunState {
   // A reconnect or a page refresh replays events we already have.
   if (event.seq <= state.lastSeq) return state
-  const prev = state.stages[event.stage]
+  // An event after done starts an edit's pipeline: earlier outcomes aren't retries of it.
+  const stages: RunState['stages'] = state.done
+    ? Object.fromEntries(Object.entries(state.stages).map(([stage, s]) => [stage, { ...s, attempts: [] }]))
+    : state.stages
+  const prev = stages[event.stage]
   const attempt = typeof event.data.attempt === 'number' ? event.data.attempt : null
   const attempts = prev?.attempts ?? []
   const stageState: StageState = {
@@ -82,6 +90,7 @@ export function reduce(state: RunState, event: Event): RunState {
     message: event.message,
     errors: event.errors,
     spec_rev: event.spec_rev,
+    attempt,
     attempts: FINISHED.includes(event.status)
       ? [...attempts, { status: event.status, attempt, message: event.message, errors: event.errors }]
       : attempts,
@@ -104,7 +113,7 @@ export function reduce(state: RunState, event: Event): RunState {
   return {
     lastSeq: event.seq,
     specRev: 'spec' in event.artifacts ? event.spec_rev : state.specRev,
-    stages: { ...state.stages, [event.stage]: stageState },
+    stages: { ...stages, [event.stage]: stageState },
     artifacts,
     stale,
     todos: Array.isArray(event.data.todos) ? (event.data.todos as Todo[]) : state.todos,

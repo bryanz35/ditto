@@ -39,6 +39,12 @@ describe('reduce', () => {
     expect(s.todos.every((t) => t.status === 'completed')).toBe(true)
   })
 
+  it('keeps the attempt number of a stage being retried', () => {
+    expect(fold(run.slice(0, 5)).stages.validate?.attempt).toBe(1)
+    expect(fold(run.slice(0, 6)).stages.validate?.attempt).toBe(2)
+    expect(fold(run.slice(0, 9)).stages.layout?.attempt).toBeNull()
+  })
+
   it('holds the question until its stage moves on', () => {
     const s = fold(run.slice(0, 2))
     expect(s.question?.id).toBe('q1')
@@ -57,6 +63,14 @@ describe('reduce', () => {
     expect(isStale(after, 'base_stl')).toBe(false)
     expect(after.artifacts.base_stl.spec_rev).toBe(3)
     expect(after.done).toBe(true)
+  })
+
+  it("starts each edit's attempt history afresh: a rerun isn't a retry", () => {
+    const after = fold(edit, fold(run))
+    expect(after.stages.enclosure?.attempts.map((a) => a.message)).toEqual(['Watertight, fits the generic printer'])
+    expect(after.stages.done?.attempts).toHaveLength(1)
+    expect(after.stages.validate?.attempts).toEqual([]) // not rerun by this edit
+    expect(after.stages.validate?.status).toBe('passed')
   })
 
   it('ignores events it already has, so a replayed stream is harmless', () => {

@@ -32,7 +32,11 @@ body { margin: 0; background: var(--bg); }
 .question p { margin: 2px 0; }
 .todos { margin: 0; padding-left: 0; list-style: none; font-size: 0.85rem; }
 .todos .completed { color: var(--muted); }
-.work { display: grid; grid-template-rows: auto 1fr minmax(120px, 35%); min-width: 0; min-height: 0; }
+.work { display: grid; grid-template-rows: auto auto 1fr minmax(120px, 35%); min-width: 0; min-height: 0; }
+/* explicit rows: the connection banner (row 1) is only there while the stream is down */
+.work > [role='tablist'] { grid-row: 2; }
+.work > .panel { grid-row: 3; }
+.work > .checks { grid-row: 4; }
 [role='tablist'] { display: flex; gap: 2px; padding: 8px 12px 0; border-bottom: 1px solid var(--line); }
 [role='tab'] { font: inherit; padding: 6px 14px; border: 1px solid transparent; border-bottom: none; background: none; color: inherit; cursor: pointer; }
 [role='tab'][aria-selected='true'] { border-color: var(--line); background: var(--panel); border-radius: 6px 6px 0 0; }
@@ -45,6 +49,8 @@ body { margin: 0; background: var(--bg); }
 .attempts, .errors { margin: 2px 0 4px; }
 .errors .error { color: var(--bad); }
 .errors .warning { color: var(--warn); }
+/* a skipped stage's errors only say why it didn't run (no token, not implemented): not failures */
+[data-status='skipped'] .errors li { color: var(--muted); }
 .hint { color: var(--muted); }
 .badge { display: inline-block; font-size: 0.72rem; padding: 0 6px; border-radius: 8px; border: 1px solid currentColor; margin: 0 4px; }
 .badge.passed { color: var(--ok); }
@@ -62,5 +68,10 @@ a { color: inherit; }
 @media (max-width: 760px) {
   .app { grid-template-columns: 1fr; height: auto; }
   .chat { border-right: none; border-bottom: 1px solid var(--line); }
-  .work { grid-template-rows: auto 60vh auto; }
+  .work { grid-template-rows: auto auto 60vh auto; }
 }
+.banner { margin: 0; padding: 6px 12px; border-bottom: 1px solid var(--warn); color: var(--warn); }
+.toggle { display: flex; gap: 4px; padding: 8px; }
+.toggle button[aria-pressed='true'] { font-weight: 600; }
+.cross-checks { margin: 2px 0 4px; padding-left: 12px; list-style: none; }
+.sim-shot { max-width: 100%; border: 1px solid var(--line); }
