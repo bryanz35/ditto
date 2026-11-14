@@ -74,8 +74,8 @@ class RunEngine:
         emit = self.emitter(run_id)
         run_dir = run_dir_for(run_id)
         rev = _saved_rev(run_dir)
-        old = json.loads((run_dir / "spec.json").read_text()) if edit else None
         try:
+            old = _saved_spec(run_dir) if edit else None
             spec = await work(emit)
             rev = spec.rev
             stages = self._stale_stages(run_id, old, spec, emit)
@@ -110,7 +110,9 @@ class RunEngine:
         unaffected settled ones forward to the new rev."""
         last = {e.stage: e for e in read_events(run_id) if e.stage in ORDER}
         passed = {s: e.spec_rev for s, e in last.items() if e.status == "passed"}
-        if old is None:  # a new run: every stage must pass at this rev
+        if (
+            old is None
+        ):  # a new run (or one that never saved a spec): all must pass at this rev
             return [s for s in ORDER if passed.get(s) != spec.rev]
         changed = changed_fields(old, spec.model_dump(mode="json")) - {"rev"}
         # shortcut: a passed or skipped stage counts as current unless this edit affects it; a crash
@@ -205,6 +207,12 @@ def _carry_forward(run_dir: Path, stages: list[str], rev: int) -> None:
                 )
     manifest.spec_rev = _saved_rev(run_dir, manifest.spec_rev)
     path.write_text(manifest.model_dump_json(indent=2) + "\n")
+
+
+def _saved_spec(run_dir: Path) -> dict | None:
+    """The saved spec as JSON; None if the run never saved one (an edit then reruns everything)."""
+    path = run_dir / "spec.json"
+    return json.loads(path.read_text()) if path.is_file() else None
 
 
 def _saved_rev(run_dir: Path, default: int = 0) -> int:

@@ -124,8 +124,8 @@ async def test_stage_the_runner_already_passed_at_the_new_rev_is_skipped(runs_di
     runner = CountingRunner(change_behaviour, firmware_passed=True)
     events, _ = await run_then_edit(runner, runs_dir)
 
-    assert stale(events) == {"firmware", "simulate"}
-    assert stages_run(events) == {"simulate", "checks"}
+    assert stale(events) == {"validate", "firmware", "simulate"}
+    assert stages_run(events) == {"validate", "simulate", "checks"}
     firmware = [e.status for e in events if e.stage == "firmware"]
     assert firmware == ["passed", "stale", "passed"]  # the UI never ends on stale
     assert events[-1].status == "passed"
@@ -145,3 +145,13 @@ async def test_edit_after_an_api_restart_still_reruns_only_what_it_affects(runs_
     events = read_events("r1", edit_seq)
     assert stages_run(events) == ENCLOSURE_STAGES | {"checks"}
     assert check_events(read_events("r1")) == []
+
+
+async def test_editing_a_run_that_never_saved_a_spec_still_ends_with_done(runs_dir):
+    (runs_dir / "r1").mkdir()  # the plan failed before spec.json was written
+    engine = make_engine(CountingRunner())
+    engine.edit("r1", EditRequest(instruction="make the walls 3 mm"))
+    await finish(engine, "r1")
+
+    last = read_events("r1")[-1]
+    assert (last.stage, last.status) == ("done", "failed")
