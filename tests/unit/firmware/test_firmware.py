@@ -58,6 +58,48 @@ def test_ini_without_lib_deps(tmp_path):
     assert "board = esp32dev" in ini and "lib_deps" not in ini
 
 
+KEYBOARD = """#include <Arduino.h>
+#include "pins.h"
+#include "USB.h"
+#include "USBHIDKeyboard.h"
+
+USBHIDKeyboard Keyboard;
+
+void setup() {
+  Serial.begin(115200);
+  Keyboard.begin();
+  USB.begin();
+  Serial.println("P2D_READY");
+}
+
+void loop() {}
+"""
+XIAO = SPEC.model_copy(
+    update={
+        "mcu": SPEC.mcu.model_copy(update={"part_id": "xiao_esp32s3_sense"}),
+        "parts": [],
+        "connections": [],
+    }
+)
+
+
+def test_native_usb_sketch_gets_deep_lib_scan_and_otg_mode(tmp_path):
+    write_firmware_project(XIAO, LIB, KEYBOARD, tmp_path / "usb")
+    ini = (tmp_path / "usb/platformio.ini").read_text()
+    assert "lib_ldf_mode = deep\n" in ini
+    assert "build_flags = -DARDUINO_USB_MODE=0" in ini
+    write_firmware_project(XIAO, LIB, GOLDEN, tmp_path / "plain")
+    assert "lib_ldf_mode" not in (tmp_path / "plain/platformio.ini").read_text()
+
+
+@pytest.mark.slow
+@needs_pio
+def test_native_usb_keyboard_compiles(tmp_path):
+    write_firmware_project(XIAO, LIB, KEYBOARD, tmp_path)
+    result = compile_firmware(tmp_path)
+    assert result.ok, result.errors
+
+
 def test_unknown_part_is_an_error_not_an_exception(tmp_path):
     bad = SPEC.parts[0].model_copy(update={"part_id": "flux_capacitor"})
     result = write_firmware_project(
@@ -201,3 +243,30 @@ def test_syntax_error_gives_line_numbers(tmp_path):
         for f in fields
     )
     assert result.log and len(result.log.splitlines()) <= 40
+
+
+UNO = ProjectSpec.model_validate_json(
+    (ROOT / "fixtures/specs/uno_counter.json").read_text()
+)
+UNO_MAIN = (ROOT / "fixtures/firmware/uno_counter_main.cpp").read_text()
+
+
+def test_uno_project_uses_its_platform_and_pin_names(tmp_path):
+    from backend.contracts.invariants import check_pins
+
+    assert write_firmware_project(UNO, LIB, UNO_MAIN, tmp_path).ok
+    ini = (tmp_path / "platformio.ini").read_text()
+    assert "platform = atmelavr" in ini and "board = uno" in ini
+    assert "ARDUINO_USB_MODE" not in ini
+    pins = (tmp_path / "include/pins.h").read_text()
+    assert "#define PIN_OLED1_SDA A4" in pins and "#define PIN_BUZZER1_SIG 8" in pins
+    assert check_pins(pins, UNO) == []
+    assert lint_firmware(tmp_path).ok
+
+
+@pytest.mark.slow
+@needs_pio
+def test_uno_golden_firmware_compiles(tmp_path):
+    assert write_firmware_project(UNO, LIB, UNO_MAIN, tmp_path).ok
+    result = compile_firmware(tmp_path)
+    assert result.ok, (result.errors, result.log)

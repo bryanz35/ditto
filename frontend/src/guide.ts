@@ -101,16 +101,18 @@ export function buildSteps({
   enclosure: EnclosureManifest | null
   urlOf: UrlOf
 }): Step[] {
+  const board = spec.mcu
+  if (!board) return enclosure ? printSteps({ enclosure, urlOf }) : []
   const line = (ref: string) => bom?.lines.find((l) => l.refs.includes(ref))
   const name = (ref: string) =>
-    line(ref)?.name ?? wiring.rows.find((r) => r.part_ref === ref)?.part_name ?? [spec.mcu, ...spec.parts].find((p) => p.ref === ref)?.part_id ?? ref
+    line(ref)?.name ?? wiring.rows.find((r) => r.part_ref === ref)?.part_name ?? [board, ...spec.parts].find((p) => p.ref === ref)?.part_id ?? ref
   const have = (ref: string) => {
     const l = line(ref)
     return !!l && l.owned_qty >= l.qty
   }
-  const noun = (ref: string) => (ref === spec.mcu.ref ? 'board' : partNoun(name(ref)))
+  const noun = (ref: string) => (ref === board.ref ? 'board' : partNoun(name(ref)))
   // "ESP32" in "screen VCC → ESP32 3V3"
-  const mcu = name(spec.mcu.ref).split(/[\s-]/)[0] || 'board'
+  const mcu = name(board.ref).split(/[\s-]/)[0] || 'board'
   const cutouts = enclosure?.cutouts ?? []
   const file = (artifact: string, detail: string, icon: IconName): StepFile[] => {
     const url = urlOf(artifact)
@@ -153,7 +155,7 @@ export function buildSteps({
   )
 
   // Parts inside the case: the board first, then the spec's order.
-  const order = [spec.mcu, ...spec.parts].map((p) => p.ref)
+  const order = [board, ...spec.parts].map((p) => p.ref)
   const placed = [...layout.placements].sort((a, b) => order.indexOf(a.ref) - order.indexOf(b.ref))
   for (const p of placed) {
     const n = noun(p.ref)
@@ -222,7 +224,7 @@ export function buildSteps({
     )
   }
 
-  const usb = cutouts.find((c) => c.for_ref === spec.mcu.ref && c.feature === 'usb')
+  const usb = cutouts.find((c) => c.for_ref === board.ref && c.feature === 'usb')
   steps.push(
     step({
       id: 'code',
@@ -232,7 +234,7 @@ export function buildSteps({
       body:
         `Plug the USB cable into the ${mcu}${usb ? ` through the hole in ${where(usb.face)}` : ''}, then open the files in ` +
         'PlatformIO (or the Arduino IDE) and upload. Open the serial monitor at 115200 baud: the board prints P2D_READY when it has started.',
-      ref: spec.mcu.ref,
+      ref: board.ref,
       files: [
         ...file('main_cpp', 'Arduino code', 'file-code'),
         ...file('pins_h', 'Pin map', 'file-code'),
@@ -242,7 +244,12 @@ export function buildSteps({
         { qty: '1×', what: 'USB cable' },
         { qty: '1×', what: 'Computer with PlatformIO or the Arduino IDE' },
       ],
-      tip: { tone: 'tip', note: `Nothing happening? Hold the BOOT button on the ${mcu} while the upload starts.` },
+      tip: {
+        tone: 'tip',
+        note: /esp32/i.test(board.part_id)
+          ? `Nothing happening? Hold the BOOT button on the ${mcu} while the upload starts.`
+          : `Nothing happening? Check the ${mcu} and its port are selected, and try another USB cable: some only charge.`,
+      },
     }),
   )
 
@@ -262,6 +269,36 @@ export function buildSteps({
     }),
   )
   return steps
+}
+
+/** A print-only project's guide: one step per printed part (cad/manifest.json's prints). */
+export function printSteps({ enclosure, urlOf }: { enclosure: EnclosureManifest; urlOf: UrlOf }): Step[] {
+  const names = Object.keys(enclosure.prints).sort()
+  return names.map((name) => {
+    const files = [`${name}_stl`, `${name}_step`].flatMap((artifact) => {
+      const url = urlOf(artifact)
+      const detail = artifact.endsWith('_stl') ? '3D print file' : 'CAD file (to edit)'
+      return url ? [{ name: url.split('?')[0].split('/').pop()!, detail, url, icon: 'box' as IconName }] : []
+    })
+    const size = enclosure.prints[name].map((v) => Math.round(v)).join(' × ')
+    return {
+      id: `print-${name}`,
+      kind: 'Print',
+      label: names.length > 1 ? `Print ${name}` : 'Print',
+      title: `Print the ${name}`,
+      body: `Send ${name}.stl to your 3D printer as it is: it is already the right way up, flat side down. It is ${size} mm.`,
+      ref: null,
+      noun: null,
+      board: '',
+      wires: [],
+      needs: [
+        { qty: '1×', what: '3D printer' },
+        { qty: '', what: 'PLA filament (any colour)' },
+      ],
+      files,
+      tip: { tone: 'tip', note: 'Let the bed cool before you lift the part off: it comes away more easily and stays flat.' },
+    } satisfies Step
+  })
 }
 
 export interface Progress {

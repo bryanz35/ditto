@@ -28,7 +28,7 @@ def load_spec(path: Path) -> ProjectSpec:
 def test_plant_monitor_spec_uses_real_library_pins():
     spec = load_spec(FIXTURES / "specs" / "plant_monitor.json")
     lib = load_library()
-    part_ids = {p.ref: p.part_id for p in [spec.mcu, *spec.parts]}
+    part_ids = {p.ref: p.part_id for p in spec.instances}
     board_pins = {p.name for p in lib.get(spec.mcu.part_id).pins}
     for c in spec.connections:
         assert lib.pin_type(part_ids[c.part_ref], c.part_pin), c

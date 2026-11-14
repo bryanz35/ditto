@@ -4,7 +4,9 @@ After runner.run() or runner.edit() returns, it runs every stage that hasn't pas
 spec rev through the StageRunner, then `checks`, then emits `done`. After an edit, only the stages the
 changed spec fields affect (deps.stages_to_rerun) are marked `stale` and rerun; the others carry
 their artifacts forward to the new rev. Events go to runs/<id>/events.jsonl (seq and ts set here);
-passed artifacts go to runs/<id>/manifest.json. cancel() stops a run and ends it with a failed
+passed artifacts go to runs/<id>/manifest.json; the RunRequest goes to runs/<id>/request.json, so an edit
+of a run that failed before saving a spec restarts it with the instruction appended. When the model
+work or a stage raises, the engine posts what got done and what went wrong, then tries again. cancel() stops a run and ends it with a failed
 `done` event; list_runs() summarises every run directory for GET /runs.
 """
 
@@ -25,6 +27,7 @@ from backend.contracts.parts import load_library
 from backend.contracts.runner import (
     EditRequest,
     Emit,
+    NoSpec,
     Runner,
     RunRequest,
     RunSummary,
@@ -41,6 +44,7 @@ log = logging.getLogger(__name__)
 ModelWork = Callable[[Emit], Awaitable[ProjectSpec]]
 RUN_ID = re.compile(r"[A-Za-z0-9_-]+")
 CANCELLED = "Cancelled by the user"
+MAX_ATTEMPTS = 3
 INTERRUPTED = "Stopped: the server restarted during the run"
 
 
@@ -120,11 +124,33 @@ class RunEngine:
         self._stops: dict[str, threading.Event] = {}
 
     def start(self, request: RunRequest) -> None:
+        run_dir = run_dir_for(request.run_id)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "request.json").write_text(request.model_dump_json(indent=2) + "\n")
         self._spawn(request.run_id, lambda emit: self.runner.run(request, emit))
 
     def edit(self, run_id: str, request: EditRequest) -> None:
+        run_dir = run_dir_for(run_id)
+        self._emit(  # the user's turn of the conversation
+            run_id,
+            Event(
+                run_id=run_id,
+                stage="plan",
+                status="queued",
+                message=request.instruction,
+                spec_rev=_saved_rev(run_dir),
+                data={"chat": "user"},
+            ),
+        )
+        if _saved_spec(run_dir) is None:
+            # failed before saving a spec: nothing to edit, so start over with the instruction added
+            self.start(_retry_request(run_id, request.instruction))
+            return
         self._spawn(
-            run_id, lambda emit: self.runner.edit(run_id, request, emit), edit=True
+            run_id,
+            lambda emit: self.runner.edit(run_id, request, emit),
+            edit=True,
+            instruction=request.instruction,
         )
 
     def busy(self, run_id: str) -> bool:
@@ -141,38 +167,84 @@ class RunEngine:
         """stop: once set, emitting raises RunCancelled instead of recording the event."""
         return partial(self._emit, run_id, stop=stop)
 
-    def _spawn(self, run_id: str, work: ModelWork, edit: bool = False) -> None:
+    def _spawn(
+        self, run_id: str, work: ModelWork, edit: bool = False, instruction: str = ""
+    ) -> None:
         self._stops[run_id] = stop = threading.Event()
         self._tasks[run_id] = asyncio.create_task(
-            self._pipeline(run_id, work, edit, stop)
+            self._pipeline(run_id, work, edit, stop, instruction)
         )
 
     async def _pipeline(
-        self, run_id: str, work: ModelWork, edit: bool, stop: threading.Event
+        self,
+        run_id: str,
+        work: ModelWork,
+        edit: bool,
+        stop: threading.Event,
+        instruction: str = "",
     ) -> None:
+        """Runs the model work, then the stages. When something raises, tells the user what got
+        done and what went wrong (a failed `plan` event with data.attempt) and tries again, up to
+        MAX_ATTEMPTS in all; the last failure becomes the `done` message."""
         emit = self.emitter(run_id, stop)
         run_dir = run_dir_for(run_id)
         rev = _saved_rev(run_dir)
-        try:
-            old = _saved_spec(run_dir) if edit else None
-            spec = await work(emit)
-            rev = spec.rev
-            stages = self._stale_stages(run_id, old, spec, emit)
-            results = await asyncio.to_thread(
-                self.stage_runner, run_id, [*stages, "checks"], spec, emit
-            )
-            failed = [s for s, r in results.items() if not r.ok and not r.skipped]
-            status, message = "passed", "Ready to build"
-            if failed:
-                status, message = (
-                    "failed",
-                    f"Finished with failures: {', '.join(failed)}",
+        before = read_events(run_id)
+        since = before[-1].seq if before else 0
+        old, spec, error, data = None, None, "", {}
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            try:
+                if attempt == 1:
+                    old = _saved_spec(run_dir) if edit else None
+                elif spec is None:  # the model work raised: run the agent again
+                    work = self._retry(run_id, error, instruction)
+                if spec is None:
+                    spec = await work(emit)
+                rev = spec.rev
+                stages = self._stale_stages(run_id, old, spec, emit)
+                results = await asyncio.to_thread(
+                    self.stage_runner, run_id, [*stages, "checks"], spec, emit
                 )
-        except (asyncio.CancelledError, RunCancelled):
-            status, message = "failed", CANCELLED
-        except Exception as exc:
-            log.exception("run %s failed", run_id)
-            status, message = "failed", f"Run stopped: {exc!r}"
+                failed = [s for s, r in results.items() if not r.ok and not r.skipped]
+                status, message = "passed", "Ready to build"
+                if failed:
+                    status, message = (
+                        "failed",
+                        f"Finished with failures: {', '.join(failed)}",
+                    )
+                break
+            except (asyncio.CancelledError, RunCancelled):
+                status, message = "failed", CANCELLED
+                break
+            except NoSpec:  # the agent's reply says why: wait for the user's
+                status, message = "failed", "Waiting for your reply"
+                break
+            except Exception as exc:
+                log.exception("run %s failed (attempt %d)", run_id, attempt)
+                error = _error_text(exc)
+                note = _stopped_note(run_id, since, error)
+                status = "failed"
+                message = (
+                    f"{note} I tried {MAX_ATTEMPTS} times and couldn't get past it. "
+                    "Send me a message to try again, or change the request."
+                )
+                if attempt == MAX_ATTEMPTS:
+                    data = {"chat": "agent"}  # the user reads why it gave up
+                    break
+                try:
+                    emit(
+                        Event(
+                            run_id=run_id,
+                            stage="plan",
+                            status="failed",
+                            message=f"{note} Trying again ({attempt + 1} of {MAX_ATTEMPTS})…",
+                            spec_rev=_saved_rev(run_dir, rev),
+                            data={"attempt": attempt, "chat": "agent"},
+                        )
+                    )
+                except RunCancelled:
+                    status, message = "failed", CANCELLED
+                    break
         self._emit(  # not `emit`: after a cancel only this event gets through
             run_id,
             Event(
@@ -181,8 +253,22 @@ class RunEngine:
                 status=status,
                 message=message,
                 spec_rev=rev,
+                data=data,
             ),
         )
+
+    def _retry(self, run_id: str, error: str, instruction: str) -> ModelWork:
+        """runner.run() again: the agent's thread still holds what it did, and run() accepts the
+        spec it saved (an edit's retry too, since an edit may have saved its new rev already)."""
+        edit = f"Edit request: {instruction}\n\n" if instruction else ""
+        note = (
+            f"{edit}The last attempt stopped on an error: {error}\n"
+            "Continue from where you left off and finish the device; work around what caused "
+            "the error."
+        )
+        # the thread already has the uploads: don't preprocess them again
+        request = _retry_request(run_id, note).model_copy(update={"files": []})
+        return lambda emit: self.runner.run(request, emit)
 
     def _stale_stages(
         self, run_id: str, old: dict | None, spec: ProjectSpec, emit: Emit
@@ -318,6 +404,39 @@ def _saved_spec(run_dir: Path) -> dict | None:
     """The saved spec as JSON; None if the run never saved one (an edit then reruns everything)."""
     path = run_dir / "spec.json"
     return json.loads(path.read_text()) if path.is_file() else None
+
+
+def _error_text(exc: Exception) -> str:
+    text = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+    return text[:300]
+
+
+def _stopped_note(run_id: str, since: int, error: str) -> str:
+    """The agent's reply when its pipeline stops: what it got done after seq `since`, then the error."""
+    events = read_events(run_id, since)
+    todos = next((e.data["todos"] for e in reversed(events) if e.data.get("todos")), [])
+    did = [t["content"] for t in todos if t.get("status") == "completed"]
+    passed = sorted(
+        {e.stage for e in events if e.status == "passed" and e.stage in ORDER},
+        key=ORDER.index,
+    )
+    so_far = " ".join(
+        [
+            *([f"I got through: {'; '.join(did)}."] if did else []),
+            *([f"Passed so far: {', '.join(passed)}."] if passed else []),
+        ]
+    )
+    return f"{so_far or 'I had not finished a step yet.'} Then I stopped on an error: {error}."
+
+
+def _retry_request(run_id: str, instruction: str) -> RunRequest:
+    try:
+        path = run_dir_for(run_id) / "request.json"
+        original = RunRequest.model_validate_json(path.read_text())
+    except (OSError, ValueError):  # a run from before request.json was saved
+        original = RunRequest(run_id=run_id, prompt="")
+    prompt = f"{original.prompt}\n\n{instruction}".strip()
+    return original.model_copy(update={"prompt": prompt})
 
 
 def _saved_rev(run_dir: Path, default: int = 0) -> int:

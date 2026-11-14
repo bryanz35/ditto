@@ -2,13 +2,17 @@
 
 The agent fills `ProjectSpec`; every other artifact is generated from it by code. `Placement` and
 `Layout` are computed by the layout tool, never by the model.
+
+A project is a printed object, an electronics device, or both. A print-only project (a book holder)
+has no `mcu`, `firmware`, `parts` or `connections`, and its shape comes from `enclosure.code`.
 """
 
 from typing import Annotated, Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from backend.contracts.base import I2cAddress, Model, Wall
+from backend.contracts.parts import CUSTOM_PREFIX, BoardDef, PartDef
 
 Ref = Annotated[str, Field(pattern=r"^[a-z][a-z0-9]*$")]
 """Part reference such as "oled1": lowercase letters and digits only, because it becomes part of the
@@ -60,13 +64,27 @@ class Connection(Model):
 
 
 class EnclosureSpec(Model):
-    """Openings come from the parts' library features (and a cable hole per external part)."""
+    """Openings come from the parts' library features (and a cable hole per external part).
 
-    template: Literal["box_lid"] = "box_lid"
+    template "box_lid": a plain case from the fixed template. template "custom": `code` is build123d
+    source written by the model (backend/tools/custom_model.py says what it must define); code runs
+    it in a subprocess and checks every printed part."""
+
+    template: Literal["box_lid", "custom"] = "box_lid"
     wall_mm: float = Field(2.0, ge=1.2, le=4.0)
     clearance_mm: float = Field(1.0, ge=0)
     extras: list[str] = []
     """Free-form CAD requests, e.g. "belt clip"."""
+    code: str | None = None
+    """build123d source for template "custom"; None for "box_lid"."""
+
+    @model_validator(mode="after")
+    def _code_matches_template(self):
+        if (self.template == "custom") != bool(self.code):
+            raise ValueError(
+                'template "custom" needs `code` (build123d source), and "box_lid" takes none'
+            )
+        return self
 
 
 class FirmwareSpec(Model):
@@ -86,11 +104,53 @@ class ProjectSpec(Model):
     assumptions: list[str] = []
     """Stated when we didn't ask."""
     user: UserContext = UserContext()
-    mcu: PartInstance
-    parts: list[PartInstance]
-    connections: list[Connection]
-    firmware: FirmwareSpec
+    mcu: PartInstance | None = None
+    """The board; None for a print-only project (no electronics)."""
+    parts: list[PartInstance] = []
+    connections: list[Connection] = []
+    firmware: FirmwareSpec | None = None
+    """Set exactly when `mcu` is."""
     enclosure: EnclosureSpec = EnclosureSpec()
+    custom_parts: list[PartDef] = []
+    """Parts the library doesn't have, defined by the agent from a listing or datasheet (`source`).
+    Ids start with "x_"; never a board; never "measured". Unverified: the UI says so, and the
+    validator warns for each one used."""
+
+    @model_validator(mode="after")
+    def _electronics_go_together(self):
+        if (self.mcu is None) != (self.firmware is None):
+            raise ValueError(
+                "mcu and firmware go together: set both for a device with electronics, or "
+                "neither (null) for a print-only object"
+            )
+        if self.mcu is None and (self.parts or self.connections):
+            raise ValueError(
+                "parts and connections need an mcu; a print-only object has neither"
+            )
+        for p in self.custom_parts:
+            if not p.id.startswith(CUSTOM_PREFIX):
+                raise ValueError(
+                    f"custom part id {p.id!r} must start with {CUSTOM_PREFIX!r}, e.g. "
+                    f"{CUSTOM_PREFIX}{p.id}"
+                )
+            if p.category == "mcu" or isinstance(p, BoardDef):
+                raise ValueError(
+                    f"custom part {p.id!r} is a board; boards come from the library only"
+                )
+            if p.dims_source == "measured":
+                raise ValueError(
+                    f'custom part {p.id!r}: nobody measured it, so dims_source is "listing" '
+                    'or "datasheet"'
+                )
+        ids = [p.id for p in self.custom_parts]
+        if len(ids) != len(set(ids)):
+            raise ValueError(f"custom_parts ids repeat: {sorted(ids)}")
+        return self
+
+    @property
+    def instances(self) -> list[PartInstance]:
+        """Every part instance, the board first; empty for a print-only project."""
+        return [self.mcu, *self.parts] if self.mcu else []
 
 
 class Placement(Model):

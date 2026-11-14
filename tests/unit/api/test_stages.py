@@ -8,7 +8,7 @@ import pytest
 
 from backend.contracts.parts import load_library
 from backend.contracts.results import ToolError, ToolResult, not_implemented
-from backend.contracts.spec import ProjectSpec
+from backend.contracts.spec import EnclosureSpec, ProjectSpec
 from backend.runtime.stages import PIPELINE, run_stages
 from backend.tools.fakes import fake_toolbox
 from tests.unit.api.conftest import MODE_V
@@ -91,6 +91,83 @@ def test_a_crashing_tool_fails_its_stage_only(run):
         final["bom"].errors[0].code == "exception" and "kaboom" in final["bom"].message
     )
     assert final["checks"].status == "passed"
+
+
+def test_print_only_project_runs_only_validate_enclosure_and_checks(runs_dir):
+    book = ProjectSpec.model_validate_json(
+        (FIXTURES / "specs" / "book_holder.json").read_text()
+    )
+    built = []
+
+    def custom(spec, layout, lib, out_dir):
+        built.append(layout)
+        return fake_toolbox().build_custom_model(spec, layout, lib, out_dir)
+
+    events = []
+    run_stages(
+        "r1",
+        PIPELINE,
+        book,
+        events.append,
+        toolbox=replace(fake_toolbox(), build_custom_model=custom),
+        lib=load_library(),
+        hardware=MODE_V,
+    )
+    final = {e.stage: e for e in events if e.status != "running"}
+    assert {s for s, e in final.items() if e.status == "passed"} == {
+        "validate",
+        "enclosure",
+        "checks",
+    }
+    assert all(
+        "no electronics" in e.message for e in final.values() if e.status == "skipped"
+    )
+    assert built == [None]  # no layout for a print-only project
+
+
+def test_device_with_a_custom_body_builds_it_around_the_layout(run):
+    layouts = []
+
+    def custom(spec, layout, lib, out_dir):
+        layouts.append(layout)
+        return fake_toolbox().build_custom_model(spec, layout, lib, out_dir)
+
+    spec = SPEC.model_copy(
+        update={"enclosure": EnclosureSpec(template="custom", code="body = BAY")}
+    )
+    events = []
+    results = run_stages(
+        "r1",
+        ["layout", "enclosure"],
+        spec,
+        events.append,
+        toolbox=replace(fake_toolbox(), build_custom_model=custom),
+        lib=load_library(),
+        hardware=MODE_V,
+    )
+    assert results["enclosure"].ok and len(layouts) == 1 and layouts[0] is not None
+
+
+def test_tools_see_the_specs_custom_parts(runs_dir):
+    from tests.unit.validate.test_validate_spec import with_touch
+
+    spec = ProjectSpec.model_validate(with_touch())
+    seen = []
+
+    def validate(spec, lib):
+        seen.append("x_ttp223_touch" in lib)
+        return ToolResult(ok=True)
+
+    run_stages(
+        "r1",
+        ["validate"],
+        spec,
+        lambda e: None,
+        toolbox=replace(fake_toolbox(), validate_spec=validate),
+        lib=load_library(),
+        hardware=MODE_V,
+    )
+    assert seen == [True]
 
 
 def test_one_stage_of_one_run_never_runs_twice_at_once(runs_dir):

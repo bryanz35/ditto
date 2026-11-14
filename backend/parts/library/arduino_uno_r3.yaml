@@ -1,0 +1,90 @@
+# Arduino Uno Rev3 (ATmega328P). Pins, 5 V logic, D0/D1 on the USB serial, I2C on A4/A5 and SPI on
+# D11-D13: Arduino's Uno Rev3 datasheet (source). Signal pins use the silkscreen names D0-D13, A0-A5.
+# Size 68.6 x 53.4 mm and the four 3.2 mm holes (550/600/2600/2600 x 100/2000/300/1400 mil from the
+#   lower-left corner, USB-B on the left edge): the Uno Rev3 dimensional drawing on the same page.
+#   h is an estimate: ~1.5 solder leads + 1.6 PCB + 11 USB-B jack. The USB-B jack position (y 32-44)
+#   and its z are estimates too. Measure at H1.
+# power_budget_ma: USB gives 500 mA through the polyfuse, minus the board's own ~50 mA; the 3V3 pin
+#   alone gives only 50 mA (shortcut: the validator counts every part against one budget).
+# Wokwi pin names: https://docs.wokwi.com/parts/wokwi-arduino-uno (Serial needs no wiring there).
+id: arduino_uno_r3
+name: Arduino Uno Rev3 (ATmega328P)
+category: mcu
+logic_voltage: 5.0
+supply_voltage: [5.0]  # USB-B, or 7-12 V on the barrel jack
+max_current_ma: 50
+pio_board: uno
+pio_platform: atmelavr
+has_wifi: false
+wokwi_board: wokwi-arduino-uno
+pins:
+  - {name: 5V, type: power, voltage: 5.0}
+  - {name: 3V3, type: power, voltage: 3.3}
+  - {name: GND, type: gnd}
+  - {name: D0, type: gpio}
+  - {name: D1, type: gpio}
+  - {name: D2, type: gpio}
+  - {name: D3, type: gpio}
+  - {name: D4, type: gpio}
+  - {name: D5, type: gpio}
+  - {name: D6, type: gpio}
+  - {name: D7, type: gpio}
+  - {name: D8, type: gpio}
+  - {name: D9, type: gpio}
+  - {name: D10, type: gpio}
+  - {name: D11, type: gpio}
+  - {name: D12, type: gpio}
+  - {name: D13, type: gpio}
+  - {name: A0, type: gpio}
+  - {name: A1, type: gpio}
+  - {name: A2, type: gpio}
+  - {name: A3, type: gpio}
+  - {name: A4, type: gpio}
+  - {name: A5, type: gpio}
+reserved_pins: [D0, D1]  # hardware serial to the USB chip (Serial)
+input_only_pins: []
+strapping_pins: []
+adc1_pins: [A0, A1, A2, A3, A4, A5]
+adc2_pins: []
+bus_pins:
+  i2c_sda: [A4]
+  i2c_scl: [A5]
+  spi_mosi: [D11]
+  spi_miso: [D12]
+  spi_sck: [D13]
+power_budget_ma: 450
+board_mm: {l: 68.6, w: 53.4, h: 14.0}
+provisional: true
+dims_source: datasheet
+mount_holes:
+  - {x_mm: 13.97, y_mm: 2.54, d_mm: 3.2}
+  - {x_mm: 15.24, y_mm: 50.8, d_mm: 3.2}
+  - {x_mm: 66.04, y_mm: 7.62, d_mm: 3.2}
+  - {x_mm: 66.04, y_mm: 35.56, d_mm: 3.2}
+features:
+  - {kind: usb, face: left, offset_mm: [38.1, 8.6], size_mm: [13.0, 12.0]}
+pio_lib_deps: []
+snippet: null
+mpn: A000066
+vendor_url: https://store.arduino.cc/products/arduino-uno-rev3
+manual_price_usd: 27.6
+owned_alternatives: []
+wokwi_type: null  # boards use wokwi_board
+wokwi_pins:
+  3V3: "3.3V"
+  GND: GND.1
+  D0: "0"
+  D1: "1"
+  D2: "2"
+  D3: "3"
+  D4: "4"
+  D5: "5"
+  D6: "6"
+  D7: "7"
+  D8: "8"
+  D9: "9"
+  D10: "10"
+  D11: "11"
+  D12: "12"
+  D13: "13"
+source: https://docs.arduino.cc/resources/datasheets/A000066-datasheet.pdf

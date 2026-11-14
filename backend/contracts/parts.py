@@ -1,6 +1,7 @@
 """Parts library: one hand-checked YAML file per part in backend/parts/library/ (docs/PROJECT_PLAN.md,
 "Parts library"). Board facts live in the board's YAML, never in code."""
 
+import re
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -11,6 +12,8 @@ from backend.contracts.base import Face, I2cAddress, Model
 
 PARTS_DIR = Path(__file__).resolve().parents[1] / "parts"
 LIBRARY_DIR = PARTS_DIR / "library"
+CUSTOM_PREFIX = "x_"
+"""Ids of parts a spec defines itself (ProjectSpec.custom_parts); no library file uses it."""
 
 PinType = Literal[
     "power",
@@ -136,11 +139,31 @@ class PartDef(Model):
         return self
 
 
+_NUMBERED_PIN = re.compile(r"^(?:GPIO|GP|D)(\d+)$")
+_ANALOG_PIN = re.compile(r"^A\d+$")
+
+
+def pin_code(mcu_pin: str) -> str | None:
+    """What firmware writes for a board signal pin: the number in GPIO21, GP15 or D2 ("21", "15",
+    "2"), an analog pin's own name (every Arduino core defines A0, A1...), None for rails and
+    anything else. Board YAMLs name pins so this holds."""
+    if m := _NUMBERED_PIN.match(mcu_pin):
+        return m[1]
+    return mcu_pin if _ANALOG_PIN.match(mcu_pin) else None
+
+
 class BoardDef(PartDef):
-    """A microcontroller board: load_library uses this model for files with category "mcu"."""
+    """A microcontroller board: load_library uses this model for files with category "mcu".
+    Signal pins are named GPIO<n>, GP<n>, D<n> or A<n> (see pin_code)."""
 
     pio_board: str
     """PlatformIO board id, e.g. "esp32dev"."""
+    pio_platform: str = "espressif32"
+    """PlatformIO platform, e.g. "atmelavr", "raspberrypi"."""
+    has_wifi: bool = True
+    bus_pins: dict[PinType, list[str]] = {}
+    """Bus lines this board has only on fixed pins (Uno: i2c_sda on A4); empty when any GPIO can
+    carry them (ESP32). Firmware then calls Wire.begin() / SPI.begin() without pin arguments."""
     wokwi_board: str | None = None
     reserved_pins: list[str]
     """Never usable (flash, USB serial)."""
@@ -168,12 +191,30 @@ class BoardDef(PartDef):
                 raise ValueError(
                     f"{field} names pins the board doesn't have: {sorted(unknown)}"
                 )
+        unknown = {p for pins in self.bus_pins.values() for p in pins} - names
+        if unknown:
+            raise ValueError(
+                f"bus_pins names pins the board doesn't have: {sorted(unknown)}"
+            )
+        signals = {p.name for p in self.pins if p.type not in ("power", "gnd")}
+        unnamed = sorted(n for n in signals if pin_code(n) is None)
+        if unnamed:
+            raise ValueError(
+                f"signal pins must be named GPIO<n>, GP<n>, D<n> or A<n>: {unnamed}"
+            )
         return self
 
 
 class PartLibrary:
     def __init__(self, parts: dict[str, PartDef]):
         self.parts = parts
+
+    def with_parts(self, parts: list["PartDef"]) -> "PartLibrary":
+        """This library plus a spec's custom_parts (ids start with CUSTOM_PREFIX, so none replaces
+        a library part)."""
+        return (
+            PartLibrary({**self.parts, **{p.id: p for p in parts}}) if parts else self
+        )
 
     def __contains__(self, part_id: object) -> bool:
         return part_id in self.parts
@@ -201,5 +242,9 @@ def load_library(directory: Path = LIBRARY_DIR) -> PartLibrary:
             raise ValueError(f"{path.name}: {e}") from e
         if part.id != path.stem:
             raise ValueError(f"{path.name}: id {part.id!r} doesn't match the file name")
+        if part.id.startswith(CUSTOM_PREFIX):
+            raise ValueError(
+                f"{path.name}: ids starting {CUSTOM_PREFIX!r} are for custom parts"
+            )
         parts[part.id] = part
     return PartLibrary(parts)

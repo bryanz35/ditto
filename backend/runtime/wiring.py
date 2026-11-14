@@ -15,7 +15,7 @@ from backend.contracts.spec import ProjectSpec
 
 
 def build_wiring(spec: ProjectSpec, lib: PartLibrary, out_dir: Path) -> ToolResult:
-    parts = {p.ref: p for p in [spec.mcu, *spec.parts]}
+    parts = {p.ref: p for p in spec.instances}
     rows, errors = [], []
     for i, c in enumerate(spec.connections):
         field = f"connections[{i}]"

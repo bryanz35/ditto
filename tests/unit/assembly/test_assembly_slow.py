@@ -40,7 +40,7 @@ def test_plant_monitor_real_pipeline_loads_in_gltfloader(spec, lib, tmp_path):
     meshes = {m["name"]: m["userData"] for m in json.loads(out.stdout)}
     refs = {p.ref for p in layout.placements}
     assert sorted(meshes) == sorted(refs | {"base", "lid"})
-    insts = {p.ref: p for p in [spec.mcu, *spec.parts]}
+    insts = {p.ref: p for p in spec.instances}
     for ref in refs:
         part = lib.get(insts[ref].part_id)
         assert meshes[ref]["unmeasured"] is (part.dims_source != "measured")

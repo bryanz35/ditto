@@ -7,7 +7,10 @@ answer: "plan" for clarifying questions, "bom" for approving an over-budget part
 `data` conventions (keys are optional):
 - "todos": list[Todo], the agent's current plan (on "plan" events).
 - "question": Question, on events with status "waiting".
-- "attempt": int, 1-based retry counter on validate/firmware/enclosure stages.
+- "attempt": int, 1-based retry counter on validate/firmware/enclosure stages (and on the engine's
+  "stopped, trying again" note on "plan").
+- "chat": "user" | "agent", an event whose message is a turn of the project's conversation: the
+  user's follow-up message (the engine records it) or the agent's reply.
 """
 
 from typing import Any, Literal, get_args

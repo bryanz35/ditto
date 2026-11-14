@@ -1,0 +1,88 @@
+# Arduino Nano (ATmega328P, the classic one, not Nano Every/33/ESP32). Pins, 5 V logic, D0/D1 on the
+# USB serial, I2C on A4/A5, SPI on D11-D13, A6/A7 analog input only: Arduino's Nano datasheet (source).
+# Size 45 x 18 mm (datasheet). h is an estimate: ~8.5 male headers below + 1.6 PCB + ~4 mini-USB, and the
+#   mini-USB position on the short edge is an estimate. Holes are left out: they're 1.8 mm, too small
+#   for the case's standoffs. Measure at H1.
+# A6 and A7 can't do digital I/O either; listing them input-only stops outputs, not digitalRead.
+# pio_board nanoatmega328new: Nanos sold since 2018 have the new bootloader; clones with the old
+#   one need nanoatmega328.
+# Wokwi pin names: https://docs.wokwi.com/parts/wokwi-arduino-nano
+id: arduino_nano
+name: Arduino Nano (ATmega328P)
+category: mcu
+logic_voltage: 5.0
+supply_voltage: [5.0]  # mini-USB or the 5V pin
+max_current_ma: 50
+pio_board: nanoatmega328new
+pio_platform: atmelavr
+has_wifi: false
+wokwi_board: wokwi-arduino-nano
+pins:
+  - {name: 5V, type: power, voltage: 5.0}
+  - {name: 3V3, type: power, voltage: 3.3}
+  - {name: GND, type: gnd}
+  - {name: D0, type: gpio}
+  - {name: D1, type: gpio}
+  - {name: D2, type: gpio}
+  - {name: D3, type: gpio}
+  - {name: D4, type: gpio}
+  - {name: D5, type: gpio}
+  - {name: D6, type: gpio}
+  - {name: D7, type: gpio}
+  - {name: D8, type: gpio}
+  - {name: D9, type: gpio}
+  - {name: D10, type: gpio}
+  - {name: D11, type: gpio}
+  - {name: D12, type: gpio}
+  - {name: D13, type: gpio}
+  - {name: A0, type: gpio}
+  - {name: A1, type: gpio}
+  - {name: A2, type: gpio}
+  - {name: A3, type: gpio}
+  - {name: A4, type: gpio}
+  - {name: A5, type: gpio}
+  - {name: A6, type: gpio}
+  - {name: A7, type: gpio}
+reserved_pins: [D0, D1]  # hardware serial to the USB chip (Serial)
+input_only_pins: [A6, A7]
+strapping_pins: []
+adc1_pins: [A0, A1, A2, A3, A4, A5, A6, A7]
+adc2_pins: []
+bus_pins:
+  i2c_sda: [A4]
+  i2c_scl: [A5]
+  spi_mosi: [D11]
+  spi_miso: [D12]
+  spi_sck: [D13]
+power_budget_ma: 400  # USB 500 mA through the diode, minus the board; 3V3 alone is ~50 mA
+board_mm: {l: 45.0, w: 18.0, h: 14.0}
+provisional: true
+dims_source: datasheet
+mount_holes: []
+features:
+  - {kind: usb, face: left, offset_mm: [9.0, 12.0], size_mm: [10.0, 7.0]}
+pio_lib_deps: []
+snippet: null
+mpn: A000005
+vendor_url: https://store.arduino.cc/products/arduino-nano
+manual_price_usd: 24.9
+owned_alternatives: []
+wokwi_type: null  # boards use wokwi_board
+wokwi_pins:
+  3V3: "3.3V"
+  GND: GND.1
+  D0: "0"
+  D1: "1"
+  D2: "2"
+  D3: "3"
+  D4: "4"
+  D5: "5"
+  D6: "6"
+  D7: "7"
+  D8: "8"
+  D9: "9"
+  D10: "10"
+  D11: "11"
+  D12: "12"
+  D13: "13"
+source: https://docs.arduino.cc/resources/datasheets/A000005-datasheet.pdf

@@ -33,8 +33,9 @@ SUBAGENTS = {
     "parts-and-pins": (
         "parts",
         (
-            "Chooses library parts and pins and saves the validated spec. Use first, and for any "
-            "change to parts or pins."
+            "Writes and saves the validated project spec: requirements, and for a device with "
+            "electronics its library parts and pins (none for a print-only object). Use first, "
+            "and for any change to parts or pins."
         ),
         ["search_parts", "write_spec", "request_change"],
     ),
@@ -49,10 +50,11 @@ SUBAGENTS = {
     "enclosure": (
         "enclosure",
         (
-            "Chooses enclosure parameters and builds and checks the printable case. Use after the "
-            "spec is saved and for wall or clearance changes."
+            "Designs the printed parts and builds and checks them: a plain case for the "
+            "electronics, a custom body around it, or a print-only object written as build123d "
+            "code. Use after the spec is saved and for any shape, wall or size change."
         ),
-        ["set_enclosure", "request_change"],
+        ["set_enclosure", "write_model", "request_change"],
     ),
 }
 ORCHESTRATOR_TOOLS = ["ask_user", "price_bom"]

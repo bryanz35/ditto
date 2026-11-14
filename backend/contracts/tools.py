@@ -32,13 +32,23 @@ class BuildEnclosure(Protocol):
     ) -> ToolResult: ...
 
 
+class BuildCustomModel(Protocol):
+    """Builds spec.enclosure.code (template "custom"). artifacts: <part>_stl, <part>_step for every
+    printed part (base and lid for a device), model_py, manifest. layout: None when print-only."""
+
+    def __call__(
+        self, spec: ProjectSpec, layout: Layout | None, lib: PartLibrary, out_dir: Path
+    ) -> ToolResult: ...
+
+
 class CheckEnclosure(Protocol):
-    """T11. Reads build_enclosure's STLs. data: watertight, fits_printer"""
+    """T11. Reads the STLs of every part in cad/manifest.json's prints. layout: None when
+    print-only. data: watertight, fits_printer"""
 
     def __call__(
         self,
         spec: ProjectSpec,
-        layout: Layout,
+        layout: Layout | None,
         lib: PartLibrary,
         out_dir: Path,
         printer_id: str,
@@ -111,6 +121,7 @@ class ToolBox:
     validate_spec: ValidateSpec
     compute_layout: ComputeLayout
     build_enclosure: BuildEnclosure
+    build_custom_model: BuildCustomModel
     check_enclosure: CheckEnclosure
     build_assembly: BuildAssembly
     write_firmware_project: WriteFirmwareProject

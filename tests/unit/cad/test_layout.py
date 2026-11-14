@@ -42,7 +42,7 @@ def test_parts_inside_cavity_without_overlaps(case, spec, lib, tmp_path):
     lib, spec = _cases(lib, spec)[case]
     layout = _layout(spec, lib, tmp_path)
     L, W, H = layout.cavity_mm
-    refs = {p.ref: p.part_id for p in [spec.mcu, *spec.parts]}
+    refs = {p.ref: p.part_id for p in spec.instances}
     posts = [
         (x, y, x + CORNER_POST_MM, y + CORNER_POST_MM)
         for x in (0, L - CORNER_POST_MM)
@@ -66,7 +66,7 @@ def test_wall_facing_features_touch_their_wall(case, spec, lib, tmp_path):
     lib, spec = _cases(lib, spec)[case]
     layout = _layout(spec, lib, tmp_path)
     L, W, _ = layout.cavity_mm
-    refs = {p.ref: p.part_id for p in [spec.mcu, *spec.parts]}
+    refs = {p.ref: p.part_id for p in spec.instances}
     walls = set()
     for p in layout.placements:
         part = lib.get(refs[p.ref])

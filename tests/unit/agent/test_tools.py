@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 from backend.agent.tools import RunContext, make_tools
 from backend.contracts.parts import load_library
 from backend.contracts.results import ToolError, ToolResult
@@ -88,3 +91,35 @@ def test_retry_limit_leaves_main_cpp_alone(events):
 
     assert reply.startswith("Retry limit reached")
     assert main.read_text() == "// try 3"
+
+
+BOOK = (
+    Path(__file__).resolve().parents[3] / "fixtures/specs/book_holder.json"
+).read_text()
+
+
+def test_print_only_project_gets_its_shape_from_write_model(events):
+    stages = FakeStageRunner()
+    ctx = _ctx(stages, events)
+    tools = make_tools(ctx)
+    draft = json.loads(BOOK)
+    draft["enclosure"] = {}  # the parts agent leaves the shape to the enclosure agent
+    assert (
+        tools["write_spec"]
+        .invoke({"spec_json": json.dumps(draft)})
+        .startswith("PASSED")
+    )
+
+    assert "no electronics" in tools["set_enclosure"].invoke({})
+    assert "no electronics" in tools["write_firmware"].invoke({"main_cpp": "x"})
+    assert "no electronics" in tools["price_bom"].invoke({})
+
+    code = json.loads(BOOK)["enclosure"]["code"]
+    assert tools["write_model"].invoke({"code": code}).startswith("PASSED")
+    spec = ctx.load_spec()
+    assert (spec.rev, spec.enclosure.template, spec.enclosure.code) == (
+        2,
+        "custom",
+        code,
+    )
+    assert stages.calls == ["validate", "enclosure"]  # no layout without electronics

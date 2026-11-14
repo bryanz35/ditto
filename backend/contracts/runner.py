@@ -19,7 +19,8 @@ Run directory (runs/<id>/, under $P2D_RUNS_DIR):
     events.jsonl     every Event, one per line (run engine)
     manifest.json    RunManifest (run engine)
     input/           uploads and preprocess_input output
-    cad/             layout.json, base/lid .stl/.step, manifest.json (EnclosureManifest), assembly.glb
+    cad/             layout.json, base/lid .stl/.step, manifest.json (EnclosureManifest), assembly.glb;
+                     for template "custom" also model.py and one .stl/.step per printed part
     firmware/        PlatformIO project: platformio.ini, include/pins.h, src/main.cpp
     sim/             diagram.json, wokwi.toml, serial.log, screenshot.png
     wiring.json      Wiring
@@ -107,15 +108,22 @@ class RunSummary(Model):
     spec_rev: int
 
 
+class NoSpec(Exception):
+    """Raised by Runner.run when the agent ended without a validated spec on purpose (it asked
+    something or said why in a "chat" event): the engine doesn't retry, the user's reply restarts it."""
+
+
 class Runner(Protocol):
     async def run(self, request: RunRequest, emit: Emit) -> ProjectSpec:
         """Model work for a new run: write a validated spec.json and firmware/src/main.cpp.
-        Doesn't emit "done"; the engine finishes the pipeline."""
+        Doesn't emit "done"; the engine finishes the pipeline. Raises NoSpec when the agent ends
+        without a spec."""
         ...
 
     async def edit(self, run_id: str, request: EditRequest, emit: Emit) -> ProjectSpec:
         """Patch the spec (rev + 1, saved) in the same conversation thread as the run, and rewrite
-        main.cpp if firmware behaviours or parts changed. Doesn't run the other stages."""
+        main.cpp if firmware behaviours or parts changed. Doesn't run the other stages. Returns the
+        unchanged spec when the agent only answered, or couldn't make the change (its reply says)."""
         ...
 
     async def answer(self, run_id: str, request: AnswerRequest) -> None:

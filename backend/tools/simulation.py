@@ -98,6 +98,8 @@ def build_simulation(
     }
 
     out_dir.mkdir(parents=True, exist_ok=True)
+    # Wokwi runs an ESP32's flash image; AVR and RP2040 boards run straight from the ELF
+    firmware = "firmware.bin" if board.pio_platform == "espressif32" else "firmware.elf"
     build = Path(
         os.path.relpath(project_dir / ".pio" / "build" / board.pio_board, out_dir)
     ).as_posix()
@@ -108,7 +110,7 @@ def build_simulation(
         ),
         "wokwi_toml": (
             out_dir / "wokwi.toml",
-            f'[wokwi]\nversion = 1\nfirmware = "{build}/firmware.bin"\n'
+            f'[wokwi]\nversion = 1\nfirmware = "{build}/{firmware}"\n'
             + f'elf = "{build}/firmware.elf"\n',
         ),
     }

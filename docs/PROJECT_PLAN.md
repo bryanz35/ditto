@@ -31,9 +31,10 @@ reason); a checks panel visible on every run; one assistive-device example promp
 
 | In scope | Out of scope |
 | --- | --- |
-| ESP32 boards plus breakout modules, wired with jumpers or perfboard | Custom PCB fabrication (stretch: tscircuit preview, render only) |
-| A curated library of 25–40 parts with verified pinouts | Choosing from every part on the market |
-| Template enclosure (box and lid), free-form CAD code for small extras | Moving mechanisms, multi-part assemblies, injection molding |
+| Print-only objects (stands, holders, brackets) with no electronics | Moving mechanisms, non-printed fabrication |
+| ESP32, Arduino Uno/Nano and Raspberry Pi Pico boards plus breakout modules, wired with jumpers or perfboard | Custom PCB fabrication (stretch: tscircuit preview, render only) |
+| A curated library of 25–40 parts with verified pinouts, plus agent-defined parts (`custom_parts`) marked unverified | Verifying parts the library doesn't have |
+| Template enclosure (box and lid), or model-written build123d code for any printed shape, run in a subprocess and checked (watertight, one piece, fits the printer, flat on the bed) | Injection molding; electronics outside one box-shaped bay |
 | Arduino-framework firmware built with PlatformIO | ESP-IDF, RTOS work, over-the-air updates |
 | BOM with cached and live prices | Placing orders |
 | Input as text, image or sketch, and video (keyframes plus transcript) | True video-to-CAD |
@@ -298,7 +299,7 @@ Starter list:
 
 | Category | Parts |
 | --- | --- |
-| Microcontrollers | ESP32-DevKitC, Seeed XIAO ESP32S3 Sense (camera) |
+| Microcontrollers | ESP32-DevKitC, Seeed XIAO ESP32S3 Sense (camera), Arduino Uno Rev3, Arduino Nano, Raspberry Pi Pico |
 | Sensors | BME280, capacitive soil moisture, HC-SR04 ultrasonic, PIR motion, DS18B20, INMP441 I2S microphone |
 | Displays and light | SSD1306 OLED, WS2812B LED ring or strip |
 | Input | Tactile button, arcade button, KY-040 rotary encoder |

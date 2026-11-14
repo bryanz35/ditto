@@ -168,3 +168,17 @@ def test_plant_monitor_reaches_ready_in_wokwi(spec, lib, tmp_path):
     assert result.ok, result.errors
     assert "P2D_READY" in Path(result.artifacts["serial_log"]).read_text()
     assert Path(result.artifacts["screenshot"]).stat().st_size > 0
+
+
+def test_uno_diagram_uses_wokwi_pin_names_and_the_elf(lib, tmp_path):
+    uno = ProjectSpec.model_validate_json(
+        (ROOT / "fixtures" / "specs" / "uno_counter.json").read_text()
+    )
+    result = build_simulation(uno, lib, tmp_path / "firmware", tmp_path / "sim")
+    assert result.ok, result.errors
+    diagram = json.loads((tmp_path / "sim" / "diagram.json").read_text())
+    assert diagram["parts"][0]["type"] == "wokwi-arduino-uno"
+    ends = {c[1] for c in diagram["connections"]}
+    assert {"uno:8", "uno:A4", "uno:A5", "uno:GND.1", "uno:5V"} <= ends
+    toml = (tmp_path / "sim" / "wokwi.toml").read_text()
+    assert 'firmware = "../firmware/.pio/build/uno/firmware.elf"' in toml

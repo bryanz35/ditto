@@ -153,7 +153,7 @@ def test_write_firmware_project_and_lint(tools, lib, spec, tmp_path):
     assert re.search(
         rf"^board\s*=\s*{re.escape(board.pio_board)}\s*$", ini, re.MULTILINE
     ), ini
-    for p in [spec.mcu, *spec.parts]:
+    for p in spec.instances:
         for dep in lib.get(p.part_id).pio_lib_deps:
             assert dep in ini, f"{dep} ({p.ref}) missing from platformio.ini"
     lint = tools.lint_firmware(tmp_path)

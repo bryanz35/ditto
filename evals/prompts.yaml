@@ -9,5 +9,8 @@
     A pill reminder for my grandmother, who can't read small text: twice a day it beeps loudly
     until she presses a big button to confirm she took her pills. Budget $25.
   user: {budget_usd: 25.0}
+- id: book_holder  # print-only: no electronics, a custom shape
+  prompt: I want to make a 3d printed book holder
+  user: {}
 - id: makerspace
   prompt: ""  # from the makerspace interview (H3)

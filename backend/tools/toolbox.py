@@ -7,6 +7,7 @@ from backend.runtime.wiring import build_wiring
 from backend.tools.build_enclosure import build_enclosure
 from backend.tools.check_enclosure import check_enclosure
 from backend.tools.cross_checks import cross_checks
+from backend.tools.custom_model import build_custom_model
 from backend.tools.firmware import (
     compile_firmware,
     lint_firmware,
@@ -24,6 +25,7 @@ def real_toolbox() -> ToolBox:
         validate_spec=validate_spec,
         compute_layout=compute_layout,
         build_enclosure=build_enclosure,
+        build_custom_model=build_custom_model,
         check_enclosure=check_enclosure,
         build_assembly=build_assembly,
         write_firmware_project=write_firmware_project,

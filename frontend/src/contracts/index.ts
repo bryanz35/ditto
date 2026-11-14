@@ -38,6 +38,7 @@ export interface ArtifactInfo {
 }
 /**
  * A microcontroller board: load_library uses this model for files with category "mcu".
+ * Signal pins are named GPIO<n>, GP<n>, D<n> or A<n> (see pin_code).
  *
  * This interface was referenced by `P2DContracts`'s JSON-Schema
  * via the `definition` "BoardDef".
@@ -49,9 +50,17 @@ export interface BoardDef {
    */
   adc2_pins: string[];
   board_mm: Dims;
+  /**
+   * Bus lines this board has only on fixed pins (Uno: i2c_sda on A4); empty when any GPIO can
+   * carry them (ESP32). Firmware then calls Wire.begin() / SPI.begin() without pin arguments.
+   */
+  bus_pins: {
+    [k: string]: string[];
+  };
   category: "mcu" | "sensor" | "display" | "light" | "input" | "output" | "power";
   dims_source: "measured" | "datasheet" | "listing";
   features: Feature[];
+  has_wifi: boolean;
   /**
    * Pin that selects the address: unconnected or GND gives i2c_addresses[0], 3V3 gives
    * i2c_addresses[1]. None when the address is set on the board (e.g. a solder jumper).
@@ -87,6 +96,10 @@ export interface BoardDef {
    */
   pio_board: string;
   pio_lib_deps: string[];
+  /**
+   * PlatformIO platform, e.g. "atmelavr", "raspberrypi".
+   */
+  pio_platform: string;
   /**
    * Current the board's regulator can give the attached parts.
    */
@@ -334,27 +347,41 @@ export interface EditRequest {
   instruction: string;
 }
 /**
- * cad/manifest.json, written by build_enclosure: which opening serves which part feature.
+ * cad/manifest.json, written by build_enclosure or build_custom_model: which opening serves which
+ * part feature, and which parts get printed.
  *
  * This interface was referenced by `P2DContracts`'s JSON-Schema
  * via the `definition` "EnclosureManifest".
  */
 export interface EnclosureManifest {
   /**
+   * (0, 0, 0) for a print-only project: there is no case.
+   *
    * @minItems 3
    * @maxItems 3
    */
   cavity_mm: [number, number, number];
   cutouts: CutoutRecord[];
   /**
-   * Outside size of the closed box, lid included.
+   * Outside size of the closed box, lid included; for a print-only project, of its biggest part.
    *
    * @minItems 3
    * @maxItems 3
    */
   outer_mm: [number, number, number];
+  /**
+   * Every printed part: name (its STL is cad/<name>.stl) -> bounding box size (x, y, z) as
+   * exported. "base" and "lid" for a device.
+   */
+  prints: {
+    /**
+     * @minItems 3
+     * @maxItems 3
+     */
+    [k: string]: [number, number, number];
+  };
   spec_rev: number;
-  template: "box_lid";
+  template: "box_lid" | "custom";
   /**
    * Parts whose dims_source isn't "measured": the UI says "verify before printing".
    */
@@ -364,16 +391,24 @@ export interface EnclosureManifest {
 /**
  * Openings come from the parts' library features (and a cable hole per external part).
  *
+ * template "box_lid": a plain case from the fixed template. template "custom": `code` is build123d
+ * source written by the model (backend/tools/custom_model.py says what it must define); code runs
+ * it in a subprocess and checks every printed part.
+ *
  * This interface was referenced by `P2DContracts`'s JSON-Schema
  * via the `definition` "EnclosureSpec".
  */
 export interface EnclosureSpec {
   clearance_mm: number;
   /**
+   * build123d source for template "custom"; None for "box_lid".
+   */
+  code: string | null;
+  /**
    * Free-form CAD requests, e.g. "belt clip".
    */
   extras: string[];
-  template: "box_lid";
+  template: "box_lid" | "custom";
   wall_mm: number;
 }
 /**
@@ -632,9 +667,21 @@ export interface ProjectSpec {
    */
   assumptions: string[];
   connections: Connection[];
+  /**
+   * Parts the library doesn't have, defined by the agent from a listing or datasheet (`source`).
+   * Ids start with "x_"; never a board; never "measured". Unverified: the UI says so, and the
+   * validator warns for each one used.
+   */
+  custom_parts: PartDef[];
   enclosure: EnclosureSpec1;
-  firmware: FirmwareSpec;
-  mcu: PartInstance;
+  /**
+   * Set exactly when `mcu` is.
+   */
+  firmware: FirmwareSpec | null;
+  /**
+   * The board; None for a print-only project (no electronics).
+   */
+  mcu: PartInstance | null;
   parts: PartInstance[];
   prompt: string;
   /**
@@ -650,14 +697,22 @@ export interface ProjectSpec {
 }
 /**
  * Openings come from the parts' library features (and a cable hole per external part).
+ *
+ * template "box_lid": a plain case from the fixed template. template "custom": `code` is build123d
+ * source written by the model (backend/tools/custom_model.py says what it must define); code runs
+ * it in a subprocess and checks every printed part.
  */
 export interface EnclosureSpec1 {
   clearance_mm: number;
   /**
+   * build123d source for template "custom"; None for "box_lid".
+   */
+  code: string | null;
+  /**
    * Free-form CAD requests, e.g. "belt clip".
    */
   extras: string[];
-  template: "box_lid";
+  template: "box_lid" | "custom";
   wall_mm: number;
 }
 export interface UserContext {

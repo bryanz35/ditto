@@ -46,6 +46,7 @@ def test_fake_toolbox_succeeds_and_writes_only_inside_out_dir(tmp_path):
         "validate_spec": lambda f: f(spec, lib),
         "compute_layout": lambda f: f(spec, lib, tmp_path / "cad"),
         "build_enclosure": lambda f: f(spec, layout, lib, tmp_path / "cad"),
+        "build_custom_model": lambda f: f(spec, layout, lib, tmp_path / "cad"),
         "check_enclosure": lambda f: f(spec, layout, lib, tmp_path / "cad", "generic"),
         "build_assembly": lambda f: f(spec, layout, lib, tmp_path / "cad"),
         "write_firmware_project": lambda f: f(

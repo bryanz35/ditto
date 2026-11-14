@@ -1,8 +1,13 @@
 [env:{{ pio_board }}]
-platform = espressif32
+platform = {{ pio_platform }}
 board = {{ pio_board }}
 framework = arduino
 monitor_speed = 115200
-{% if lib_deps %}lib_deps =
+{% if native_usb %}; native USB (e.g. HID): the USB library includes FS.h, which only the deep library
+; scan finds, and USB devices need OTG mode, not the board's default USB serial/JTAG mode
+lib_ldf_mode = deep
+build_unflags = -DARDUINO_USB_MODE=1
+build_flags = -DARDUINO_USB_MODE=0
+{% endif %}{% if lib_deps %}lib_deps =
 {% for dep in lib_deps %}    {{ dep }}
 {% endfor %}{% endif %}

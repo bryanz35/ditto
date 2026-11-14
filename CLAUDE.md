@@ -7,8 +7,11 @@ These rules exist so that parallel work merges cleanly. Follow them even when a 
 
 ## What we're building (one paragraph)
 
-A web app that turns a text prompt, sketch or short video into a buildable ESP32 device: a parts list
-with prices, a wiring plan, compiled Arduino firmware and a 3D-printable enclosure. A deepagents
+A web app that turns a text prompt, sketch or short video into a buildable physical project: a
+3D-printed object, a microcontroller device (ESP32, Arduino Uno/Nano, Raspberry Pi Pico), or both. For a
+device it makes a parts list with prices, a wiring plan, compiled Arduino firmware and a printable case
+(a plain box, or a model-written custom body around it); for a print-only object (`mcu: null`) just the
+printed parts, from build123d code the model writes and plain code runs and checks. A deepagents
 orchestrator delegates to sub-agents (parts and pins, firmware, enclosure). **Every model output is
 checked by plain code before the UI shows it.** The project spec (`ProjectSpec`) is the single source
 of truth: every other output is generated from it.
@@ -88,38 +91,12 @@ The board knows the dependency graph, who consumes whose output, every review ve
 
 Files are created as stubs in T00/T01 so that no two tasks ever create the same file.
 
-## Contracts (summary; the code in `backend/contracts/` is authoritative)
+## Contracts
 
-- `base.py`: the `Model` base class (unknown fields are errors) and the **coordinate frames** for parts
-  and the enclosure (origin at the front-left-bottom corner, mm). Read it before touching geometry.
-- `spec.py`: `ProjectSpec` (has `rev: int`), `PartInstance` (with `i2c_address` for I2C parts),
-  `Connection`, `EnclosureSpec`, `FirmwareSpec`, `UserContext` (`owned`: part id -> quantity),
-  `Placement`, `Layout` (the mcu gets a placement too). Refs are lowercase letters and digits (they
-  become `PIN_<REF>_<PIN>`).
-- `parts.py`: `PartDef` (pins with MCU-side types, `i2c_address_pin`, `mounting: inside | external`,
-  features, Wokwi mapping), `BoardDef` (adds `reserved_pins`, `input_only_pins`, `strapping_pins`,
-  `adc1_pins`, `adc2_pins`, `pio_board`, `power_budget_ma`), `PartLibrary` with `load_library()`,
-  `get()`, `pin_type(part_id, pin)`.
-- `results.py`: `ToolError(code, message, field=None, hint=None, severity="error")` and
-  `ToolResult(ok, errors, artifacts, data, log)`. **Every tool returns a `ToolResult`; tools never raise
-  for expected failures.** Error messages are read by an LLM, so make them specific and actionable
-  ("GPIO34 is input-only but drives buzzer1.SIG; free output pins: GPIO4, GPIO16, GPIO17").
-  `artifacts` holds absolute paths. Error codes `not_implemented` and `skipped` mean the stage didn't
-  run (`result.skipped`): emit it as `skipped`, never retry it. Each tool lists its own codes in its
-  module docstring; consumers never branch on a specific code.
-- `events.py`: `Event(run_id, seq, ts, stage, status, message, spec_rev, artifacts, errors, data)`.
-  Stages: `plan, validate, layout, enclosure, assembly, firmware, wiring, simulate, bom, checks, done`.
-  Statuses: `queued, running, passed, failed, stale, skipped, waiting` (`waiting` = a question for the
-  user). `data` carries `todos` (list of `Todo`), `question` (`Question`) and `attempt`.
-- `artifacts.py`: shapes of the shared run files: `RunManifest` (`manifest.json`), `Wiring`, `Bom`,
-  `EnclosureManifest` (`cad/manifest.json`).
-- `runner.py`: **who runs what** (read its docstring), the run directory layout, `RunRequest`,
-  `EditRequest`, `AnswerRequest`, `Emit` (sync, thread-safe), the async `Runner` protocol (`run`, `edit`,
-  `answer`: model work only) and `StageRunner` (T14's `run_stages`, the only code that executes
-  stages; the engine passes it to the runner, so T13 never imports `backend/runtime/`).
-- `tools.py`: the signatures of every tool function (`Protocol`s) and the `ToolBox` that bundles them,
-  so the agent and API can swap stubs, fakes and real tools. Tools that make files take an `out_dir`.
-- `hardware.py`: `load_hardware()` reads `handoff/HARDWARE.md` (mode, printer, whether to simulate).
+`backend/contracts/` is authoritative; each module's docstrings state its rules. Read `base.py`
+(coordinate frames) before touching geometry and `runner.py` (who runs what) before touching the run flow.
+Every tool returns a `ToolResult` and never raises for expected failures; error messages are read by an
+LLM, so make them specific and actionable.
 
 ## Commands
 

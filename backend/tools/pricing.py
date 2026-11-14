@@ -163,7 +163,7 @@ def price_bom(
     spec: ProjectSpec, lib: PartLibrary, prices: Path | None, out_dir: Path
 ) -> ToolResult:
     groups: dict[str, list] = {}
-    for inst in [spec.mcu, *spec.parts]:
+    for inst in spec.instances:
         groups.setdefault(inst.part_id, []).append(inst)
     unknown = sorted(pid for pid in groups if pid not in lib)
     if unknown:

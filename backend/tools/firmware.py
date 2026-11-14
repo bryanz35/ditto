@@ -22,7 +22,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-from backend.contracts.parts import BoardDef, PartLibrary
+from backend.contracts.parts import BoardDef, PartLibrary, pin_code
 from backend.contracts.results import ToolError, ToolResult
 from backend.contracts.spec import ProjectSpec
 
@@ -35,6 +35,9 @@ _jinja = Environment(
     undefined=StrictUndefined,
     keep_trailing_newline=True,
 )
+
+# The core's USB device library (USB.h, USBHIDKeyboard.h, USBHIDGamepad.h, ...): ESP32-S3 native USB.
+_NATIVE_USB = re.compile(r'^\s*#\s*include\s*[<"]USB', re.MULTILINE)
 
 # Calls whose first argument is a pin number (ledcAttach and tone: Arduino core 3 names for PWM).
 _PIN_CALL = re.compile(
@@ -54,13 +57,13 @@ _UNDECLARED_PIN = re.compile(
 
 
 def pins_header(spec: ProjectSpec) -> str:
-    """`#define PIN_<REF>_<PIN> <n>` for every connection to a GPIO, sorted by macro name."""
+    """`#define PIN_<REF>_<PIN> <pin>` for every connection to a signal pin (pin_code), sorted by
+    macro name."""
     defines = sorted(
         {
-            f"#define PIN_{c.part_ref.upper()}_{c.part_pin.upper()} "
-            + c.mcu_pin.removeprefix("GPIO")
+            f"#define PIN_{c.part_ref.upper()}_{c.part_pin.upper()} {code}"
             for c in spec.connections
-            if c.mcu_pin.startswith("GPIO")
+            if (code := pin_code(c.mcu_pin))
         }
     )
     return (
@@ -75,7 +78,7 @@ def write_firmware_project(
     spec: ProjectSpec, lib: PartLibrary, main_cpp: str, out_dir: Path
 ) -> ToolResult:
     """artifacts: platformio_ini, pins_h, main_cpp"""
-    instances = [spec.mcu, *spec.parts]
+    instances = spec.instances
     unknown = [
         ToolError(
             code="unknown_part",
@@ -101,7 +104,11 @@ def write_firmware_project(
         )
     lib_deps = sorted({d for p in instances for d in lib.get(p.part_id).pio_lib_deps})
     ini = _jinja.get_template("platformio.ini.j2").render(
-        pio_board=board.pio_board, lib_deps=lib_deps
+        pio_board=board.pio_board,
+        pio_platform=board.pio_platform,
+        lib_deps=lib_deps,
+        native_usb=board.pio_platform == "espressif32"
+        and _NATIVE_USB.search(main_cpp) is not None,
     )
 
     files = {
@@ -123,7 +130,7 @@ def _available_pins(project_dir: Path) -> str:
     macros = (
         re.findall(r"#define (PIN_\w+)", pins_h.read_text()) if pins_h.is_file() else []
     )
-    return ", ".join(macros) or "none (pins.h defines no GPIO pins)"
+    return ", ".join(macros) or "none (pins.h defines no signal pins)"
 
 
 def _missing_main(project_dir: Path) -> ToolResult:

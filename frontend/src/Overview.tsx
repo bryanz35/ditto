@@ -1,11 +1,12 @@
 // Project · Overview: the 3D model, the parts list and the follow-up dock (Figma 17:310, 19:527).
-import { lazy, Suspense, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
+import Markdown from 'react-markdown'
 import { useJson, useSend, type Reply } from './api'
-import type { Bom, BomLine, BomOffer, ProjectSpec, Wiring } from './contracts'
+import type { Bom, BomLine, BomOffer, EnclosureManifest, Event, ProjectSpec, Wiring } from './contracts'
 import { Icon, Segmented } from './Icon'
 import { Badge, QuestionCard, type UrlOf } from './panels'
-import { statusLine, type RunState } from './state'
-import { partIcon, soon, usd } from './ui'
+import { chatTurns, statusLine, type RunState } from './state'
+import { partIcon, printsOf, soon, usd } from './ui'
 
 // three.js is big; load it only when the overview first renders.
 const Viewer3D = lazy(() => import('./Viewer3D'))
@@ -46,6 +47,8 @@ export function Overview({
 }) {
   const bom = useJson<Bom>(urlOf('bom_json'))
   const wiring = useJson<Wiring>(urlOf('wiring_json'))
+  const manifest = useJson<EnclosureManifest>(urlOf('manifest'))
+  const prints = printsOf(spec, manifest, urlOf)
   const assembly = urlOf('assembly_glb')
   const [view, setView] = useState<View>('Exploded')
   const [reset, setReset] = useState(0)
@@ -53,7 +56,7 @@ export function Overview({
   // one part's stores, or 'all': the cheapest store for every part still to buy
   const [buying, setBuying] = useState<BomLine | 'all' | null>(null)
   const exploded = assembly !== null && view === 'Exploded'
-  const shown = exploded ? 'assembly_glb' : 'base_stl'
+  const shown = exploded ? 'assembly_glb' : prints.length ? 'manifest' : 'base_stl'
   const openLine = bom?.lines.find((l) => l.part_id === open) ?? null
 
   const checks = state.stages.checks
@@ -66,19 +69,20 @@ export function Overview({
   return (
     <main className="overview">
       <div className="viewport">
-        {urlOf('base_stl') ? (
+        {urlOf('base_stl') || prints.length ? (
           <Suspense fallback={<p className="empty center">Loading the 3D view…</p>}>
             <Viewer3D
               key={reset}
-              base={urlOf('base_stl')}
-              lid={urlOf('lid_stl')}
+              base={prints.length ? null : urlOf('base_stl')}
+              lid={prints.length ? null : urlOf('lid_stl')}
+              prints={prints}
               assembly={exploded ? assembly : null}
               selected={exploded && openLine ? { ref: openLine.refs[0], label: openLine.name } : null}
               onSelect={(ref) => setOpen(bom?.lines.find((l) => l.refs.includes(ref))?.part_id ?? null)}
             />
           </Suspense>
         ) : (
-          <p className="empty center">No case yet.</p>
+          <p className="empty center">No 3D model yet.</p>
         )}
         <div className="view-toolbar">
           {assembly && <Segmented label="3D view" options={VIEWS} value={view} onChange={setView} />}
@@ -127,6 +131,7 @@ export function Overview({
       />
       {buying === 'all' && bom && <BuyAllPanel bom={bom} onClose={() => setBuying(null)} />}
       {buying && buying !== 'all' && <BuyPanel line={buying} onClose={() => setBuying(null)} />}
+      <ChatPanel turns={chatTurns(state)} />
       <Dock reply={reply} onBuild={onBuild} />
     </main>
   )
@@ -166,6 +171,8 @@ function PartsCard({
             {usd(bom.total_usd)} to buy{owned > 0 && ` · you already have ${owned} part${owned > 1 ? 's' : ''}`}
             {bom.over_budget && <Badge status="failed" />}
           </>
+        ) : spec && !spec.mcu ? (
+          'Nothing to buy: print it and you’re done.'
         ) : (
           'No parts list yet.'
         )}
@@ -232,6 +239,8 @@ function PartRow({
   const [saved, setSaved] = useState(false)
   const power = rows.find((r) => r.pin_type === 'power')
   const buses = [...new Set(rows.map((r) => r.bus).filter((b) => b !== 'power'))]
+  // backend/contracts/parts.py CUSTOM_PREFIX: a part the agent defined, not the hand-checked library
+  const unverified = line.part_id.startsWith('x_')
   return (
     <li className="part-row" aria-expanded={open}>
       <button type="button" className="head" onClick={onOpen}>
@@ -243,7 +252,7 @@ function PartRow({
             {line.name}
           </span>
           <span className="detail">
-            {role ?? line.refs.join(', ')} · {line.qty}×
+            {role ?? line.refs.join(', ')} · {line.qty}×{unverified && ' · unverified'}
           </span>
         </span>
         {line.owned_qty >= line.qty ? (
@@ -256,6 +265,12 @@ function PartRow({
       {open && (
         <div className="details">
           {reason && <p>{reason}</p>}
+          {unverified && (
+            <p className="stale-note">
+              <Badge status="stale" /> Not in Ditto’s checked parts library: check its pins and size against the seller’s
+              datasheet before you wire it.
+            </p>
+          )}
           <dl>
             {power && (
               <>
@@ -414,6 +429,41 @@ function BuyAllPanel({ bom, onClose }: { bom: Bom; onClose: () => void }) {
         )
       })}
     </Panel>
+  )
+}
+
+/** turns: the conversation about the design so far, newest at the bottom. Folds to a tab so the model stays visible. */
+function ChatPanel({ turns }: { turns: Event[] }) {
+  const [shown, setShown] = useState(true)
+  const log = useRef<HTMLOListElement>(null)
+  useEffect(() => {
+    if (log.current) log.current.scrollTop = log.current.scrollHeight
+  }, [turns.length, shown])
+  if (turns.length === 0) return null
+  return (
+    <section className={`chat-panel${shown ? '' : ' folded'}`}>
+      <button type="button" className="chat-tab" aria-expanded={shown} onClick={() => setShown(!shown)}>
+        <Icon name={shown ? 'chevron-down' : 'chevron-right'} />
+        Conversation
+        <span className="spacer" />
+        <span className="mono">{turns.length}</span>
+      </button>
+      {shown && (
+        <ol ref={log} className="chat-log" aria-label="Conversation">
+          {turns.map((e) =>
+            e.data.chat === 'user' ? (
+              <li key={e.seq} className="from-user">
+                {e.message}
+              </li>
+            ) : (
+              <li key={e.seq} className="from-agent">
+                <Markdown>{e.message}</Markdown>
+              </li>
+            ),
+          )}
+        </ol>
+      )}
+    </section>
   )
 }
 

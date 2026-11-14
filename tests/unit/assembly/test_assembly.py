@@ -29,7 +29,7 @@ def test_nodes_one_per_part_plus_base_and_lid(spec, layout, lib, cad_dir):
 
 def test_parts_inside_cavity_at_layout_position(spec, layout, lib, cad_dir):
     scene = _scene(spec, layout, lib, cad_dir)
-    insts = {p.ref: p for p in [spec.mcu, *spec.parts]}
+    insts = {p.ref: p for p in spec.instances}
     L, W, H = layout.cavity_mm
     for p in layout.placements:
         dims = lib.get(insts[p.ref].part_id).board_mm
@@ -56,7 +56,7 @@ def test_rotation_swaps_footprint(spec, layout, lib, cad_dir):
 
 def test_unmeasured_flag_in_metadata(spec, layout, lib, cad_dir):
     scene = _scene(spec, layout, lib, cad_dir)
-    insts = {p.ref: p for p in [spec.mcu, *spec.parts]}
+    insts = {p.ref: p for p in spec.instances}
     for p in layout.placements:
         part = lib.get(insts[p.ref].part_id)
         meta = scene.geometry[scene.graph[p.ref][1]].metadata

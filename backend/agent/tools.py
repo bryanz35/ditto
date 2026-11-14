@@ -1,7 +1,8 @@
 """Agent tools: thin wrappers that let the model act only through checked code.
 
 Real artifacts reach the run directory only through these: spec.json is saved after the validate
-stage passes, enclosure changes after layout and enclosure pass. Every stage tool shares one retry
+stage passes, enclosure changes (parameters, or model-written build123d code) after layout and
+enclosure pass. Every stage tool shares one retry
 guard: after MAX_FAILURES failures in a row (1 try + 3 retries) it refuses without running the stage.
 Stage events come from the StageRunner; the guard only adds data.attempt to them.
 """
@@ -17,12 +18,10 @@ from langchain_core.tools import BaseTool, tool
 from pydantic import ValidationError
 
 from backend.contracts.events import Event, Stage
-from backend.contracts.invariants import parse_pins_h
-from backend.contracts.parts import BoardDef, PartLibrary
+from backend.contracts.parts import BoardDef, PartLibrary, pin_code
 from backend.contracts.results import ToolError, ToolResult
 from backend.contracts.runner import Emit, StageRunner, run_dir_for, save_spec
 from backend.contracts.spec import EnclosureSpec, ProjectSpec, UserContext
-from backend.tools.firmware import pins_header
 
 MAX_FAILURES = 4
 """1 try + 3 retries, enforced here rather than in the prompt."""
@@ -55,14 +54,35 @@ class RunContext:
         save_spec(self.spec_path, spec)
 
     def pin_macros(self) -> str:
-        """The PIN_* macros pins.h defines for the saved spec (T12's pins_header, parsed back)."""
+        """The board and the PIN_* macros pins.h defines for the saved spec (T12's rule: signal
+        pins only, see pin_code)."""
         spec = self.load_spec()
-        if spec is None:
-            return "No spec is saved yet, so pins.h has no macros."
-        macros = parse_pins_h(pins_header(spec))
+        if spec is None or spec.mcu is None:
+            return "No device spec is saved yet, so pins.h has no macros."
+        macros = sorted(
+            {
+                f"- PIN_{c.part_ref.upper()}_{c.part_pin.upper()} ({c.mcu_pin})"
+                for c in spec.connections
+                if pin_code(c.mcu_pin)
+            }
+        )
+        board = self.lib.parts.get(spec.mcu.part_id)
+        about = ""
+        if isinstance(board, BoardDef):
+            about = (
+                f"The board is {board.name} (PlatformIO platform {board.pio_platform}"
+            )
+            about += ")." if board.has_wifi else ", no Wi-Fi)."
+            if board.bus_pins:
+                about += (
+                    " Its I2C and SPI pins are fixed: call Wire.begin() and SPI.begin() "
+                    "without pin arguments."
+                )
+            about += "\n"
         return (
-            "pins.h for the saved spec defines exactly these macros; use no others:\n"
-            + ("\n".join(f"- {m} (GPIO{n})" for m, n in macros.items()) or "(none)")
+            about
+            + "pins.h for the saved spec defines exactly these macros; use no others:\n"
+            + ("\n".join(macros) or "(none)")
         )
 
     def next_rev(self) -> int:
@@ -136,7 +156,7 @@ _PART_FIELDS = {"id", "name", "category", "pins", "logic_voltage", "supply_volta
 _PART_FIELDS |= {"max_current_ma", "i2c_addresses", "i2c_address_pin", "mounting"}
 _PART_FIELDS |= {"manual_price_usd", "owned_alternatives", "board_mm"}
 _BOARD_FIELDS = {"reserved_pins", "input_only_pins", "strapping_pins", "adc1_pins"}
-_BOARD_FIELDS |= {"adc2_pins", "power_budget_ma"}
+_BOARD_FIELDS |= {"adc2_pins", "power_budget_ma", "has_wifi", "bus_pins"}
 
 
 def make_tools(ctx: RunContext) -> dict[str, BaseTool]:
@@ -190,6 +210,8 @@ def make_tools(ctx: RunContext) -> dict[str, BaseTool]:
             return (
                 "No validated spec yet: the parts-and-pins agent must save one first."
             )
+        if spec.firmware is None:
+            return "This project has no electronics, so it has no firmware to write."
         if ctx.failures.get("firmware", 0) >= MAX_FAILURES:
             return _limit(
                 "firmware"
@@ -210,13 +232,19 @@ def make_tools(ctx: RunContext) -> dict[str, BaseTool]:
 
     @tool
     def set_enclosure(wall_mm: float = 2.0, clearance_mm: float = 1.0) -> str:
-        """Set the enclosure parameters, then compute the layout and build and check the case.
-        Saved only if it builds. Geometry comes from the parts library and the template, which
-        has no extras (clips, mounts): only the walls and the clearance can change."""
+        """Use the plain box case for a device: set its parameters, then compute the layout and
+        build and check the case. Saved only if it builds. Geometry comes from the parts library and
+        the template, which has no extras (clips, mounts): only the walls and the clearance change.
+        Replaces any custom shape from write_model."""
         with ctx.lock:
             spec = ctx.load_spec()
             if spec is None:
                 return "No validated spec yet: the parts-and-pins agent must save one first."
+            if spec.mcu is None:
+                return (
+                    "This project has no electronics, so there is no case to size: describe "
+                    "its shape with write_model."
+                )
             try:
                 enclosure = EnclosureSpec(wall_mm=wall_mm, clearance_mm=clearance_mm)
             except ValidationError as e:
@@ -231,11 +259,36 @@ def make_tools(ctx: RunContext) -> dict[str, BaseTool]:
             )
 
     @tool
+    def write_model(code: str, wall_mm: float | None = None) -> str:
+        """Save build123d Python for the printed parts, then build and check them (watertight, one
+        piece each, fits the printer, flat on the bed). Saved only if every check passes.
+        Print-only project: the code sets `parts = {"name": shape}`. Device: the code sets `body`,
+        a shape built around the predefined BAY (the electronics' case); code joins it to the case.
+        wall_mm: the case wall thickness for a device (keeps the current one when omitted)."""
+        with ctx.lock:
+            spec = ctx.load_spec()
+            if spec is None:
+                return "No validated spec yet: the parts-and-pins agent must save one first."
+            fields = spec.enclosure.model_dump()
+            fields |= {"template": "custom", "code": code}
+            if wall_mm is not None:
+                fields["wall_mm"] = wall_mm
+            try:
+                enclosure = EnclosureSpec.model_validate(fields)
+            except ValidationError as e:
+                return _schema_failure(ctx, "enclosure", "enclosure", e)
+            spec = spec.model_copy(update={"rev": spec.rev + 1, "enclosure": enclosure})
+            stages: list[Stage] = ["layout", "enclosure"] if spec.mcu else ["enclosure"]
+            return guarded(ctx, "enclosure", stages, spec, lambda: ctx.save_spec(spec))
+
+    @tool
     def price_bom() -> str:
         """Price the saved spec's parts list (owned parts are free) and compare it to the budget."""
         spec = ctx.load_spec()
         if spec is None:
             return "No validated spec yet."
+        if spec.mcu is None:
+            return "This project has no electronics, so there are no parts to price."
         return guarded(ctx, "bom", ["bom"], spec)
 
     @tool
@@ -262,6 +315,7 @@ def make_tools(ctx: RunContext) -> dict[str, BaseTool]:
         write_spec,
         write_firmware,
         set_enclosure,
+        write_model,
         price_bom,
         request_change,
         ask_user,

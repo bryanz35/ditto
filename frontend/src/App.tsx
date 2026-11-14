@@ -109,8 +109,9 @@ function Workspace({
     (instruction) => editRun(runId, { instruction }),
     (question_id, answer) => answerQuestion(runId, { question_id, answer }),
   )
-  // The overview takes over once the first pipeline is done, and stays up while edits rerun.
-  const planned = state.log.some((e) => e.stage === 'done')
+  // The overview takes over once a pipeline is done with a spec, and stays up while edits rerun;
+  // a run that stopped before saving one stays in the chat, where Ditto says what went wrong.
+  const planned = 'spec' in state.artifacts && state.log.some((e) => e.stage === 'done')
   const title = spec?.title ?? entry?.title ?? 'New project'
   const status = progress(state, planned)
   const started = state.lastSeq > 0

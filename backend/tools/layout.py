@@ -41,7 +41,7 @@ def part_wall(part: PartDef) -> str | None:
 
 
 def inside_parts(spec: ProjectSpec, lib: PartLibrary) -> list[PartInstance]:
-    parts = [spec.mcu, *spec.parts]
+    parts = spec.instances
     return sorted(
         (p for p in parts if lib.get(p.part_id).mounting == "inside"),
         key=lambda p: p.ref,
@@ -153,7 +153,7 @@ def compute_layout(spec: ProjectSpec, lib: PartLibrary, out_dir: Path) -> ToolRe
             f"known ids: {', '.join(sorted(lib.parts))}",
             field=f"parts[{i - 1}].part_id" if i else "mcu.part_id",
         )
-        for i, p in enumerate([spec.mcu, *spec.parts])
+        for i, p in enumerate(spec.instances)
         if p.part_id not in lib
     ]
     if unknown:

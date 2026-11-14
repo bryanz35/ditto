@@ -55,7 +55,7 @@
     },
     "BoardDef": {
       "additionalProperties": false,
-      "description": "A microcontroller board: load_library uses this model for files with category \"mcu\".",
+      "description": "A microcontroller board: load_library uses this model for files with category \"mcu\".\nSignal pins are named GPIO<n>, GP<n>, D<n> or A<n> (see pin_code).",
       "properties": {
         "adc1_pins": {
           "items": {
@@ -72,6 +72,40 @@
         },
         "board_mm": {
           "$ref": "#/$defs/Dims"
+        },
+        "bus_pins": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "default": {},
+          "description": "Bus lines this board has only on fixed pins (Uno: i2c_sda on A4); empty when any GPIO can\ncarry them (ESP32). Firmware then calls Wire.begin() / SPI.begin() without pin arguments.",
+          "propertyNames": {
+            "enum": [
+              "power",
+              "gnd",
+              "gpio",
+              "gpio_in",
+              "gpio_out",
+              "analog",
+              "i2c_sda",
+              "i2c_scl",
+              "spi_sck",
+              "spi_mosi",
+              "spi_miso",
+              "spi_cs",
+              "uart_tx",
+              "uart_rx",
+              "i2s_bclk",
+              "i2s_ws",
+              "i2s_din",
+              "i2s_dout",
+              "config"
+            ]
+          },
+          "type": "object"
         },
         "category": {
           "enum": [
@@ -99,6 +133,10 @@
             "$ref": "#/$defs/Feature"
           },
           "type": "array"
+        },
+        "has_wifi": {
+          "default": true,
+          "type": "boolean"
         },
         "i2c_address_pin": {
           "anyOf": [
@@ -204,6 +242,11 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "pio_platform": {
+          "default": "espressif32",
+          "description": "PlatformIO platform, e.g. \"atmelavr\", \"raspberrypi\".",
+          "type": "string"
         },
         "power_budget_ma": {
           "description": "Current the board's regulator can give the attached parts.",
@@ -330,6 +373,9 @@
         "wokwi_attrs",
         "source",
         "pio_board",
+        "pio_platform",
+        "has_wifi",
+        "bus_pins",
         "wokwi_board",
         "reserved_pins",
         "input_only_pins",
@@ -683,9 +729,10 @@
     },
     "EnclosureManifest": {
       "additionalProperties": false,
-      "description": "cad/manifest.json, written by build_enclosure: which opening serves which part feature.",
+      "description": "cad/manifest.json, written by build_enclosure or build_custom_model: which opening serves which\npart feature, and which parts get printed.",
       "properties": {
         "cavity_mm": {
+          "description": "(0, 0, 0) for a print-only project: there is no case.",
           "items": [
             {
               "type": "number"
@@ -708,7 +755,7 @@
           "type": "array"
         },
         "outer_mm": {
-          "description": "Outside size of the closed box, lid included.",
+          "description": "Outside size of the closed box, lid included; for a print-only project, of its biggest part.",
           "items": [
             {
               "type": "number"
@@ -724,12 +771,36 @@
           "minItems": 3,
           "type": "array"
         },
+        "prints": {
+          "additionalProperties": {
+            "items": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "maxItems": 3,
+            "minItems": 3,
+            "type": "array"
+          },
+          "default": {},
+          "description": "Every printed part: name (its STL is cad/<name>.stl) -> bounding box size (x, y, z) as\nexported. \"base\" and \"lid\" for a device.",
+          "type": "object"
+        },
         "spec_rev": {
           "type": "integer"
         },
         "template": {
-          "const": "box_lid",
           "default": "box_lid",
+          "enum": [
+            "box_lid",
+            "custom"
+          ],
           "type": "string"
         },
         "unmeasured_refs": {
@@ -751,6 +822,7 @@
         "cavity_mm",
         "outer_mm",
         "cutouts",
+        "prints",
         "unmeasured_refs"
       ],
       "title": "EnclosureManifest",
@@ -758,12 +830,24 @@
     },
     "EnclosureSpec": {
       "additionalProperties": false,
-      "description": "Openings come from the parts' library features (and a cable hole per external part).",
+      "description": "Openings come from the parts' library features (and a cable hole per external part).\n\ntemplate \"box_lid\": a plain case from the fixed template. template \"custom\": `code` is build123d\nsource written by the model (backend/tools/custom_model.py says what it must define); code runs\nit in a subprocess and checks every printed part.",
       "properties": {
         "clearance_mm": {
           "default": 1.0,
           "minimum": 0,
           "type": "number"
+        },
+        "code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "build123d source for template \"custom\"; None for \"box_lid\"."
         },
         "extras": {
           "default": [],
@@ -774,8 +858,11 @@
           "type": "array"
         },
         "template": {
-          "const": "box_lid",
           "default": "box_lid",
+          "enum": [
+            "box_lid",
+            "custom"
+          ],
           "type": "string"
         },
         "wall_mm": {
@@ -789,7 +876,8 @@
         "template",
         "wall_mm",
         "clearance_mm",
-        "extras"
+        "extras",
+        "code"
       ],
       "title": "EnclosureSpec",
       "type": "object"
@@ -1495,8 +1583,17 @@
           "type": "array"
         },
         "connections": {
+          "default": [],
           "items": {
             "$ref": "#/$defs/Connection"
+          },
+          "type": "array"
+        },
+        "custom_parts": {
+          "default": [],
+          "description": "Parts the library doesn't have, defined by the agent from a listing or datasheet (`source`).\nIds start with \"x_\"; never a board; never \"measured\". Unverified: the UI says so, and the\nvalidator warns for each one used.",
+          "items": {
+            "$ref": "#/$defs/PartDef"
           },
           "type": "array"
         },
@@ -1504,18 +1601,38 @@
           "$ref": "#/$defs/EnclosureSpec",
           "default": {
             "clearance_mm": 1.0,
+            "code": null,
             "extras": [],
             "template": "box_lid",
             "wall_mm": 2.0
           }
         },
         "firmware": {
-          "$ref": "#/$defs/FirmwareSpec"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FirmwareSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set exactly when `mcu` is."
         },
         "mcu": {
-          "$ref": "#/$defs/PartInstance"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PartInstance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The board; None for a print-only project (no electronics)."
         },
         "parts": {
+          "default": [],
           "items": {
             "$ref": "#/$defs/PartInstance"
           },
@@ -1563,7 +1680,8 @@
         "parts",
         "connections",
         "firmware",
-        "enclosure"
+        "enclosure",
+        "custom_parts"
       ],
       "title": "ProjectSpec",
       "type": "object"
