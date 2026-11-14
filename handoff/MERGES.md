@@ -34,3 +34,4 @@ you depend on appears here.
 13:05 3614136 contract v5: RunSummary for GET /runs (T39 #6)
 13:15 610e847 T37 user profile: agent adapts wording to UserContext.level, addresses user by name
 13:35 e3798ca T38 store offers: price_bom fills BomLine.offers (one per seller, cheapest first)
+13:56 44480c8 T40 build guide: Start building opens step-by-step guide; T37 level/name connected. T38/T39 placeholders still soon(): B-web follow-up branch (RUNBOOK wave 4 step 4)
