@@ -14,3 +14,4 @@ you depend on appears here.
 | 6 | 1f0810e | T16 | price_bom (Nexar live -> prices.json cache -> manual price; owned parts free; over_budget/price_missing), prefetch_prices script, memory store + /memory router |
 | 6 | 07ed525 | CR#1 | Integrator applied T18's request to T16's test_prefetch (library pinned to esp32_devkitc). Test-only, no contract change, CONTRACT_VERSION unchanged |
 | 6 | cf64363 | T12 | pins.h, PlatformIO project generation, lint (pins.h include, P2D_READY, no numeric pins), compile with parsed file:line:col errors. Golden compile verified by B-fw; on the Integrator machine Smart App Control blocks pio.exe (WinError 4551). Follow-up for B-fw (T23): compile_firmware raises OSError when pio can't be executed; should return a ToolResult error |
+| 6 | 205ea2e | T15 | Frontend shell: Vite + React app, run state from events, typed against src/contracts |
