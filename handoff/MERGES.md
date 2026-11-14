@@ -37,3 +37,5 @@ you depend on appears here.
 13:56 44480c8 T40 build guide: Start building opens step-by-step guide; T37 level/name connected. T38/T39 placeholders still soon(): B-web follow-up branch (RUNBOOK wave 4 step 4)
 14:02 db72d42 T39 run list + cancel: GET /runs (RunSummary), POST /runs/{id}/cancel; replays keep cad/manifest.json
 14:10 16a0d80 T40 follow-up (feat/T40-hookups): T38 offers + Buy all, T39 Stop + server-side Recent connected; approved per human, merged off-board (T40 already marked merged)
+14:30 3a332a4 T12 follow-up (fix/T12-pin-hint, note 6): undeclared PIN_* compile errors hint the pins.h macros; pio OSError returns pio_failed. Merged off-board
+14:30 201897e T13 follow-up (fix/T13-pin-macros, note 7): firmware sub-agent prompt lists the saved spec's PIN_* macros (dynamic_prompt). Rebased onto T37: build_agent takes user and pin_macros. Merged off-board
