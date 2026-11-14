@@ -1,9 +1,11 @@
 import asyncio
 
+import pytest
 from langchain_core.messages import AIMessage
 
 from backend.agent import AgentRunner
 from backend.agent.runner import NO_ANSWER
+from backend.contracts.results import ToolError, ToolResult
 from backend.contracts.runner import AnswerRequest, EditRequest, RunRequest
 from backend.contracts.spec import ProjectSpec, UserContext
 from backend.tools.fakes import fake_toolbox
@@ -31,10 +33,8 @@ def task(agent: str, id: str) -> dict:
 
 def runner(orchestrator, *, enclosure_calls=1, timeout=5.0) -> AgentRunner:
     """Specialists that each succeed with their one tool, as often as asked."""
-    parts = script(
-        call("write_spec", {"spec_json": fixture_spec_json()}, "p"),
-        AIMessage("spec saved"),
-    )
+    write = call("write_spec", {"spec_json": fixture_spec_json()}, "p")
+    parts = script(write, AIMessage("spec saved"), write, AIMessage("spec saved"))
     firmware = script(
         call("write_firmware", {"main_cpp": '#include "pins.h"'}, "f"),
         AIMessage("fw ok"),
@@ -157,3 +157,26 @@ async def test_unanswered_question_times_out(events):
 
     assert any("No answer after" in e.message for e in events)
     assert NO_ANSWER in [m.content for m in orchestrator.seen[-1] if m.type == "tool"]
+
+
+async def test_failed_edit_raises_instead_of_passing(runs_dir, events):
+    orchestrator = run_script(
+        AIMessage("", tool_calls=[task("parts-and-pins", "o5")]),
+        AIMessage("Couldn't add it."),
+    )
+    agent = runner(orchestrator)
+    first = await agent.run(RunRequest(run_id="r1", prompt=PROMPT), events.append)
+    bad = ToolResult(ok=False, errors=[ToolError(code="pin_conflict", message="x")])
+    agent.run_stages.fail["validate"] = bad
+    events.clear()
+
+    with pytest.raises(RuntimeError, match="no new spec"):
+        await agent.edit("r1", EditRequest(instruction="add a buzzer"), events.append)
+
+    assert [(e.stage, e.status) for e in events][-2:] == [
+        ("validate", "failed"),
+        ("plan", "failed"),
+    ]
+    assert agent.run_stages.calls.count("validate") == 2
+    saved = ProjectSpec.model_validate_json((runs_dir / "r1/spec.json").read_text())
+    assert saved == first  # the failed draft never reached spec.json

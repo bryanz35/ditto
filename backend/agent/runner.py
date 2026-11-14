@@ -86,7 +86,7 @@ class AgentRunner:
             f"Current spec (rev {spec.rev}):\n{spec.model_dump_json()}"
         )
         await self._drive(ctx, message)
-        return _finish(ctx)
+        return _finish(ctx, after_rev=spec.rev)
 
     async def answer(self, run_id: str, request: AnswerRequest) -> None:
         future = self._pending.get((run_id, request.question_id))
@@ -216,10 +216,11 @@ def _plan(ctx: RunContext, status, message: str) -> None:
     ctx.emit(_event(ctx, "plan", status, message))
 
 
-def _finish(ctx: RunContext) -> ProjectSpec:
+def _finish(ctx: RunContext, after_rev: int = 0) -> ProjectSpec:
+    """The saved spec, which must be newer than after_rev (the rev an edit started from)."""
     spec = ctx.load_spec()
-    if spec is None:
-        _plan(ctx, "failed", "The agent finished without a validated spec")
-        raise RuntimeError(f"run {ctx.run_id}: no spec passed validation")
+    if spec is None or spec.rev <= after_rev:
+        _plan(ctx, "failed", "The agent finished without a new validated spec")
+        raise RuntimeError(f"run {ctx.run_id}: no new spec passed validation")
     _plan(ctx, "passed", f"Spec rev {spec.rev} saved")
     return spec

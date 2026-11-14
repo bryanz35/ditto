@@ -69,3 +69,18 @@ def test_write_firmware_updates_behaviors(events):
     spec = ctx.load_spec()
     assert spec and (spec.rev, spec.firmware.behaviors) == (2, ["beep twice when dry"])
     assert (ctx.spec_path.parent / "firmware/src/main.cpp").read_text() == "// fw"
+
+
+def test_retry_limit_leaves_main_cpp_alone(events):
+    bad = ToolResult(ok=False, errors=[ToolError(code="compile", message="x")])
+    ctx = _ctx(FakeStageRunner(fail={"firmware": bad}), events)
+    tools = make_tools(ctx)
+    tools["write_spec"].invoke({"spec_json": fixture_spec_json()})
+    for i in range(4):
+        tools["write_firmware"].invoke({"main_cpp": f"// try {i}"})
+    main = ctx.spec_path.parent / "firmware/src/main.cpp"
+
+    reply = tools["write_firmware"].invoke({"main_cpp": "// unchecked"})
+
+    assert reply.startswith("Retry limit reached")
+    assert main.read_text() == "// try 3"

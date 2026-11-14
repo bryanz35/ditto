@@ -178,6 +178,10 @@ def make_tools(ctx: RunContext) -> dict[str, BaseTool]:
             return (
                 "No validated spec yet: the parts-and-pins agent must save one first."
             )
+        if ctx.failures.get("firmware", 0) >= MAX_FAILURES:
+            return _limit(
+                "firmware"
+            )  # before writing: main.cpp must stay the last checked code
         main = run_dir_for(ctx.run_id) / "firmware/src/main.cpp"
         main.parent.mkdir(parents=True, exist_ok=True)
         main.write_text(main_cpp)
