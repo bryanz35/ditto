@@ -15,6 +15,7 @@ Who does what (one owner per job):
 
 Run directory (runs/<id>/, under $P2D_RUNS_DIR):
     spec.json        latest ProjectSpec (written by the runner)
+    specs/<rev>.json every saved rev (the engine compares them to skip stages a change didn't affect)
     events.jsonl     every Event, one per line (run engine)
     manifest.json    RunManifest (run engine)
     input/           uploads and preprocess_input output
@@ -47,6 +48,17 @@ def runs_root() -> Path:
 
 def run_dir_for(run_id: str) -> Path:
     return runs_root() / run_id
+
+
+def save_spec(path: Path, spec: ProjectSpec) -> None:
+    """Write spec.json whole or not at all (readers in other threads, and a process killed
+    mid-write, never see half a file), and keep a copy as specs/<rev>.json."""
+    text = spec.model_dump_json(indent=2) + "\n"
+    (path.parent / "specs").mkdir(parents=True, exist_ok=True)
+    (path.parent / "specs" / f"{spec.rev}.json").write_text(text)
+    tmp = path.with_name(f"{path.name}.tmp")
+    tmp.write_text(text)
+    tmp.replace(path)
 
 
 class StageRunner(Protocol):

@@ -1,4 +1,7 @@
+import threading
+import time
 from dataclasses import replace
+from functools import partial
 from pathlib import Path
 
 import pytest
@@ -165,3 +168,35 @@ def test_tools_see_the_specs_custom_parts(runs_dir):
         hardware=MODE_V,
     )
     assert seen == [True]
+
+
+def test_one_stage_of_one_run_never_runs_twice_at_once(runs_dir):
+    """A cancelled stage thread still compiling must finish before an edit reruns that stage."""
+    inside, peak, lock = [0], [0], threading.Lock()
+
+    def slow_validate(spec, lib):
+        with lock:
+            inside[0] += 1
+            peak[0] = max(peak[0], inside[0])
+        time.sleep(0.05)
+        with lock:
+            inside[0] -= 1
+        return ToolResult(ok=True)
+
+    toolbox = replace(fake_toolbox(), validate_spec=slow_validate)
+    go = partial(
+        run_stages,
+        "r1",
+        ["validate"],
+        SPEC,
+        lambda e: None,
+        toolbox=toolbox,
+        lib=load_library(),
+        hardware=MODE_V,
+    )
+    threads = [threading.Thread(target=go) for _ in range(3)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert peak[0] == 1

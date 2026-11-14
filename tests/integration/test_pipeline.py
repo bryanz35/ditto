@@ -1,7 +1,7 @@
 """The plant monitor through real_toolbox(), one tool at a time, then the whole chain.
 
-Each step takes fixture inputs (spec, cad/layout.json, main.cpp) or outputs of its own task, so its
-xfail names only the task that makes it pass. Remove a marker when that task merges (board.py QA_UPDATE).
+Each step takes fixture inputs (spec, cad/layout.json, main.cpp) or outputs of its own task. Every
+tool has merged, so nothing here is xfail: a marker would hide a real failure.
 """
 
 import json
@@ -26,10 +26,6 @@ RUN = FIXTURES / "runs" / "plant_monitor"
 INVALID = sorted((FIXTURES / "specs" / "invalid").glob("*.json"))
 
 
-def xfail(task: str):
-    return pytest.mark.xfail(reason=f"needs {task}", strict=False)
-
-
 @pytest.fixture(scope="module")
 def tools():
     return real_toolbox()
@@ -45,11 +41,6 @@ def spec() -> ProjectSpec:
     return ProjectSpec.model_validate_json(
         (FIXTURES / "specs" / "plant_monitor.json").read_text()
     )
-
-
-@pytest.fixture
-def layout() -> Layout:
-    return Layout.model_validate_json((RUN / "cad" / "layout.json").read_text())
 
 
 def main_cpp() -> str:
@@ -137,10 +128,11 @@ def test_check_enclosure_generic_printer(tools, lib, spec, tmp_path):
 
 
 @pytest.mark.slow
-@xfail("T25 (assembly preview)")
-def test_build_assembly(tools, lib, spec, layout, tmp_path):
+def test_build_assembly(tools, lib, spec, tmp_path):
     import trimesh
 
+    layout = real_layout(tools, lib, spec, tmp_path)
+    assert tools.build_enclosure(spec, layout, lib, tmp_path).ok  # the shells it shows
     result = tools.build_assembly(spec, layout, lib, tmp_path)
     path = assert_artifacts(result, {"assembly_glb"}, tmp_path)["assembly_glb"]
     scene = trimesh.load(path)
@@ -152,7 +144,6 @@ def test_build_assembly(tools, lib, spec, layout, tmp_path):
 # --- firmware (T12) --------------------------------------------------------------------------------
 
 
-@xfail("T12 (firmware toolchain)")
 def test_write_firmware_project_and_lint(tools, lib, spec, tmp_path):
     result = tools.write_firmware_project(spec, lib, main_cpp(), tmp_path)
     paths = assert_artifacts(result, {"platformio_ini", "pins_h", "main_cpp"}, tmp_path)
@@ -170,7 +161,6 @@ def test_write_firmware_project_and_lint(tools, lib, spec, tmp_path):
 
 
 @pytest.mark.slow
-@xfail("T12 (firmware compile)")
 def test_compile_firmware(tools, lib, spec, tmp_path):
     assert tools.write_firmware_project(spec, lib, main_cpp(), tmp_path).ok
     result = tools.compile_firmware(tmp_path)
@@ -188,7 +178,6 @@ def test_build_wiring(tools, lib, spec, tmp_path):
     assert inv.check_wiring(wiring, spec, lib) == []
 
 
-@xfail("T26 (simulation)")
 def test_build_simulation(tools, lib, spec, tmp_path):
     project = Path(shutil.copytree(RUN / "firmware", tmp_path / "firmware"))
     out = tmp_path / "sim"
@@ -247,7 +236,6 @@ def test_price_bom_budget_boundary(tools, lib, spec, tmp_path, no_network):
 # --- cross-checks (T21) and the whole chain through run_stages --------------------------------------------------
 
 
-@xfail("T21 (cross-checks)")
 def test_cross_checks_accept_fixture_run(tools, lib, spec, tmp_path):
     run = Path(shutil.copytree(RUN, tmp_path / "run"))
     result = tools.cross_checks(run, spec, lib)
@@ -255,7 +243,6 @@ def test_cross_checks_accept_fixture_run(tools, lib, spec, tmp_path):
 
 
 @pytest.mark.slow
-@xfail("the remaining tools behind run_stages: T12, T21, T25, T26")
 def test_full_chain_through_run_stages(
     tools, lib, spec, tmp_path, monkeypatch, no_network
 ):

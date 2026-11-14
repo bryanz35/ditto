@@ -9,6 +9,7 @@ Error codes this module adds to tool results:
 """
 
 import logging
+import threading
 from collections.abc import Callable
 from pathlib import Path
 
@@ -24,6 +25,9 @@ from backend.runtime.deps import ORDER
 PIPELINE = [*ORDER, "checks"]
 SIM_TIMEOUT_MS = 15_000
 log = logging.getLogger(__name__)
+_busy: dict[tuple[str, str], threading.Lock] = {}
+"""One lock per (run, stage): a stage thread a cancel left running (a compile runs to its end)
+finishes before an edit runs that stage again in the same folder. Different stages still overlap."""
 
 
 def run_stages(
@@ -43,7 +47,8 @@ def run_stages(
     for stage in [s for s in PIPELINE if s in stages]:
         emit(Event(run_id=run_id, stage=stage, status="running", spec_rev=spec.rev))
         try:
-            result = _run(stage, spec, toolbox, lib, hw, run_dir, results)
+            with _busy.setdefault((run_id, stage), threading.Lock()):
+                result = _run(stage, spec, toolbox, lib, hw, run_dir, results)
         except Exception as exc:
             log.exception("stage %s crashed", stage)
             result = _error("exception", f"{stage} crashed: {exc!r}")

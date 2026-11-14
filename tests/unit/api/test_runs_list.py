@@ -4,7 +4,14 @@ import threading
 from backend.contracts.events import Event
 from backend.contracts.runner import RunRequest
 from backend.runtime.replay_runner import ReplayRunner
-from backend.runtime.runs import CANCELLED, RunCancelled, RunEngine, read_events
+from backend.runtime.runs import (
+    CANCELLED,
+    INTERRUPTED,
+    RunCancelled,
+    RunEngine,
+    end_interrupted_runs,
+    read_events,
+)
 from tests.unit.api.conftest import read_stream
 
 
@@ -86,3 +93,18 @@ async def test_replay_keeps_cad_manifest(client, runs_dir):
     run_id = await start(client)
     await read_stream(client, run_id)
     assert (runs_dir / run_id / "cad" / "manifest.json").is_file()
+
+
+async def test_a_restart_ends_runs_it_cut_off(client, runs_dir):
+    done = await start(client)
+    await read_stream(client, done)
+    cut = runs_dir / "cut1"
+    cut.mkdir()  # the API died mid-run: no done event
+    line = Event(run_id="cut1", seq=1, stage="plan", status="running", spec_rev=0)
+    (cut / "events.jsonl").write_text(line.model_dump_json() + "\n")
+
+    assert end_interrupted_runs() == ["cut1"]
+    last = read_events("cut1")[-1]
+    assert (last.seq, last.stage, last.status) == (2, "done", "failed")
+    assert last.message == INTERRUPTED
+    assert end_interrupted_runs() == []  # finished runs are left alone

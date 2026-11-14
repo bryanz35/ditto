@@ -22,8 +22,8 @@ Bus = Literal["i2c", "spi", "i2s", "uart", "gpio", "analog", "power"]
 
 
 class UserContext(Model):
-    budget_usd: float | None = None
-    owned: dict[str, int] = {}
+    budget_usd: float | None = Field(None, ge=0)
+    owned: dict[str, Annotated[int, Field(ge=0)]] = {}
     """Part id -> quantity on hand, from the inventory memory. The BOM prices only what's missing."""
     printer: str | None = None
     """Printer profile id, e.g. "generic". When None, use HARDWARE.md's PRINTER_MODEL."""

@@ -20,7 +20,7 @@ from pydantic import ValidationError
 from backend.contracts.events import Event, Stage
 from backend.contracts.parts import BoardDef, PartLibrary, pin_code
 from backend.contracts.results import ToolError, ToolResult
-from backend.contracts.runner import Emit, StageRunner, run_dir_for
+from backend.contracts.runner import Emit, StageRunner, run_dir_for, save_spec
 from backend.contracts.spec import EnclosureSpec, ProjectSpec, UserContext
 
 MAX_FAILURES = 4
@@ -51,8 +51,7 @@ class RunContext:
         return ProjectSpec.model_validate_json(p.read_text()) if p.exists() else None
 
     def save_spec(self, spec: ProjectSpec) -> None:
-        self.spec_path.parent.mkdir(parents=True, exist_ok=True)
-        self.spec_path.write_text(spec.model_dump_json(indent=2) + "\n")
+        save_spec(self.spec_path, spec)
 
     def pin_macros(self) -> str:
         """The board and the PIN_* macros pins.h defines for the saved spec (T12's rule: signal
@@ -232,12 +231,11 @@ def make_tools(ctx: RunContext) -> dict[str, BaseTool]:
             )
 
     @tool
-    def set_enclosure(
-        wall_mm: float = 2.0, clearance_mm: float = 1.0, extras: list[str] | None = None
-    ) -> str:
+    def set_enclosure(wall_mm: float = 2.0, clearance_mm: float = 1.0) -> str:
         """Use the plain box case for a device: set its parameters, then compute the layout and
         build and check the case. Saved only if it builds. Geometry comes from the parts library and
-        the template. Replaces any custom shape from write_model."""
+        the template, which has no extras (clips, mounts): only the walls and the clearance change.
+        Replaces any custom shape from write_model."""
         with ctx.lock:
             spec = ctx.load_spec()
             if spec is None:
@@ -248,9 +246,7 @@ def make_tools(ctx: RunContext) -> dict[str, BaseTool]:
                     "its shape with write_model."
                 )
             try:
-                enclosure = EnclosureSpec(
-                    wall_mm=wall_mm, clearance_mm=clearance_mm, extras=extras or []
-                )
+                enclosure = EnclosureSpec(wall_mm=wall_mm, clearance_mm=clearance_mm)
             except ValidationError as e:
                 return _schema_failure(ctx, "enclosure", "enclosure", e)
             spec = spec.model_copy(update={"rev": spec.rev + 1, "enclosure": enclosure})

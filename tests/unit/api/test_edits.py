@@ -8,7 +8,13 @@ from functools import partial
 from backend.contracts.events import Event
 from backend.contracts.invariants import check_events, check_run_dir, stages_run
 from backend.contracts.parts import load_library
-from backend.contracts.runner import EditRequest, NoSpec, RunRequest, run_dir_for
+from backend.contracts.runner import (
+    EditRequest,
+    NoSpec,
+    RunRequest,
+    run_dir_for,
+    save_spec,
+)
 from backend.contracts.spec import ProjectSpec
 from backend.runtime.replay_runner import ReplayRunner
 from backend.runtime.runs import RunEngine, read_events
@@ -241,3 +247,33 @@ async def test_a_run_the_agent_ends_without_a_spec_waits_for_the_user(runs_dir):
     engine.edit("r1", EditRequest(instruction="a plant monitor"))
     await finish(engine, "r1")
     assert read_events("r1")[-1].status == "passed"
+
+
+class EnclosureLast(ReplayRunner):
+    """run() the way the agent does it: the enclosure sub-agent saves rev + 1 (walls only) after
+    firmware, wiring and bom already passed at the rev before."""
+
+    def __init__(self):
+        super().__init__(delay_scale=0)
+
+    async def run(self, request, emit):
+        spec = await super().run(request, emit)
+        enclosure = spec.enclosure.model_copy(update={"wall_mm": 3.0})
+        spec = spec.model_copy(update={"rev": spec.rev + 1, "enclosure": enclosure})
+        save_spec(run_dir_for(request.run_id) / "spec.json", spec)
+        for stage in ("layout", "enclosure"):
+            emit(Event(run_id="r1", stage=stage, status="passed", spec_rev=spec.rev))
+        return spec
+
+
+async def test_new_run_reruns_only_what_a_later_rev_affects(runs_dir):
+    engine = make_engine(EnclosureLast())
+    engine.start(RunRequest(run_id="r1", prompt="a plant monitor"))
+    await finish(engine, "r1")
+
+    events = read_events("r1")
+    saved_at = max(e.seq for e in events if e.stage == "enclosure")
+    # firmware passed at rev 2 and only the walls changed: no second compile
+    assert stages_run(events, saved_at) == {"assembly", "checks"}
+    assert check_events(events) == []
+    assert [p for p in check_run_dir(run_dir_for("r1")) if "rev" in p] == []
