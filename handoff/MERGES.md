@@ -6,3 +6,4 @@ you depend on appears here.
 | Hour | Commit | Task | Note |
 | --- | --- | --- | --- |
 | 1 | 05cd429 | T00 | Repo scaffold: uv project, Makefile, frontend skeleton, empty packages, CI |
+| 2 | 4e5ce65 | T01 | Contracts, stubs, fixtures; G0 review fixes (StageRunner, i2c_address, owned qty, edit fixture). Contracts frozen at CONTRACT_VERSION 1 |
