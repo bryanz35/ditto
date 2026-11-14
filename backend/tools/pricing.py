@@ -221,6 +221,7 @@ def price_bom(
                 price_source=source,
                 vendor_url=url or part.vendor_url,
                 mpn=part.mpn,
+                offers=offers,
             )
         )
 

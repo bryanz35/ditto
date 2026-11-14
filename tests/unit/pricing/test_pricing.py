@@ -134,7 +134,9 @@ def test_nexar_failure_falls_back_to_cache_and_manual(
     assert result.errors[0].severity == "warning"
     esp = line(result, "esp32_devkitc")
     assert (esp.price_source, esp.unit_price_usd) == ("cache", 8.0)
-    assert line(result, "buzzer_passive").price_source == "manual"
+    assert [(o.seller, o.in_stock) for o in esp.offers] == [("cachedist", None)]
+    buzzer = line(result, "buzzer_passive")
+    assert (buzzer.price_source, buzzer.offers) == ("manual", [])
     assert result.data["prices_fetched_at"] == "2026-11-13T09:00:00Z"
 
 
@@ -296,3 +298,21 @@ def test_line_offers_one_per_seller_cheapest_first():
     ]
     assert [o["seller"] for o in line_offers(offers, 10)] == ["c", "a", "b"]
     assert line_offers(offers, 1)[0]["in_stock"] is None  # cache entry from before T38
+
+
+def test_three_sellers_give_three_offers_cheapest_first(no_network, creds, tmp_path):
+    mock_nexar(
+        no_network,
+        reply(
+            seller("Pricey", 12.0, inventoryLevel=5),
+            seller("Cheap", 9.0, inventoryLevel=0),
+            seller("Middle", 10.5),
+        ),
+    )
+    esp = line(price_bom(spec(), LIB, None, tmp_path), "esp32_devkitc")
+    assert [(o.seller, o.unit_price_usd, o.in_stock) for o in esp.offers] == [
+        ("Cheap", 9.0, False),
+        ("Middle", 10.5, None),
+        ("Pricey", 12.0, True),
+    ]
+    assert (esp.unit_price_usd, esp.vendor_url) == (9.0, "https://cheap.example")
