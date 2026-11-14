@@ -43,7 +43,7 @@ _PIN_CALL = re.compile(
 _WIRE_BEGIN = re.compile(r"\bWire1?\s*\.\s*begin\s*\(([^)]*)\)")
 _COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
 _COMPILER_ERROR = re.compile(
-    r"^(?P<file>[^\s:][^:\n]*):(?P<line>\d+):(?P<col>\d+): (?:fatal )?error: (?P<msg>.+)$",
+    r"^(?P<file>(?:[A-Za-z]:)?[^\s:][^:\n]*):(?P<line>\d+):(?P<col>\d+): (?:fatal )?error: (?P<msg>.+)$",
     re.MULTILINE,
 )
 
@@ -106,7 +106,7 @@ def write_firmware_project(
     }
     for path, text in files.values():
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text)
+        path.write_text(text, newline="\n")  # same bytes on every OS
     return ToolResult(
         ok=True,
         artifacts={name: str(path.resolve()) for name, (path, _) in files.items()},
@@ -195,7 +195,7 @@ def parse_compile_errors(log: str, project_dir: Path) -> list[ToolError]:
         path = Path(m["file"])
         if path.is_absolute() and path.is_relative_to(root):
             path = path.relative_to(root)
-        where = f"{path}:{m['line']}:{m['col']}"
+        where = f"{path.as_posix()}:{m['line']}:{m['col']}"
         if (
             where + m["msg"] in seen
         ):  # the same header error repeats per translation unit

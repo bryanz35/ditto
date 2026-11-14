@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,9 @@ SPEC = ProjectSpec.model_validate_json(
 GOLDEN = (ROOT / "fixtures/firmware/plant_monitor_main.cpp").read_text()
 FIXTURE_FW = ROOT / "fixtures/runs/plant_monitor/firmware"
 LIB = load_library()
+needs_pio = pytest.mark.skipif(
+    shutil.which("pio") is None, reason="PlatformIO not installed (run make setup)"
+)
 
 
 def project(tmp_path: Path, main_cpp: str = GOLDEN) -> Path:
@@ -142,7 +146,15 @@ src/main.cpp:30:1: warning: unused variable 'x'
     ]
 
 
+def test_parse_compile_errors_windows_drive_path(tmp_path):
+    log = r"C:\Users\me\.pio\libdeps\Foo\Foo.h:3:1: error: 'x' does not name a type"
+    [err] = parse_compile_errors(log, tmp_path)
+    assert err.field and err.field.endswith("Foo.h:3:1")
+    assert err.message.endswith("Foo.h:3:1: 'x' does not name a type")
+
+
 @pytest.mark.slow
+@needs_pio
 def test_golden_plant_monitor_compiles(tmp_path):
     result = compile_firmware(project(tmp_path))
     assert result.ok, (result.errors, result.log)
@@ -150,6 +162,7 @@ def test_golden_plant_monitor_compiles(tmp_path):
 
 
 @pytest.mark.slow
+@needs_pio
 def test_syntax_error_gives_line_numbers(tmp_path):
     lines = GOLDEN.splitlines()
     n = lines.index("  int soil = analogRead(PIN_SOIL1_AOUT);")
