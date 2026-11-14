@@ -1,7 +1,8 @@
 """Agent tools: thin wrappers that let the model act only through checked code.
 
 Real artifacts reach the run directory only through these: spec.json is saved after the validate
-stage passes, enclosure changes after layout and enclosure pass. Every stage tool shares one retry
+stage passes, enclosure changes (parameters, or model-written build123d code) after layout and
+enclosure pass. Every stage tool shares one retry
 guard: after MAX_FAILURES failures in a row (1 try + 3 retries) it refuses without running the stage.
 Stage events come from the StageRunner; the guard only adds data.attempt to them.
 """
@@ -195,6 +196,8 @@ def make_tools(ctx: RunContext) -> dict[str, BaseTool]:
             return (
                 "No validated spec yet: the parts-and-pins agent must save one first."
             )
+        if spec.firmware is None:
+            return "This project has no electronics, so it has no firmware to write."
         if ctx.failures.get("firmware", 0) >= MAX_FAILURES:
             return _limit(
                 "firmware"
@@ -217,12 +220,18 @@ def make_tools(ctx: RunContext) -> dict[str, BaseTool]:
     def set_enclosure(
         wall_mm: float = 2.0, clearance_mm: float = 1.0, extras: list[str] | None = None
     ) -> str:
-        """Set the enclosure parameters, then compute the layout and build and check the case.
-        Saved only if it builds. Geometry comes from the parts library and the template."""
+        """Use the plain box case for a device: set its parameters, then compute the layout and
+        build and check the case. Saved only if it builds. Geometry comes from the parts library and
+        the template. Replaces any custom shape from write_model."""
         with ctx.lock:
             spec = ctx.load_spec()
             if spec is None:
                 return "No validated spec yet: the parts-and-pins agent must save one first."
+            if spec.mcu is None:
+                return (
+                    "This project has no electronics, so there is no case to size: describe "
+                    "its shape with write_model."
+                )
             try:
                 enclosure = EnclosureSpec(
                     wall_mm=wall_mm, clearance_mm=clearance_mm, extras=extras or []
@@ -239,11 +248,36 @@ def make_tools(ctx: RunContext) -> dict[str, BaseTool]:
             )
 
     @tool
+    def write_model(code: str, wall_mm: float | None = None) -> str:
+        """Save build123d Python for the printed parts, then build and check them (watertight, one
+        piece each, fits the printer, flat on the bed). Saved only if every check passes.
+        Print-only project: the code sets `parts = {"name": shape}`. Device: the code sets `body`,
+        a shape built around the predefined BAY (the electronics' case); code joins it to the case.
+        wall_mm: the case wall thickness for a device (keeps the current one when omitted)."""
+        with ctx.lock:
+            spec = ctx.load_spec()
+            if spec is None:
+                return "No validated spec yet: the parts-and-pins agent must save one first."
+            fields = spec.enclosure.model_dump()
+            fields |= {"template": "custom", "code": code}
+            if wall_mm is not None:
+                fields["wall_mm"] = wall_mm
+            try:
+                enclosure = EnclosureSpec.model_validate(fields)
+            except ValidationError as e:
+                return _schema_failure(ctx, "enclosure", "enclosure", e)
+            spec = spec.model_copy(update={"rev": spec.rev + 1, "enclosure": enclosure})
+            stages: list[Stage] = ["layout", "enclosure"] if spec.mcu else ["enclosure"]
+            return guarded(ctx, "enclosure", stages, spec, lambda: ctx.save_spec(spec))
+
+    @tool
     def price_bom() -> str:
         """Price the saved spec's parts list (owned parts are free) and compare it to the budget."""
         spec = ctx.load_spec()
         if spec is None:
             return "No validated spec yet."
+        if spec.mcu is None:
+            return "This project has no electronics, so there are no parts to price."
         return guarded(ctx, "bom", ["bom"], spec)
 
     @tool
@@ -270,6 +304,7 @@ def make_tools(ctx: RunContext) -> dict[str, BaseTool]:
         write_spec,
         write_firmware,
         set_enclosure,
+        write_model,
         price_bom,
         request_change,
         ask_user,

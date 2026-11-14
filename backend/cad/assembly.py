@@ -37,7 +37,7 @@ def _translate(x: float, y: float, z: float):
 def build_assembly(
     spec: ProjectSpec, layout: Layout, lib: PartLibrary, out_dir: Path
 ) -> ToolResult:
-    insts = {p.ref: p for p in [spec.mcu, *spec.parts]}
+    insts = {p.ref: p for p in spec.instances}
     placed = sorted(p.ref for p in layout.placements)
     known = all(p.part_id in lib for p in insts.values())
     inside = (

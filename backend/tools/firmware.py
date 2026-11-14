@@ -78,7 +78,7 @@ def write_firmware_project(
     spec: ProjectSpec, lib: PartLibrary, main_cpp: str, out_dir: Path
 ) -> ToolResult:
     """artifacts: platformio_ini, pins_h, main_cpp"""
-    instances = [spec.mcu, *spec.parts]
+    instances = spec.instances
     unknown = [
         ToolError(
             code="unknown_part",

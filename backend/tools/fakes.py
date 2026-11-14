@@ -62,8 +62,19 @@ def build_enclosure(
     return ToolResult(ok=True, artifacts=_copy("cad", out_dir, files, spec.rev))
 
 
+def build_custom_model(
+    spec: ProjectSpec, layout: Layout | None, lib: PartLibrary, out_dir: Path
+) -> ToolResult:
+    """The fixture's base and lid stand in for any custom shape."""
+    return build_enclosure(spec, layout, lib, out_dir)  # type: ignore[arg-type]
+
+
 def check_enclosure(
-    spec: ProjectSpec, layout: Layout, lib: PartLibrary, out_dir: Path, printer_id: str
+    spec: ProjectSpec,
+    layout: Layout | None,
+    lib: PartLibrary,
+    out_dir: Path,
+    printer_id: str,
 ) -> ToolResult:
     return ToolResult(ok=True, data={"watertight": True, "fits_printer": True})
 
@@ -137,6 +148,7 @@ def fake_toolbox() -> ToolBox:
         validate_spec=validate_spec,
         compute_layout=compute_layout,
         build_enclosure=build_enclosure,
+        build_custom_model=build_custom_model,
         check_enclosure=check_enclosure,
         build_assembly=build_assembly,
         write_firmware_project=write_firmware_project,

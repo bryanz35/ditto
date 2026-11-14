@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from backend.contracts.parts import PartLibrary, load_library
 from backend.contracts.spec import ProjectSpec
@@ -241,3 +242,18 @@ def test_power_budget():
     lib = lib_with("esp32_devkitc", power_budget_ma=30)
     (error,) = validate_spec(spec_with(), lib).errors
     assert error.code == "power_budget" and "oled1 20 mA" in error.message
+
+
+def test_print_only_spec_passes():
+    book = ProjectSpec.model_validate_json((SPECS / "book_holder.json").read_text())
+    assert book.mcu is None and book.instances == []
+    assert validate_spec(book, load_library()).ok
+
+
+def test_electronics_fields_go_together():
+    plant = json.loads((SPECS / "plant_monitor.json").read_text())
+    for broken in ({"firmware": None}, {"mcu": None}):
+        with pytest.raises(ValidationError, match="mcu and firmware"):
+            ProjectSpec.model_validate({**plant, **broken})
+    with pytest.raises(ValidationError, match="need an mcu"):
+        ProjectSpec.model_validate({**plant, "mcu": None, "firmware": None})

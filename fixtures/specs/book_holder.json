@@ -1,0 +1,32 @@
+{
+  "rev": 1,
+  "title": "Book holder",
+  "prompt": "I want to make a 3d printed book holder",
+  "requirements": [
+    "Holds an A5 paperback (148 x 210 mm, up to 30 mm thick) open for reading",
+    "Leans the book back 15 degrees",
+    "Prints in one piece on a 220 x 220 mm bed without supports"
+  ],
+  "assumptions": [
+    "A5 paperback, since the book size wasn't given"
+  ],
+  "user": {
+    "budget_usd": null,
+    "owned": {},
+    "printer": null,
+    "rejected": [],
+    "level": "intermediate",
+    "name": null
+  },
+  "mcu": null,
+  "parts": [],
+  "connections": [],
+  "firmware": null,
+  "enclosure": {
+    "template": "custom",
+    "wall_mm": 2.0,
+    "clearance_mm": 1.0,
+    "extras": [],
+    "code": "# A tilted stand for an A5 paperback (148 x 210 mm): a back plate leaning 15 degrees,\n# a ledge along the front edge to hold the pages, and two side feet.\nfrom build123d import Box, Pos, Rot\n\nBOOK_W = 148.0  # A5 width\nPLATE_H = 160.0  # back plate height, below the book's top edge\nT = 4.0  # plate thickness\nLEAN = 15.0  # degrees back from vertical\n\nplate = Pos(0, 0, PLATE_H / 2) * Rot(-LEAN, 0, 0) * Box(BOOK_W, T, PLATE_H)\nbase = Pos(0, 20, T / 2) * Box(BOOK_W, 70, T)\nledge = Pos(0, -13, 12) * Box(BOOK_W, T, 20)\nfoot = Box(T, 60, 40)\nholder = base + plate + ledge + Pos(-BOOK_W / 2 + T / 2, 30, 20) * foot\nholder += Pos(BOOK_W / 2 - T / 2, 30, 20) * foot\n# Sit it on the bed.\nholder = Pos(0, 0, -holder.bounding_box().min.Z) * holder\n\nparts = {\"holder\": holder}\n"
+  }
+}

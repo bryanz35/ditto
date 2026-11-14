@@ -88,14 +88,19 @@ class CutoutRecord(Model):
 
 
 class EnclosureManifest(Model):
-    """cad/manifest.json, written by build_enclosure: which opening serves which part feature."""
+    """cad/manifest.json, written by build_enclosure or build_custom_model: which opening serves which
+    part feature, and which parts get printed."""
 
     spec_rev: int
-    template: Literal["box_lid"] = "box_lid"
+    template: Literal["box_lid", "custom"] = "box_lid"
     wall_mm: float
     cavity_mm: tuple[float, float, float]
+    """(0, 0, 0) for a print-only project: there is no case."""
     outer_mm: tuple[float, float, float]
-    """Outside size of the closed box, lid included."""
+    """Outside size of the closed box, lid included; for a print-only project, of its biggest part."""
     cutouts: list[CutoutRecord]
+    prints: dict[str, tuple[float, float, float]] = {}
+    """Every printed part: name (its STL is cad/<name>.stl) -> bounding box size (x, y, z) as
+    exported. "base" and "lid" for a device."""
     unmeasured_refs: list[str] = []
     """Parts whose dims_source isn't "measured": the UI says "verify before printing"."""

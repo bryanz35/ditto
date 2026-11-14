@@ -1,19 +1,23 @@
-"""Printability and fit checks (T11) on build_enclosure's STLs in out_dir.
+"""Printability and fit checks (T11) on the printed parts' STLs in out_dir.
 
-Checks: each STL is watertight; each fits the printer's build volume (backend/parts/printers/<id>.yaml,
-any axis-aligned orientation); the walls are at least spec.enclosure.wall_mm; every placement is inside
-the cavity, clear of the corner screw posts and of every other part.
+The parts are the ones cad/manifest.json lists in `prints` (base and lid when there's no manifest).
+Checks: each STL is watertight, one connected piece, and fits the printer's build volume
+(backend/parts/printers/<id>.yaml, any axis-aligned orientation); a print-only part has a flat face on
+the bed; the box walls are at least spec.enclosure.wall_mm; every placement is inside the cavity,
+clear of the corner screw posts and of every other part (devices only: layout is None otherwise).
 
-Error codes: unknown_printer, missing_stl, not_watertight, too_big_for_printer, wall_too_thin,
-part_outside_cavity, parts_overlap.
+Error codes: unknown_printer, missing_stl, not_watertight, loose_pieces, no_flat_base,
+too_big_for_printer, wall_too_thin, part_outside_cavity, parts_overlap.
 """
 
 import itertools
 from pathlib import Path
 
+import numpy as np
 import trimesh
 import yaml
 
+from backend.contracts.artifacts import EnclosureManifest
 from backend.contracts.parts import PARTS_DIR, PartLibrary
 from backend.contracts.results import ToolError, ToolResult
 from backend.contracts.spec import Layout, ProjectSpec
@@ -21,6 +25,7 @@ from backend.tools.layout import CORNER_POST_MM, footprint
 
 PRINTERS_DIR = PARTS_DIR / "printers"
 TOL_MM = 0.01
+MIN_BED_CONTACT_MM2 = 25.0
 
 
 def _placement_errors(
@@ -28,7 +33,7 @@ def _placement_errors(
 ) -> list[ToolError]:
     L, W, H = layout.cavity_mm
     P = CORNER_POST_MM
-    ids = {p.ref: p.part_id for p in [spec.mcu, *spec.parts]}
+    ids = {p.ref: p.part_id for p in spec.instances}
     errors, boxes = [], []
     for i, p in enumerate(layout.placements):
         if ids.get(p.ref) not in lib:
@@ -79,10 +84,51 @@ def _placement_errors(
     return errors
 
 
+def _bed_contact_mm2(mesh: trimesh.Trimesh) -> float:
+    """Area of the downward faces that lie on the part's lowest plane."""
+    z0 = mesh.bounds[0][2]
+    down = mesh.face_normals[:, 2] < -0.99
+    low = np.all(np.abs(mesh.vertices[mesh.faces][:, :, 2] - z0) < 0.05, axis=1)
+    return float(mesh.area_faces[down & low].sum())
+
+
+def _load(path: Path) -> trimesh.Trimesh:
+    """The STL without the zero-area triangles OCCT writes at poles and fillet corners: trimesh
+    counts those as holes, slicers ignore them."""
+    mesh = trimesh.load_mesh(path)
+    mesh.update_faces(mesh.nondegenerate_faces())
+    mesh.remove_unreferenced_vertices()
+    mesh.merge_vertices()
+    return mesh
+
+
+def _pieces(mesh: trimesh.Trimesh) -> int:
+    """Separate solids; a sealed inner void is a negative-volume shell, not a piece."""
+    return sum(
+        1
+        for b in mesh.split(only_watertight=False, repair=False, engine="scipy")
+        if b.volume > 0
+    )
+
+
+def _print_names(out_dir: Path) -> list[str]:
+    path = Path(out_dir) / "manifest.json"
+    if path.is_file():
+        prints = EnclosureManifest.model_validate_json(path.read_text()).prints
+        if prints:
+            return sorted(prints)
+    return ["base", "lid"]
+
+
 def check_enclosure(
-    spec: ProjectSpec, layout: Layout, lib: PartLibrary, out_dir: Path, printer_id: str
+    spec: ProjectSpec,
+    layout: Layout | None,
+    lib: PartLibrary,
+    out_dir: Path,
+    printer_id: str,
 ) -> ToolResult:
-    errors = _placement_errors(spec, layout, lib)
+    errors = _placement_errors(spec, layout, lib) if layout else []
+    print_only = spec.mcu is None
     profile = PRINTERS_DIR / f"{printer_id}.yaml"
     volume = (
         sorted(yaml.safe_load(profile.read_text())["build_volume_mm"])
@@ -99,25 +145,50 @@ def check_enclosure(
             )
         )
     watertight = fits = True
-    for name in ("base", "lid"):
+    for name in _print_names(out_dir):
         path = Path(out_dir) / f"{name}.stl"
         if not path.is_file():
             errors.append(
                 ToolError(
                     code="missing_stl",
-                    message=f"{path} doesn't exist; run build_enclosure first",
+                    message=f"{path} doesn't exist; build the enclosure first",
                 )
             )
             watertight = fits = False
             continue
-        mesh = trimesh.load_mesh(path)
+        mesh = _load(path)
         if not mesh.is_watertight:
             watertight = False
             errors.append(
                 ToolError(
                     code="not_watertight",
                     message=f"{name}.stl has holes or open edges, so slicers may print it wrong",
-                    hint="a cutout probably grazes an edge; change clearance_mm or wall_mm",
+                    hint="a cutout probably grazes an edge; change clearance_mm or wall_mm"
+                    if layout
+                    else "overlap touching solids by at least 0.5 mm instead of meeting at "
+                    "an edge, and avoid zero-thickness features",
+                )
+            )
+        if (pieces := _pieces(mesh)) > 1:
+            errors.append(
+                ToolError(
+                    code="loose_pieces",
+                    message=f"{name}.stl is {pieces} separate pieces that would print loose",
+                    hint="make the body overlap BAY by at least 1 mm"
+                    if layout
+                    else "overlap the pieces by at least 1 mm, or give each its own entry in "
+                    "`parts`",
+                    field="enclosure.code",
+                )
+            )
+        if print_only and _bed_contact_mm2(mesh) < MIN_BED_CONTACT_MM2:
+            errors.append(
+                ToolError(
+                    code="no_flat_base",
+                    message=f"{name}.stl touches the print bed with less than "
+                    f"{MIN_BED_CONTACT_MM2:g} mm² of flat face, so it would tip or need supports",
+                    hint="rotate the part so a flat face is lowest and move it to sit on z=0",
+                    field="enclosure.code",
                 )
             )
         size = sorted(float(e) for e in mesh.extents)
@@ -129,10 +200,13 @@ def check_enclosure(
                     message=f"{name} is {' x '.join(f'{e:.1f}' for e in mesh.extents)} mm, "
                     f"too big for {printer_id}'s {' x '.join(f'{v:g}' for v in volume)} mm "
                     f"build volume in any orientation",
-                    hint="use fewer or smaller parts, or a printer with a larger bed",
+                    hint="use fewer or smaller parts, or a printer with a larger bed"
+                    if layout
+                    else "make it smaller or split it into parts that join (each its own "
+                    "entry in `parts`)",
                 )
             )
-        if name == "base":
+        if name == "base" and layout:
             wall = spec.enclosure.wall_mm
             thinnest = min(
                 (float(mesh.extents[i]) - layout.cavity_mm[i]) / 2 for i in (0, 1)

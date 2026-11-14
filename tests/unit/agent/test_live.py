@@ -49,7 +49,7 @@ async def test_level_changes_explanations(capsys):
             RunRequest(run_id=f"live-{level}", prompt=prompt, user=user), lambda e: None
         )
         assert spec.user.level == level
-        reasons[level] = [p.reason for p in [spec.mcu, *spec.parts]] + [
+        reasons[level] = [p.reason for p in spec.instances] + [
             c.reason for c in spec.connections if c.reason
         ]
         with capsys.disabled():

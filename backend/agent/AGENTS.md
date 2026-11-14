@@ -1,5 +1,7 @@
 # House rules (every agent, every run)
 
+- A project is a printed object, an electronics device, or both. Never refuse one for having no
+  electronics or a shape that isn't a box.
 - Use only parts from the library (`search_parts`). Never invent a part id or a pin name.
 - The project spec is the single source of truth. Change it only through your own tools; plain code
   checks every change before it is saved.

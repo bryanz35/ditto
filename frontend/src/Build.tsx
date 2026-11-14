@@ -2,10 +2,10 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { useJson, useSend } from './api'
 import type { Bom, EnclosureManifest, Layout, ProjectSpec, Wiring } from './contracts'
-import { buildSteps, loadProgress, saveProgress, WIRE_COLOURS, wireId, type Progress, type Step } from './guide'
+import { buildSteps, loadProgress, printSteps, saveProgress, WIRE_COLOURS, wireId, type Progress, type Step } from './guide'
 import { Icon } from './Icon'
 import type { UrlOf } from './panels'
-import { soon } from './ui'
+import { printsOf, soon, type Print } from './ui'
 
 const Viewer3D = lazy(() => import('./Viewer3D'))
 
@@ -28,8 +28,15 @@ export function Build({
   const wiring = useJson<Wiring>(urlOf('wiring_json'))
   const bom = useJson<Bom>(urlOf('bom_json'))
   const enclosure = useJson<EnclosureManifest>(urlOf('manifest'))
-  const steps = spec && layout && wiring ? buildSteps({ spec, layout, wiring, bom, enclosure, urlOf }) : null
-  const missing = ['spec', 'layout_json', 'wiring_json'].filter((name) => !urlOf(name))
+  const printOnly = spec !== null && !spec.mcu
+  const prints = printsOf(spec, enclosure, urlOf)
+  const steps = printOnly
+    ? enclosure && printSteps({ enclosure, urlOf })
+    : spec && layout && wiring
+      ? buildSteps({ spec, layout, wiring, bom, enclosure, urlOf })
+      : null
+  const needed = printOnly ? ['spec', 'manifest'] : ['spec', 'layout_json', 'wiring_json']
+  const missing = needed.filter((name) => !urlOf(name))
 
   const topbar = (status: string) => (
     <header className="topbar">
@@ -54,7 +61,11 @@ export function Build({
       <main className="overview build">
         {topbar('Building')}
         <p className="empty center">
-          {missing.length > 0 ? 'The build guide needs the case layout and the wiring, and this run has none yet.' : 'Loading the build guide…'}
+          {missing.length > 0
+            ? printOnly
+              ? 'The build guide needs the 3D model, and this run has none yet.'
+              : 'The build guide needs the case layout and the wiring, and this run has none yet.'
+            : 'Loading the build guide…'}
         </p>
         <nav className="tracker" aria-label="Steps">
           <button type="button" className="btn secondary" onClick={onBack}>
@@ -65,18 +76,21 @@ export function Build({
       </main>
     )
   }
-  return <Guide key={steps.map((s) => s.id).join()} {...{ runId, steps, urlOf, topbar, onBack }} />
+  return <Guide key={steps.map((s) => s.id).join()} {...{ runId, steps, prints, urlOf, topbar, onBack }} />
 }
 
 function Guide({
   runId,
   steps,
+  prints,
   urlOf,
   topbar,
   onBack,
 }: {
   runId: string
   steps: Step[]
+  /** A print-only project's parts, shown instead of the case. */
+  prints: Print[]
   urlOf: UrlOf
   topbar: (status: string) => ReactNode
   onBack: () => void
@@ -102,11 +116,12 @@ function Guide({
   return (
     <main className="overview build">
       <div className="viewport">
-        {urlOf('base_stl') ? (
+        {urlOf('base_stl') || prints.length ? (
           <Suspense fallback={<p className="empty center">Loading the 3D view…</p>}>
             <Viewer3D
-              base={urlOf('base_stl')}
+              base={prints.length ? null : urlOf('base_stl')}
               lid={step.kind === 'Close' ? urlOf('lid_stl') : null}
+              prints={prints}
               assembly={assembly}
               selected={assembly && step.ref ? { ref: step.ref, label: step.noun ?? step.ref } : null}
             />

@@ -1,0 +1,134 @@
+import types
+from pathlib import Path
+
+import pytest
+from pydantic import ValidationError
+
+from backend.contracts.spec import EnclosureSpec, ProjectSpec
+from backend.tools import custom_model
+from backend.tools.check_enclosure import check_enclosure
+from backend.tools.custom_model import FORBIDDEN_ATTRS, build_custom_model, check_source
+
+ROOT = Path(__file__).resolve().parents[3]
+BOOK = ProjectSpec.model_validate_json(
+    (ROOT / "fixtures" / "specs" / "book_holder.json").read_text()
+)
+
+
+def with_code(code: str) -> ProjectSpec:
+    enclosure = EnclosureSpec(template="custom", code=code)
+    return BOOK.model_copy(update={"enclosure": enclosure})
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "import os",
+        "from build123d import *\nos.system('ls')",
+        "import build123d as bd\nbd.os.system('ls')",
+        "from build123d import export_stl",
+        "import build123d\nbuild123d.exporters3d",
+        "x = (1).__class__.__subclasses__()",
+        "open('/etc/passwd')",
+        "from . import secrets",
+        "__builtins__",
+    ],
+)
+def test_check_source_rejects_anything_but_shapes(code):
+    errors = check_source(code)
+    assert [e.code for e in errors] == ["forbidden_code"], code
+
+
+def test_check_source_accepts_the_fixture_and_reports_syntax_errors():
+    assert check_source(BOOK.enclosure.code) == []
+    assert check_source("parts = {")[0].code == "model_error"
+
+
+def test_forbidden_attrs_cover_every_module_build123d_exposes():
+    import build123d
+
+    modules = {
+        n
+        for n in dir(build123d)
+        if isinstance(getattr(build123d, n), types.ModuleType) and not n.startswith("_")
+    }
+    assert modules <= FORBIDDEN_ATTRS, sorted(modules - FORBIDDEN_ATTRS)
+
+
+def test_custom_template_needs_code_and_box_lid_takes_none():
+    with pytest.raises(ValidationError):
+        EnclosureSpec(template="custom")
+    with pytest.raises(ValidationError):
+        EnclosureSpec(code="parts = {}")
+
+
+def test_box_lid_print_only_spec_has_no_model(tmp_path):
+    spec = BOOK.model_copy(update={"enclosure": EnclosureSpec()})
+    result = build_custom_model(spec, None, None, tmp_path)
+    assert [e.code for e in result.errors] == ["no_model"]
+
+
+@pytest.mark.slow
+def test_book_holder_builds_and_passes_the_print_checks(tmp_path, lib):
+    result = build_custom_model(BOOK, None, lib, tmp_path)
+    assert result.ok, result.errors
+    assert set(result.artifacts) == {
+        "holder_stl",
+        "holder_step",
+        "model_py",
+        "manifest",
+    }
+    assert result.data["manifest"]["prints"]["holder"][0] == pytest.approx(148)
+    checked = check_enclosure(BOOK, None, lib, tmp_path, "generic")
+    assert checked.ok, checked.errors
+
+
+@pytest.mark.slow
+def test_same_code_same_files(tmp_path, lib):
+    a, b = tmp_path / "a", tmp_path / "b"
+    build_custom_model(BOOK, None, lib, a)
+    build_custom_model(BOOK, None, lib, b)
+    for name in ("holder.stl", "holder.step", "manifest.json"):
+        assert (a / name).read_bytes() == (b / name).read_bytes(), name
+
+
+@pytest.mark.slow
+def test_errors_point_at_the_models_line(tmp_path, lib):
+    code = "from build123d import *\n\nparts = {'a': Box(1, 1)}\n"
+    result = build_custom_model(with_code(code), None, lib, tmp_path)
+    assert result.errors[0].code == "model_error"
+    assert 'model.py", line 3' in result.errors[0].message
+
+
+@pytest.mark.slow
+def test_wrong_output_is_explained(tmp_path, lib):
+    result = build_custom_model(with_code("x = 1"), None, lib, tmp_path)
+    assert result.errors[0].code == "bad_model_output"
+    assert "parts" in result.errors[0].message
+
+
+@pytest.mark.slow
+def test_endless_model_times_out(tmp_path, lib, monkeypatch):
+    monkeypatch.setattr(custom_model, "TIMEOUT_S", 8)
+    result = build_custom_model(with_code("while True:\n    pass"), None, lib, tmp_path)
+    assert result.errors[0].code == "model_timeout"
+
+
+@pytest.mark.slow
+def test_loose_pieces_and_a_round_bottom_fail_the_checks(tmp_path, lib):
+    code = (
+        "from build123d import *\n"
+        "parts = {'two': Box(10, 10, 10, align=(Align.MIN,) * 3)"
+        " + Pos(20, 0, 0) * Box(10, 10, 10, align=(Align.MIN,) * 3),"
+        " 'ball': Pos(0, 0, 10) * Sphere(10),"
+        " 'hollow': Pos(0, 0, 15) * (Box(30, 30, 30) - Sphere(12))}\n"
+    )
+    spec = with_code(code)
+    assert build_custom_model(spec, None, lib, tmp_path).ok
+    errors = check_enclosure(spec, None, lib, tmp_path, "generic").errors
+    # the sphere is watertight once OCCT's zero-area pole triangles are dropped; a sealed void
+    # isn't a loose piece
+    assert sorted((e.code, e.message.split(".stl")[0]) for e in errors) == [
+        ("loose_pieces", "two"),
+        ("no_flat_base", "ball"),
+    ]

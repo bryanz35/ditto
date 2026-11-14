@@ -3,6 +3,10 @@
 The base is an open box with the cavity floor at z=0; the lid is a plate on top at z=H with a lip that
 hangs into the cavity. Both are exported where they sit when closed, so the assembly preview and the
 viewer can place parts straight from the layout. Imported lazily: importing build123d takes seconds.
+
+box_lid_shapes() also returns the bay (the closed box's outer solid) and the keep-out (cavity, the
+lid's path and a tunnel out of every wall opening), which a custom body built around the bay must
+leave empty (backend/cad/run_model.py).
 """
 
 from pathlib import Path
@@ -18,6 +22,8 @@ SCREW_PILOT_MM = 2.2  # M2.5 self-tapping into plastic
 SCREW_CLEAR_MM = 2.9
 LIP_T_MM = 1.2
 LIP_GAP_MM = 0.2
+REACH_MM = 1000.0
+"""How far the keep-out reaches past the box: further than any printable part."""
 # Fixed, so the same spec gives the same STEP file.
 STEP_TIMESTAMP = "2000-01-01T00:00:00"
 
@@ -32,14 +38,24 @@ def _wall_cut(c: CutoutRecord, L: float, W: float, wall: float) -> Shape:
     return Pos(x, u, v) * Box(depth, w, h)
 
 
-def box_lid(
+def _tunnel(c: CutoutRecord, L: float, W: float) -> Shape:
+    """A wall opening extended far outward, so nothing built outside the wall blocks it."""
+    (u, v), (w, h) = c.center_mm, c.size_mm
+    if c.face in ("front", "back"):
+        y = -REACH_MM / 2 if c.face == "front" else W + REACH_MM / 2
+        return Pos(u, y, v) * Box(w, REACH_MM, h)
+    x = -REACH_MM / 2 if c.face == "left" else L + REACH_MM / 2
+    return Pos(x, u, v) * Box(REACH_MM, w, h)
+
+
+def box_lid_shapes(
     cavity: tuple[float, float, float],
     wall: float,
     cutouts: list[CutoutRecord],
     standoffs: list[tuple[float, float, float, float]],
-    out_dir: Path,
-) -> dict[str, str]:
-    """standoffs: (x, y, height, hole diameter) of each part mount hole. Returns artifact paths."""
+) -> dict[str, Shape]:
+    """base, lid, bay and keepout (see the module docstring), in the enclosure frame.
+    standoffs: (x, y, height, hole diameter) of each part mount hole."""
     L, W, H = cavity
     P = CORNER_POST_MM
     posts = [(x, y) for x in (P / 2, L - P / 2) for y in (P / 2, W - P / 2)]
@@ -80,11 +96,38 @@ def box_lid(
             (u, v), (w, h) = c.center_mm, c.size_mm
             lid -= Pos(u, v, H) * Box(w, h, 2 * (wall + LIP_MM) + 2)
 
+    bay = Pos(-wall, -wall, -wall) * Box(
+        L + 2 * wall, W + 2 * wall, H + 2 * wall, align=MIN
+    )
+    keepout = Box(L, W, REACH_MM, align=MIN)  # the cavity, open upward
+    keepout += Pos(-wall, -wall, H) * Box(  # the lid and the way it lifts off
+        L + 2 * wall, W + 2 * wall, REACH_MM, align=MIN
+    )
+    for c in cutouts:
+        if c.face != "top":
+            keepout += _tunnel(c, L, W)
+    return {"base": base, "lid": lid, "bay": bay, "keepout": keepout}
+
+
+def export_parts(shapes: dict[str, Shape], out_dir: Path) -> dict[str, str]:
+    """STL and STEP of each shape; returns artifact paths (<name>_stl, <name>_step)."""
     out_dir = Path(out_dir).resolve()
     artifacts = {}
-    for name, shape in (("base", base), ("lid", lid)):
+    for name, shape in shapes.items():
         stl, step = out_dir / f"{name}.stl", out_dir / f"{name}.step"
         export_stl(shape, stl)
         export_step(shape, step, timestamp=STEP_TIMESTAMP)
         artifacts |= {f"{name}_stl": str(stl), f"{name}_step": str(step)}
     return artifacts
+
+
+def box_lid(
+    cavity: tuple[float, float, float],
+    wall: float,
+    cutouts: list[CutoutRecord],
+    standoffs: list[tuple[float, float, float, float]],
+    out_dir: Path,
+) -> dict[str, str]:
+    """standoffs: (x, y, height, hole diameter) of each part mount hole. Returns artifact paths."""
+    shapes = box_lid_shapes(cavity, wall, cutouts, standoffs)
+    return export_parts({"base": shapes["base"], "lid": shapes["lid"]}, out_dir)

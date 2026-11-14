@@ -88,3 +88,35 @@ def test_a_crashing_tool_fails_its_stage_only(run):
         final["bom"].errors[0].code == "exception" and "kaboom" in final["bom"].message
     )
     assert final["checks"].status == "passed"
+
+
+def test_print_only_project_runs_only_validate_enclosure_and_checks(runs_dir):
+    book = ProjectSpec.model_validate_json(
+        (FIXTURES / "specs" / "book_holder.json").read_text()
+    )
+    built = []
+
+    def custom(spec, layout, lib, out_dir):
+        built.append(layout)
+        return fake_toolbox().build_custom_model(spec, layout, lib, out_dir)
+
+    events = []
+    run_stages(
+        "r1",
+        PIPELINE,
+        book,
+        events.append,
+        toolbox=replace(fake_toolbox(), build_custom_model=custom),
+        lib=load_library(),
+        hardware=MODE_V,
+    )
+    final = {e.stage: e for e in events if e.status != "running"}
+    assert {s for s, e in final.items() if e.status == "passed"} == {
+        "validate",
+        "enclosure",
+        "checks",
+    }
+    assert all(
+        "no electronics" in e.message for e in final.values() if e.status == "skipped"
+    )
+    assert built == [None]  # no layout for a print-only project

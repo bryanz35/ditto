@@ -2,7 +2,8 @@
 The engine binds toolbox, lib (and optionally hardware) with functools.partial.
 
 Error codes this module adds to tool results:
-- skipped: the stage didn't run (the hardware mode doesn't need it, or an input stage didn't pass).
+- skipped: the stage didn't run (the hardware mode doesn't need it, an input stage didn't pass, or a
+  print-only project has no electronics: only validate, enclosure and checks run for it).
 - missing_main_cpp: the firmware stage found no firmware/src/main.cpp in the run directory.
 - exception: a tool raised; the message names the stage and the exception.
 """
@@ -60,8 +61,16 @@ def _run(
     done: dict[str, ToolResult],
 ) -> ToolResult:
     cad, fw, sim = run_dir / "cad", run_dir / "firmware", run_dir / "sim"
+    printer = spec.user.printer or hw.printer_model
     if stage == "validate":
         return tb.validate_spec(spec, lib)
+    if spec.mcu is None and stage not in ("enclosure", "checks"):
+        return _skip("this project has no electronics")
+    if stage == "enclosure" and spec.mcu is None:
+        return _chain(
+            lambda: tb.build_custom_model(spec, None, lib, cad),
+            lambda: tb.check_enclosure(spec, None, lib, cad, printer),
+        )
     if stage == "layout":
         return tb.compute_layout(spec, lib, cad)
     if stage in ("enclosure", "assembly"):
@@ -71,9 +80,13 @@ def _run(
         layout = Layout.model_validate_json(layout_file.read_text())
         if stage == "assembly":
             return tb.build_assembly(spec, layout, lib, cad)
-        printer = spec.user.printer or hw.printer_model
+        build = (
+            tb.build_custom_model
+            if spec.enclosure.template == "custom"
+            else tb.build_enclosure
+        )
         return _chain(
-            lambda: tb.build_enclosure(spec, layout, lib, cad),
+            lambda: build(spec, layout, lib, cad),
             lambda: tb.check_enclosure(spec, layout, lib, cad, printer),
         )
     if stage == "firmware":

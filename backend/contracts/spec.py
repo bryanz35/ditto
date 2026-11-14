@@ -2,11 +2,14 @@
 
 The agent fills `ProjectSpec`; every other artifact is generated from it by code. `Placement` and
 `Layout` are computed by the layout tool, never by the model.
+
+A project is a printed object, an electronics device, or both. A print-only project (a book holder)
+has no `mcu`, `firmware`, `parts` or `connections`, and its shape comes from `enclosure.code`.
 """
 
 from typing import Annotated, Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from backend.contracts.base import I2cAddress, Model, Wall
 
@@ -60,13 +63,27 @@ class Connection(Model):
 
 
 class EnclosureSpec(Model):
-    """Openings come from the parts' library features (and a cable hole per external part)."""
+    """Openings come from the parts' library features (and a cable hole per external part).
 
-    template: Literal["box_lid"] = "box_lid"
+    template "box_lid": a plain case from the fixed template. template "custom": `code` is build123d
+    source written by the model (backend/tools/custom_model.py says what it must define); code runs
+    it in a subprocess and checks every printed part."""
+
+    template: Literal["box_lid", "custom"] = "box_lid"
     wall_mm: float = Field(2.0, ge=1.2, le=4.0)
     clearance_mm: float = Field(1.0, ge=0)
     extras: list[str] = []
     """Free-form CAD requests, e.g. "belt clip"."""
+    code: str | None = None
+    """build123d source for template "custom"; None for "box_lid"."""
+
+    @model_validator(mode="after")
+    def _code_matches_template(self):
+        if (self.template == "custom") != bool(self.code):
+            raise ValueError(
+                'template "custom" needs `code` (build123d source), and "box_lid" takes none'
+            )
+        return self
 
 
 class FirmwareSpec(Model):
@@ -86,11 +103,31 @@ class ProjectSpec(Model):
     assumptions: list[str] = []
     """Stated when we didn't ask."""
     user: UserContext = UserContext()
-    mcu: PartInstance
-    parts: list[PartInstance]
-    connections: list[Connection]
-    firmware: FirmwareSpec
+    mcu: PartInstance | None = None
+    """The board; None for a print-only project (no electronics)."""
+    parts: list[PartInstance] = []
+    connections: list[Connection] = []
+    firmware: FirmwareSpec | None = None
+    """Set exactly when `mcu` is."""
     enclosure: EnclosureSpec = EnclosureSpec()
+
+    @model_validator(mode="after")
+    def _electronics_go_together(self):
+        if (self.mcu is None) != (self.firmware is None):
+            raise ValueError(
+                "mcu and firmware go together: set both for a device with electronics, or "
+                "neither (null) for a print-only object"
+            )
+        if self.mcu is None and (self.parts or self.connections):
+            raise ValueError(
+                "parts and connections need an mcu; a print-only object has neither"
+            )
+        return self
+
+    @property
+    def instances(self) -> list[PartInstance]:
+        """Every part instance, the board first; empty for a print-only project."""
+        return [self.mcu, *self.parts] if self.mcu else []
 
 
 class Placement(Model):

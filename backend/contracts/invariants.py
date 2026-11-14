@@ -29,7 +29,7 @@ PIPELINE = (
 
 
 def _instances(spec: ProjectSpec) -> list[PartInstance]:
-    return [spec.mcu, *spec.parts]
+    return spec.instances
 
 
 def _known(spec: ProjectSpec, lib: PartLibrary) -> list[PartInstance]:

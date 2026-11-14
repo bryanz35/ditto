@@ -86,3 +86,22 @@ describe('progress', () => {
     expect(wireId(wiring.rows[0])).toBe('env1.VCC')
   })
 })
+
+describe('buildSteps on a print-only project', () => {
+  const book = { ...input.spec, mcu: null, firmware: null, parts: [], connections: [] }
+  const enclosure = {
+    ...input.enclosure,
+    template: 'custom',
+    cutouts: [],
+    prints: { holder: [148, 82.6, 157.8], peg: [10, 10, 20] },
+  } as EnclosureManifest
+  const prints = (name: string) => (name.endsWith('_stl') || name.endsWith('_step') ? `/f/${name}.x?v=1` : null)
+  const steps = buildSteps({ ...input, spec: book, enclosure, urlOf: prints })
+
+  it('has one print step per printed part and nothing to wire', () => {
+    expect(steps.map((s) => s.id)).toEqual(['print-holder', 'print-peg'])
+    expect(steps[0].body).toContain('148 × 83 × 158 mm')
+    expect(steps[0].files.map((f) => f.detail)).toEqual(['3D print file', 'CAD file (to edit)'])
+    expect(steps.every((s) => s.wires.length === 0 && s.kind === 'Print')).toBe(true)
+  })
+})

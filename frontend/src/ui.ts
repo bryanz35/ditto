@@ -1,5 +1,6 @@
 // Small helpers shared by the screens (kept out of the .tsx files so React fast refresh stays happy).
 import type { KeyboardEvent } from 'react'
+import type { EnclosureManifest, ProjectSpec } from './contracts'
 import type { IconName } from './Icon'
 
 /** Props for a control the design shows but the backend can't serve yet: drawn as in Figma, inert,
@@ -43,3 +44,20 @@ export const projectIcon = iconFor([
   [/door|bell|chime/i, 'bell'],
   [/light|lamp/i, 'lightbulb'],
 ])
+
+/** One printed part; `width` is its x size, for laying several out side by side. */
+export type Print = { url: string; width: number }
+
+/** A print-only project's printed parts (from cad/manifest.json); empty for a device, whose base
+ * and lid the viewer draws as the case. */
+export const printsOf = (
+  spec: ProjectSpec | null,
+  manifest: EnclosureManifest | null,
+  urlOf: (name: string) => string | null,
+): Print[] =>
+  spec && !spec.mcu && manifest
+    ? Object.entries(manifest.prints).flatMap(([name, size]) => {
+        const url = urlOf(`${name}_stl`)
+        return url ? [{ url, width: size[0] }] : []
+      })
+    : []

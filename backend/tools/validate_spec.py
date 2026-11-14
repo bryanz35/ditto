@@ -2,7 +2,8 @@
 
 Every board fact (pin names and types, rails, reserved, input-only, strapping and ADC pins, logic
 voltage, power budget) comes from the board's library YAML; none is written here. Messages are read
-by the parts sub-agent, so each names the part, pin and value and lists free alternatives.
+by the parts sub-agent, so each names the part, pin and value and lists free alternatives. A
+print-only spec (no mcu) has nothing to check here and passes.
 
 Error codes (severity "error" unless noted):
 - invalid_spec: the spec no longer matches the ProjectSpec model (re-validated here).
@@ -54,6 +55,10 @@ def validate_spec(spec: ProjectSpec, lib: PartLibrary) -> ToolResult:
                 for err in e.errors()
             ]
         )
+    if (
+        spec.mcu is None
+    ):  # print-only: no electronics to check; its stages check the model
+        return _result([])
     return _result(_Check(spec, lib).run())
 
 
