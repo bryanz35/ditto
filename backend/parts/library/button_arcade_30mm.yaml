@@ -1,0 +1,31 @@
+# Sanwa OBSF-30 snap-in arcade push button: snaps into a 30 mm hole in a 2-3.9 mm panel, with a built-in
+# microswitch on 2.8 mm (0.110") spade terminals. Hole, panel and terminal size, price: source (vendor page).
+# Microswitch SW-68, two terminals (https://www.arcadexpress.com/en/buttons/104-boton-arcade-sanwa-obsf-30.html);
+# they are unmarked and interchangeable: COM and NO are our names. NO to a GPIO (INPUT_PULLUP), COM to GND.
+# Mounted through the lid: the feature is the 30 mm panel hole. l, w (bezel, ~33 mm) and h (cap + body +
+# switch below the panel) are estimates: no drawing found. Measure at H1.
+id: button_arcade_30mm
+name: Arcade push button, 30 mm, snap-in (Sanwa OBSF-30)
+category: input
+logic_voltage: 3.3
+supply_voltage: []  # no supply: a passive switch
+max_current_ma: 0.1  # only the internal pull-up current (~3.3 V / 45k)
+pins:
+  - {name: "NO", type: gpio_in}  # read with INPUT_PULLUP, LOW = pressed
+  - {name: COM, type: gnd}
+board_mm: {l: 33.0, w: 33.0, h: 40.0}
+provisional: true
+dims_source: listing
+mount_holes: []  # held by its snap-in clips
+features:
+  - {kind: button, face: top, offset_mm: [16.5, 16.5], size_mm: [30.0, 30.0]}  # 30 mm panel hole
+pio_lib_deps: []
+snippet: snippets/button_arcade_30mm.cpp
+mpn: OBSF-30
+vendor_url: https://www.arcaderenovations.com/sanwa-snap-in-button-royal-blue-obsf-30-mb.html
+manual_price_usd: 2.75
+owned_alternatives: [button_tactile_6mm]
+wokwi_type: null  # Wokwi has no arcade button; T26 may use wokwi-pushbutton as a stand-in
+wokwi_pins: {}
+wokwi_attrs: {}
+source: https://www.arcaderenovations.com/sanwa-snap-in-button-royal-blue-obsf-30-mb.html
