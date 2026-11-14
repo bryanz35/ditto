@@ -1,0 +1,75 @@
+# Seeed Studio XIAO ESP32S3 Sense: XIAO ESP32S3 plus the expansion board (OV2640 camera, PDM mic, microSD).
+# Header pins, Sense GPIO use, 3V3 output ("you can draw 700mA"), size: Seeed wiki (source).
+#   D0=GPIO1 D1=GPIO2 D2=GPIO3 D3=GPIO4 D4=GPIO5 (SDA) D5=GPIO6 (SCL) D6=GPIO43 (TX) D7=GPIO44 (RX)
+#   D8=GPIO7 (SCK) D9=GPIO8 (MISO) D10=GPIO9 (MOSI).
+# The camera (GPIO10-18, 38-40, 47, 48) and mic (GPIO41/42) use no header pins. The microSD card uses GPIO21 (CS)
+#   and shares D8-D10; they stay wired to the card unless the J3 pad is cut, so they are reserved here:
+#   https://wiki.seeedstudio.com/xiao_esp32s3_pin_multiplexing/
+# Strapping pins (GPIO0/3/45/46; only GPIO3 is on the header), ADC1 = GPIO1-10, ADC2 = GPIO11-20, and no
+#   input-only pins (every GPIO is I/O/T): ESP32-S3 datasheet,
+#   https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf
+# Serial is native USB (GPIO19/20, not on the header), so D6/D7 are free UART pins.
+# PlatformIO board: https://docs.platformio.org/en/latest/boards/espressif32/seeed_xiao_esp32s3.html
+# Dimensions: 21 x 17.8 x 15 mm with the expansion board (wiki). h adds ~6 for soldered header pins below: estimate.
+#   USB-C on the short edge (x=0); its z, the lens position and size are estimates. Measure at H1.
+# power_budget_ma: the 700 mA 3V3 output also feeds the ESP32-S3 Wi-Fi peaks and the camera: estimate.
+# Wokwi pin names: https://github.com/wokwi/wokwi-boards/blob/main/boards/xiao-esp32-s3/board.json
+#   Board type board-xiao-esp32-s3: https://github.com/wokwi/wokwi-docs/blob/main/docs/diagram-format.md
+#   (Wokwi does not simulate the Sense camera/mic/SD).
+id: xiao_esp32s3_sense
+name: Seeed Studio XIAO ESP32S3 Sense (camera, mic, microSD)
+category: mcu
+logic_voltage: 3.3
+supply_voltage: [5.0]  # USB-C or the 5V pin
+max_current_ma: 500
+pio_board: seeed_xiao_esp32s3
+wokwi_board: board-xiao-esp32-s3
+pins:
+  - {name: 3V3, type: power, voltage: 3.3}
+  - {name: 5V, type: power, voltage: 5.0}
+  - {name: GND, type: gnd}
+  - {name: GPIO1, type: gpio}
+  - {name: GPIO2, type: gpio}
+  - {name: GPIO3, type: gpio}
+  - {name: GPIO4, type: gpio}
+  - {name: GPIO5, type: gpio}
+  - {name: GPIO6, type: gpio}
+  - {name: GPIO7, type: gpio}
+  - {name: GPIO8, type: gpio}
+  - {name: GPIO9, type: gpio}
+  - {name: GPIO43, type: gpio}
+  - {name: GPIO44, type: gpio}
+reserved_pins: [GPIO7, GPIO8, GPIO9]  # microSD SPI on the Sense board (until J3 is cut)
+input_only_pins: []  # the ESP32-S3 has none
+strapping_pins: [GPIO3]  # JTAG signal source
+adc1_pins: [GPIO1, GPIO2, GPIO3, GPIO4, GPIO5, GPIO6, GPIO7, GPIO8, GPIO9]
+adc2_pins: []  # no ADC2 pin is on the header
+power_budget_ma: 300
+board_mm: {l: 21.0, w: 17.8, h: 21.0}
+provisional: true
+dims_source: datasheet
+mount_holes: []  # the XIAO has no mounting holes
+features:
+  - {kind: usb, face: left, offset_mm: [8.9, 9.0], size_mm: [11.0, 6.0]}  # z is an estimate
+  - {kind: lens, face: top, offset_mm: [10.5, 8.9], size_mm: [8.0, 8.0]}  # estimate: camera assumed centred
+pio_lib_deps: []
+snippet: null
+mpn: "113991115"  # Seeed SKU
+vendor_url: https://www.seeedstudio.com/XIAO-ESP32S3-Sense-p-5639.html
+manual_price_usd: 18.9
+owned_alternatives: []
+wokwi_type: null  # boards use wokwi_board
+wokwi_pins:
+  GPIO1: D0
+  GPIO2: D1
+  GPIO3: D2
+  GPIO4: D3
+  GPIO5: D4
+  GPIO6: D5
+  GPIO43: D6
+  GPIO44: D7
+  GPIO7: D8
+  GPIO8: D9
+  GPIO9: D10
+wokwi_attrs: {}
+source: https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/
