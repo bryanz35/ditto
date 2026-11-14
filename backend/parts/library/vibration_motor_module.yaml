@@ -1,0 +1,32 @@
+# DFRobot DFR0440 Gravity: Vibration Module (coin vibration motor), 3-pin Gravity header Signal VCC GND.
+# Pins, 5 V operating voltage, "High-Low level/PWM signal" control (HIGH runs, LOW stops, analogWrite sets
+# the amplitude) and 30 x 22 mm: source (DFRobot wiki, PDF copy: wiki.dfrobot.com did not load).
+# 3.3 V operation and price (A$4.10, ~US$2.70): Little Bird listing,
+# https://littlebirdelectronics.com.au/products/gravity-vibration-motor-module-for-arduino
+# The motor sits on the board; no enclosure opening needed.
+# max_current_ma and h are estimates (no current or height in the wiki). Measure at H1.
+id: vibration_motor_module
+name: Vibration motor module (DFRobot Gravity DFR0440)
+category: output
+logic_voltage: 3.3
+supply_voltage: [5.0]  # wiki says 5 V; Little Bird says it also runs (weaker) at 3.3 V
+max_current_ma: 100
+pins:
+  - {name: SIG, type: gpio_out}  # wiki label "Signal"
+  - {name: VCC, type: power, voltage: 5.0}
+  - {name: GND, type: gnd}
+board_mm: {l: 30.0, w: 22.0, h: 8.0}
+provisional: true
+dims_source: datasheet
+mount_holes: []  # not documented: measure at H1
+features: []
+pio_lib_deps: []
+snippet: snippets/vibration_motor_module.cpp
+mpn: DFR0440
+vendor_url: https://littlebirdelectronics.com.au/products/gravity-vibration-motor-module-for-arduino
+manual_price_usd: 2.7
+owned_alternatives: []
+wokwi_type: null  # Wokwi has no DC or vibration motor (only servo and steppers)
+wokwi_pins: {}
+wokwi_attrs: {}
+source: https://cdn.components.ru/media/PDF/4115632.pdf

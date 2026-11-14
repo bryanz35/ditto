@@ -1,0 +1,33 @@
+# Seeed Grove - Relay v1.2 (SKU 103020005), 1-channel normally-open relay, HLS8-T73 coil.
+# Grove connector SIG NC VCC GND (NC = not connected: omitted), 3.3-5 V, active high (digitalWrite HIGH closes
+# the contact), 100 mA operating current, 5 A at 250 VAC / 30 VDC: source (Seeed wiki).
+# Price and 42 x 24 x 18.5 mm: product page, https://www.seeedstudio.com/Grove-Relay.html
+# The switched load goes to the screw terminals (COM and NO), not the MCU: they are not pins; route the load
+# wires through a cable hole. Mains wiring is out of scope for a hobby enclosure.
+# Wokwi's wokwi-relay-module is a stand-in for simulation only (it adds an NC contact). Its docs label the
+# default "npn" as active-high but their operation text says IN low closes COM-NO: check in the simulator.
+id: relay_module_1ch
+name: 1-channel relay module, 3.3 V logic (Seeed Grove - Relay)
+category: output
+logic_voltage: 3.3
+supply_voltage: [3.3, 5.0]
+max_current_ma: 100
+pins:
+  - {name: SIG, type: gpio_out}  # HIGH = relay on
+  - {name: VCC, type: power}
+  - {name: GND, type: gnd}
+board_mm: {l: 42.0, w: 24.0, h: 18.5}
+provisional: true
+dims_source: listing
+mount_holes: []  # not documented: measure at H1
+features: []
+pio_lib_deps: []
+snippet: snippets/relay_module_1ch.cpp
+mpn: "103020005"
+vendor_url: https://www.seeedstudio.com/Grove-Relay.html
+manual_price_usd: 2.9
+owned_alternatives: []
+wokwi_type: wokwi-relay-module
+wokwi_pins: {SIG: IN}  # Wokwi: VCC, GND, IN (plus NC, COM, NO for the load)
+wokwi_attrs: {}
+source: https://wiki.seeedstudio.com/Grove-Relay/
