@@ -180,3 +180,48 @@ async def test_failed_edit_raises_instead_of_passing(runs_dir, events):
     assert agent.run_stages.calls.count("validate") == 2
     saved = ProjectSpec.model_validate_json((runs_dir / "r1/spec.json").read_text())
     assert saved == first  # the failed draft never reached spec.json
+
+
+def system_prompt(model) -> str:
+    return model.seen[0][0].text
+
+
+async def test_prompts_adapt_to_level_and_name(events):
+    orchestrator = run_script()
+    agent = runner(orchestrator)
+    user = UserContext(level="beginner", name="Ada")
+
+    await agent.run(RunRequest(run_id="r1", prompt=PROMPT, user=user), events.append)
+
+    parts = agent.models["parts-and-pins"]
+    for model in (orchestrator, parts):
+        assert "The user is a beginner" in system_prompt(model)
+    assert "The user's name is Ada." in system_prompt(orchestrator)
+
+
+async def test_intermediate_adds_nothing(events):
+    orchestrator = run_script()
+    await runner(orchestrator).run(
+        RunRequest(run_id="r1", prompt=PROMPT), events.append
+    )
+
+    assert "The user is" not in system_prompt(orchestrator)
+    assert "The user's name" not in system_prompt(orchestrator)
+
+
+async def test_edit_keeps_the_runs_level(events):
+    orchestrator = run_script(
+        AIMessage("", tool_calls=[task("enclosure", "o5")]),
+        AIMessage("Walls are 3 mm now."),
+    )
+    agent = runner(orchestrator, enclosure_calls=2)
+    user = UserContext(level="expert")
+    await agent.run(RunRequest(run_id="r1", prompt=PROMPT, user=user), events.append)
+    edit_starts = len(orchestrator.seen)
+
+    edited = await agent.edit(
+        "r1", EditRequest(instruction="make the walls 3 mm"), events.append
+    )
+
+    assert edited.user.level == "expert"
+    assert "The user is an expert" in orchestrator.seen[edit_starts][0].text
