@@ -27,3 +27,4 @@ you depend on appears here.
 | 8 | d6452c7 | T21 | Follow-up: cross_checks imports backend.contracts.invariants (CR#3), no longer tests.integration |
 | 9 | 0e1b1bf | T26 | Simulation: build_simulation writes Wokwi diagram.json from spec + layout and runs wokwi-cli (waits for P2D_READY); live run passed |
 | 9 | 684793e | T22 | Edit flow: edits rerun only affected stages (deps.py), every affected stage marked stale first |
+| 11 | 6910be2 | T24 | Frontend live hookup: UI streams run events, panels show checks/BOM/wiring, viewer loads run GLB/STL files |
