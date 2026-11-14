@@ -80,6 +80,10 @@ const FEATURE: Record<string, string> = {
   vent: 'sensor',
   cable: 'cable',
 }
+/** "a, b and c" */
+const and = (items: string[]) => (items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items.at(-1)}` : (items[0] ?? ''))
+// within the layout's clearance of a wall counts as against it
+const from = (mm: number, wall: string) => (mm < 2 ? `against the ${wall} wall` : `${Math.round(mm)} mm from the ${wall} wall`)
 const where = (face: string) => (face === 'top' ? 'the lid' : `the ${face} wall`)
 
 export function buildSteps({
@@ -142,7 +146,7 @@ export function buildSteps({
         unmeasured.length > 0
           ? {
               tone: 'warning',
-              note: `Sizes for ${unmeasured.map(noun).join(', ')} come from datasheets, not calipers: check your parts against the case before you print.`,
+              note: `Sizes for the ${and(unmeasured.map(noun))} come from datasheets, not calipers: check your parts against the case before you print.`,
             }
           : { tone: 'tip', note: 'Print the base with its open side facing up. No supports needed.' },
     }),
@@ -164,8 +168,7 @@ export function buildSteps({
         label: `Place ${n}`,
         title: `Place the ${n}`,
         body:
-          `Set it in its spot, about ${Math.round(p.x_mm)} mm from the left wall and ${Math.round(p.y_mm)} mm from the front` +
-          `${p.against_wall ? `, touching the ${p.against_wall} wall` : ''}.${lineUp}` +
+          `Set it in its spot, ${from(p.x_mm, 'left')} and ${from(p.y_mm, 'front')}.${lineUp}` +
           ' If there are posts under it, screw it down; if not, a dab of hot glue holds it.',
         ref: p.ref,
         needs: [{ qty: '1×', what: name(p.ref), have: have(p.ref) }],
@@ -212,7 +215,7 @@ export function buildSteps({
           shared.length > 0
             ? {
                 tone: 'tip',
-                note: `${shared.join(' and ')} ${shared.length > 1 ? 'are' : 'is'} shared with other parts: use a breadboard or a splitter so every wire reaches the same pin.`,
+                note: `${and(shared)} ${shared.length > 1 ? 'are' : 'is'} shared with other parts: use a breadboard or a splitter so every wire reaches the same pin.`,
               }
             : { tone: 'tip', note: 'Pull gently on each wire after you push it on. If it slides off, it was not all the way on.' },
       }),
@@ -252,7 +255,7 @@ export function buildSteps({
       title: 'Close the lid',
       body:
         'Tuck the wires in so none sit over an opening, then press the lid on and screw it into the four corner posts.' +
-        (top.length ? ` Check the ${[...new Set(top)].join(', ')} line${top.length > 1 ? '' : 's'} up with the openings in the lid.` : ''),
+        (top.length ? ` Check the ${and([...new Set(top)])} line${top.length > 1 ? '' : 's'} up with the openings in the lid.` : ''),
       // box_lid.py: M2.5 self-tapping screws into 8 mm pilot holes through a 2 mm lid
       needs: [{ qty: '4×', what: 'M2.5 × 10 mm self-tapping screws' }],
       tip: { tone: 'warning', note: 'Turn until snug, then stop. Too tight can crack the plastic posts.' },

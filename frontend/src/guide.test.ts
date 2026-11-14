@@ -38,8 +38,13 @@ describe('buildSteps on the plant monitor', () => {
       'close',
     ])
     expect(steps.find((s) => s.id === 'place-soil1')!.body).toContain('hole in the back wall')
-    expect(steps.find((s) => s.id === 'place-esp32')!.body).toContain('USB port up with the opening in the left wall')
+    const board = steps.find((s) => s.id === 'place-esp32')!.body
+    expect(board).toContain('against the left wall and against the front wall')
+    expect(board).toContain('USB port up with the opening in the left wall')
+    expect(steps.find((s) => s.id === 'place-oled1')!.body).toContain('56 mm from the left wall')
     expect(steps.find((s) => s.id === 'place-oled1')!.label).toBe('Place screen')
+    expect(steps.find((s) => s.id === 'wire-oled1')!.tip!.note).toMatch(/^3V3, GND, GPIO22 and GPIO21 are shared/)
+    expect(steps[0].tip!.tone).toBe('warning') // every plant-monitor part has datasheet sizes only
   })
 
   it('has wiring steps that match wiring.json row for row', () => {
