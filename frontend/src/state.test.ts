@@ -65,6 +65,14 @@ describe('reduce', () => {
     expect(after.done).toBe(true)
   })
 
+  it("starts each edit's attempt history afresh: a rerun isn't a retry", () => {
+    const after = fold(edit, fold(run))
+    expect(after.stages.enclosure?.attempts.map((a) => a.message)).toEqual(['Watertight, fits the generic printer'])
+    expect(after.stages.done?.attempts).toHaveLength(1)
+    expect(after.stages.validate?.attempts).toEqual([]) // not rerun by this edit
+    expect(after.stages.validate?.status).toBe('passed')
+  })
+
   it('ignores events it already has, so a replayed stream is harmless', () => {
     const half = fold(run.slice(0, 12))
     expect(fold(run, half)).toEqual(fold(run))

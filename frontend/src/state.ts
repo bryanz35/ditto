@@ -76,7 +76,11 @@ const FINISHED: Status[] = ['passed', 'failed', 'skipped']
 export function reduce(state: RunState, event: Event): RunState {
   // A reconnect or a page refresh replays events we already have.
   if (event.seq <= state.lastSeq) return state
-  const prev = state.stages[event.stage]
+  // An event after done starts an edit's pipeline: earlier outcomes aren't retries of it.
+  const stages: RunState['stages'] = state.done
+    ? Object.fromEntries(Object.entries(state.stages).map(([stage, s]) => [stage, { ...s, attempts: [] }]))
+    : state.stages
+  const prev = stages[event.stage]
   const attempt = typeof event.data.attempt === 'number' ? event.data.attempt : null
   const attempts = prev?.attempts ?? []
   const stageState: StageState = {
@@ -107,7 +111,7 @@ export function reduce(state: RunState, event: Event): RunState {
   return {
     lastSeq: event.seq,
     specRev: 'spec' in event.artifacts ? event.spec_rev : state.specRev,
-    stages: { ...state.stages, [event.stage]: stageState },
+    stages: { ...stages, [event.stage]: stageState },
     artifacts,
     stale,
     todos: Array.isArray(event.data.todos) ? (event.data.todos as Todo[]) : state.todos,
