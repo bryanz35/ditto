@@ -42,7 +42,12 @@ class ReplayRunner:
         """Copy the recorded files, then re-emit the recorded events except checks and done
         (the engine runs those)."""
         run_dir = run_dir_for(request.run_id)
-        skip = shutil.ignore_patterns("events.jsonl", "manifest.json", "input")
+        # top level only: cad/manifest.json is a recorded artifact and must be copied
+        top = {"events.jsonl", "manifest.json", "input"}
+
+        def skip(folder: str, names: list[str]) -> set[str]:
+            return top & set(names) if Path(folder) == self.source else set()
+
         shutil.copytree(self.source, run_dir, ignore=skip, dirs_exist_ok=True)
         spec = ProjectSpec.model_validate_json(self.spec.read_text())
         _save(run_dir, spec)

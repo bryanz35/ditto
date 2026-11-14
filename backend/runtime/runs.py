@@ -4,13 +4,15 @@ After runner.run() or runner.edit() returns, it runs every stage that hasn't pas
 spec rev through the StageRunner, then `checks`, then emits `done`. After an edit, only the stages the
 changed spec fields affect (deps.stages_to_rerun) are marked `stale` and rerun; the others carry
 their artifacts forward to the new rev. Events go to runs/<id>/events.jsonl (seq and ts set here);
-passed artifacts go to runs/<id>/manifest.json.
+passed artifacts go to runs/<id>/manifest.json. cancel() stops a run and ends it with a failed
+`done` event; list_runs() summarises every run directory for GET /runs.
 """
 
 import asyncio
 import json
 import logging
 import os
+import re
 import threading
 import time
 from collections.abc import Awaitable, Callable
@@ -25,8 +27,10 @@ from backend.contracts.runner import (
     Emit,
     Runner,
     RunRequest,
+    RunSummary,
     StageRunner,
     run_dir_for,
+    runs_root,
 )
 from backend.contracts.spec import ProjectSpec
 from backend.runtime.deps import ORDER, changed_fields, stages_to_rerun
@@ -35,14 +39,50 @@ from backend.runtime.stages import run_stages
 
 log = logging.getLogger(__name__)
 ModelWork = Callable[[Emit], Awaitable[ProjectSpec]]
+RUN_ID = re.compile(r"[A-Za-z0-9_-]+")
+CANCELLED = "Cancelled by the user"
+
+
+class RunCancelled(Exception):
+    """Raised by a cancelled pipeline's emit, so a stage thread stops at its next event."""
 
 
 def read_events(run_id: str, after: int = 0) -> list[Event]:
     path = run_dir_for(run_id) / "events.jsonl"
     if not path.is_file():
         return []
-    events = (Event.model_validate_json(line) for line in path.read_text().splitlines())
+    # [:-1] drops a last line still being written: the engine appends under _lock, readers skip it
+    lines = path.read_text().split("\n")[:-1]
+    events = (Event.model_validate_json(line) for line in lines)
     return [e for e in events if e.seq > after]
+
+
+def list_runs() -> list[RunSummary]:
+    """Every run directory that has events, newest first (by its latest event)."""
+    root = runs_root()
+    runs = []
+    for run_dir in root.iterdir() if root.is_dir() else []:
+        if not RUN_ID.fullmatch(run_dir.name):
+            continue
+        # shortcut: reads each events.jsonl in full; read only the tail if runs pile up
+        try:
+            events = read_events(run_dir.name)
+            spec = _saved_spec(run_dir) or {}
+        except (OSError, ValueError):  # mid-write: skip it, don't fail the list
+            continue
+        if events:
+            last = events[-1]
+            runs.append(
+                RunSummary(
+                    run_id=run_dir.name,
+                    title=spec.get("title", ""),
+                    stage=last.stage,
+                    status=last.status,
+                    ts=last.ts,
+                    spec_rev=last.spec_rev,
+                )
+            )
+    return sorted(runs, key=lambda r: r.ts, reverse=True)
 
 
 class RunEngine:
@@ -51,6 +91,7 @@ class RunEngine:
         self._lock = threading.Lock()
         self._seq: dict[str, int] = {}
         self._tasks: dict[str, asyncio.Task] = {}
+        self._stops: dict[str, threading.Event] = {}
 
     def start(self, request: RunRequest) -> None:
         self._spawn(request.run_id, lambda emit: self.runner.run(request, emit))
@@ -64,14 +105,26 @@ class RunEngine:
         task = self._tasks.get(run_id)
         return task is not None and not task.done()
 
-    def emitter(self, run_id: str) -> Emit:
-        return partial(self._emit, run_id)
+    def cancel(self, run_id: str) -> None:
+        """Stop a busy run: its pipeline emits a failed `done` and its stage thread stops at its
+        next event. shortcut: a tool call already under way (e.g. a compile) runs to its end."""
+        self._stops[run_id].set()
+        self._tasks[run_id].cancel()
+
+    def emitter(self, run_id: str, stop: threading.Event | None = None) -> Emit:
+        """stop: once set, emitting raises RunCancelled instead of recording the event."""
+        return partial(self._emit, run_id, stop=stop)
 
     def _spawn(self, run_id: str, work: ModelWork, edit: bool = False) -> None:
-        self._tasks[run_id] = asyncio.create_task(self._pipeline(run_id, work, edit))
+        self._stops[run_id] = stop = threading.Event()
+        self._tasks[run_id] = asyncio.create_task(
+            self._pipeline(run_id, work, edit, stop)
+        )
 
-    async def _pipeline(self, run_id: str, work: ModelWork, edit: bool) -> None:
-        emit = self.emitter(run_id)
+    async def _pipeline(
+        self, run_id: str, work: ModelWork, edit: bool, stop: threading.Event
+    ) -> None:
+        emit = self.emitter(run_id, stop)
         run_dir = run_dir_for(run_id)
         rev = _saved_rev(run_dir)
         try:
@@ -89,17 +142,20 @@ class RunEngine:
                     "failed",
                     f"Finished with failures: {', '.join(failed)}",
                 )
+        except (asyncio.CancelledError, RunCancelled):
+            status, message = "failed", CANCELLED
         except Exception as exc:
             log.exception("run %s failed", run_id)
             status, message = "failed", f"Run stopped: {exc!r}"
-        emit(
+        self._emit(  # not `emit`: after a cancel only this event gets through
+            run_id,
             Event(
                 run_id=run_id,
                 stage="done",
                 status=status,
                 message=message,
                 spec_rev=rev,
-            )
+            ),
         )
 
     def _stale_stages(
@@ -150,9 +206,14 @@ class RunEngine:
                 )
         return rerun
 
-    def _emit(self, run_id: str, event: Event) -> None:
+    def _emit(
+        self, run_id: str, event: Event, stop: threading.Event | None = None
+    ) -> None:
         run_dir = run_dir_for(run_id)
         with self._lock:
+            # checked under the lock, so no event of a cancelled pipeline lands after its done
+            if stop is not None and stop.is_set():
+                raise RunCancelled(run_id)
             if run_id not in self._seq:
                 events = read_events(run_id)
                 self._seq[run_id] = events[-1].seq if events else 0

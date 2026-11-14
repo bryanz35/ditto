@@ -1,4 +1,4 @@
-"""Runs API: start a run, stream its events (SSE), edit it, answer its questions."""
+"""Runs API: list runs, start one, stream its events (SSE), edit it, answer its questions, cancel it."""
 
 import asyncio
 import uuid
@@ -11,9 +11,20 @@ from pydantic import ValidationError
 from sse_starlette import EventSourceResponse
 
 from backend.app.routers.files import existing_run_dir
-from backend.contracts.runner import AnswerRequest, EditRequest, RunRequest, run_dir_for
+from backend.contracts.runner import (
+    AnswerRequest,
+    EditRequest,
+    RunRequest,
+    RunSummary,
+    run_dir_for,
+)
 from backend.contracts.spec import UserContext
-from backend.runtime.runs import RunEngine, engine_from_env, read_events
+from backend.runtime.runs import (
+    RunEngine,
+    engine_from_env,
+    list_runs,
+    read_events,
+)
 
 router = APIRouter()
 
@@ -24,6 +35,12 @@ def get_engine() -> RunEngine:
 
 
 Engine = Annotated[RunEngine, Depends(get_engine)]
+
+
+@router.get("/runs")
+def get_runs() -> list[RunSummary]:
+    """Every run with events, newest first, read from the run directories."""
+    return list_runs()
 
 
 @router.post("/runs")
@@ -93,3 +110,13 @@ async def answer_question(
     existing_run_dir(run_id)
     await engine.runner.answer(run_id, request)
     return {"ok": True}
+
+
+@router.post("/runs/{run_id}/cancel", status_code=202)
+async def cancel_run(run_id: str, engine: Engine) -> dict[str, str]:
+    """Stops the run; its stream ends with a failed `done` event ("Cancelled by the user")."""
+    existing_run_dir(run_id)
+    if not engine.busy(run_id):
+        raise HTTPException(409, "The run isn't working; nothing to cancel")
+    engine.cancel(run_id)
+    return {"run_id": run_id}
