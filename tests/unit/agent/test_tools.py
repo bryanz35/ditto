@@ -1,0 +1,58 @@
+from backend.agent.tools import RunContext, make_tools
+from backend.contracts.parts import load_library
+from backend.contracts.results import ToolError, ToolResult
+from backend.contracts.spec import UserContext
+from tests.unit.agent.conftest import FakeStageRunner, fixture_spec_json
+
+
+def _ctx(stages, events):
+    return RunContext(
+        run_id="r1",
+        emit=events.append,
+        run_stages=stages,
+        lib=load_library(),
+        prompt="plant monitor",
+        user=UserContext(budget_usd=30),
+    )
+
+
+def test_fails_four_times_then_stops(events):
+    bad = ToolResult(
+        ok=False, errors=[ToolError(code="pin_conflict", message="GPIO21 twice")]
+    )
+    stages = FakeStageRunner(fail={"validate": bad})
+    ctx = _ctx(stages, events)
+    write_spec = make_tools(ctx)["write_spec"]
+
+    replies = [write_spec.invoke({"spec_json": fixture_spec_json()}) for _ in range(5)]
+
+    assert stages.calls == ["validate"] * 4  # 1 try + exactly 3 retries
+    failed = [e for e in events if e.status == "failed"]
+    assert [e.data["attempt"] for e in failed] == [1, 2, 3, 4]
+    assert "GPIO21 twice" in replies[0]
+    assert replies[4].startswith("Retry limit reached")
+    assert not ctx.spec_path.exists()  # nothing unchecked reaches the run folder
+
+
+def test_write_spec_saves_with_code_owned_fields(events):
+    ctx = _ctx(FakeStageRunner(), events)
+    tools = make_tools(ctx)
+
+    assert (
+        tools["write_spec"]
+        .invoke({"spec_json": fixture_spec_json()})
+        .startswith("PASSED")
+    )
+    spec = ctx.load_spec()
+    assert (spec.rev, spec.prompt, spec.user.budget_usd) == (1, "plant monitor", 30)
+    assert all(e.data["attempt"] == 1 for e in events)
+
+    assert tools["set_enclosure"].invoke({"wall_mm": 3.0}).startswith("PASSED")
+    assert (ctx.load_spec().rev, ctx.load_spec().enclosure.wall_mm) == (2, 3.0)
+
+
+def test_schema_errors_count_as_attempts(events):
+    ctx = _ctx(FakeStageRunner(), events)
+    reply = make_tools(ctx)["write_spec"].invoke({"spec_json": '{"title": "x"}'})
+    assert reply.startswith("FAILED (attempt 1")
+    assert events[-1].status == "failed" and events[-1].errors[0].code == "schema"
