@@ -32,3 +32,4 @@ you depend on appears here.
 12:59 c749731 contract v3: UserContext.level + name (T37 #4); I also touched backend/memory/store.py PREFERENCES, tests/unit/memory/test_router.py, frontend/src/MyParts.tsx EMPTY to keep main green
 13:04 053b5bd contract v4: BomOffer + BomLine.offers (T38 #5)
 13:05 3614136 contract v5: RunSummary for GET /runs (T39 #6)
+13:15 610e847 T37 user profile: agent adapts wording to UserContext.level, addresses user by name
