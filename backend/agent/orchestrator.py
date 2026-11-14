@@ -19,6 +19,8 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
+from backend.contracts.spec import UserContext
+
 HERE = Path(__file__).resolve().parent
 EXAMPLE_SPEC = HERE.parents[1] / "fixtures" / "specs" / "plant_monitor.json"
 AGENTS_MD = "/AGENTS.md"
@@ -74,14 +76,30 @@ def house_rules() -> str:
     return (HERE / "AGENTS.md").read_text()
 
 
+def profile(user: UserContext | None) -> str:
+    """The user's level rules and name, added to every system prompt; empty for intermediate."""
+    # shortcut: getattr until contract request T37-user-level lands; then read the fields.
+    level = getattr(user, "level", "intermediate")
+    name = getattr(user, "name", None)
+    notes = [] if level == "intermediate" else [prompt(f"level_{level}")]
+    if name:
+        notes.append(
+            f"The user's name is {name}. Use it when you ask them a question or sum up."
+        )
+    return "".join(f"\n\n{n}" for n in notes)
+
+
 def build_agent(
     tools: dict[str, BaseTool],
     model: ModelLike,
     checkpointer: BaseCheckpointSaver,
     models: dict[str, ModelLike] | None = None,
+    user: UserContext | None = None,
 ):
-    """models: per-sub-agent overrides by name (e.g. a stronger model for parts-and-pins)."""
+    """models: per-sub-agent overrides by name (e.g. a stronger model for parts-and-pins).
+    user: whose level and name every prompt adapts to."""
     models = models or {}
+    about = profile(user)
     if isinstance(model, str):
         # The profile is looked up by the main model's spec string; instances (fakes) keep the default.
         register_harness_profile(
@@ -95,7 +113,7 @@ def build_agent(
             "name": name,
             "description": description,
             # memory= reaches only the main agent, so sub-agents get the house rules inline.
-            "system_prompt": f"{prompt(prompt_name)}\n\n{house_rules()}",
+            "system_prompt": f"{prompt(prompt_name)}\n\n{house_rules()}{about}",
             "tools": [tools[t] for t in tool_names],
             "model": model_spec(models.get(name, model)),
         }
@@ -104,7 +122,7 @@ def build_agent(
     return create_deep_agent(
         model=model,
         tools=[tools[t] for t in ORCHESTRATOR_TOOLS],
-        system_prompt=prompt("orchestrator"),
+        system_prompt=prompt("orchestrator") + about,
         middleware=[TodoListMiddleware()],
         subagents=subagents,
         memory=[AGENTS_MD],

@@ -134,7 +134,11 @@ class AgentRunner:
             "messages": [{"role": "user", "content": content}],
             "files": files,
         }
-        agent = build_agent(make_tools(ctx), self.model, self.checkpointer, self.models)
+        # Edits have no ctx.user: the saved spec keeps the run's user.
+        user = ctx.user or getattr(ctx.load_spec(), "user", None)
+        agent = build_agent(
+            make_tools(ctx), self.model, self.checkpointer, self.models, user
+        )
         config = {"configurable": {"thread_id": ctx.run_id}, "recursion_limit": 200}
         todos = (await agent.aget_state(config)).values.get("todos")
         while True:

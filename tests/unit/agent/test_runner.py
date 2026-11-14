@@ -180,3 +180,36 @@ async def test_failed_edit_raises_instead_of_passing(runs_dir, events):
     assert agent.run_stages.calls.count("validate") == 2
     saved = ProjectSpec.model_validate_json((runs_dir / "r1/spec.json").read_text())
     assert saved == first  # the failed draft never reached spec.json
+
+
+class Profiled(UserContext):
+    # shortcut: stand-in for contract request T37-user-level; use UserContext once it lands.
+    level: str = "intermediate"
+    name: str | None = None
+
+
+def system_prompt(model) -> str:
+    return model.seen[0][0].text
+
+
+async def test_prompts_adapt_to_level_and_name(events):
+    orchestrator = run_script()
+    agent = runner(orchestrator)
+    user = Profiled(level="beginner", name="Ada")
+
+    await agent.run(RunRequest(run_id="r1", prompt=PROMPT, user=user), events.append)
+
+    parts = agent.models["parts-and-pins"]
+    for model in (orchestrator, parts):
+        assert "The user is a beginner" in system_prompt(model)
+    assert "The user's name is Ada." in system_prompt(orchestrator)
+
+
+async def test_intermediate_adds_nothing(events):
+    orchestrator = run_script()
+    await runner(orchestrator).run(
+        RunRequest(run_id="r1", prompt=PROMPT), events.append
+    )
+
+    assert "The user is" not in system_prompt(orchestrator)
+    assert "The user's name" not in system_prompt(orchestrator)
