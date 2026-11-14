@@ -27,6 +27,7 @@ def test_prefetch_writes_cache_with_fetched_at(tmp_path, monkeypatch):
         "offers": [
             {
                 "clickUrl": "https://dist.example",
+                "inventoryLevel": 120,
                 "prices": [{"quantity": 1, "price": 9.5, "currency": "USD"}],
             }
         ],
@@ -43,6 +44,11 @@ def test_prefetch_writes_cache_with_fetched_at(tmp_path, monkeypatch):
     assert cache["fetched_at"].startswith("20")
     assert cache["parts"] == {
         "ESP32-DEVKITC-32E": [
-            {"breaks": [[1, 9.5]], "seller": "Dist", "url": "https://dist.example"}
+            {
+                "breaks": [[1, 9.5]],
+                "in_stock": True,
+                "seller": "Dist",
+                "url": "https://dist.example",
+            }
         ]
     }

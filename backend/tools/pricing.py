@@ -6,7 +6,11 @@ written by scripts/prefetch_prices.py), the library's manual_price_usd, else it 
 Owned parts (spec.user.owned) cost nothing. price_bom never writes the cache.
 
 Cache file: {"fetched_at": ISO 8601, "currency": "USD", "parts": {mpn: [offer, ...]}}, where an offer
-is {"seller": str, "url": str | null, "breaks": [[min_qty, unit_price_usd], ...]} sorted by min_qty.
+is {"seller": str, "url": str | null, "in_stock": bool | null, "breaks": [[min_qty, unit_price_usd], ...]}
+sorted by min_qty (caches written before T38 have no "in_stock": read as null).
+
+Each priced line keeps every live or cached offer (BomLine.offers), one per seller, cheapest first;
+its unit_price_usd and vendor_url are the cheapest offer's.
 
 Error codes:
 - over_budget (error): the total is above spec.user.budget_usd; bom.json is still written.
@@ -39,12 +43,20 @@ query ($queries: [SupPartMatchQuery!]!) {
       mpn
       sellers {
         company { name }
-        offers { clickUrl prices { quantity price currency } }
+        offers { clickUrl inventoryLevel prices { quantity price currency } }
       }
     }
   }
 }
 """
+
+
+def _in_stock(level: int | None) -> bool | None:
+    """Nexar inventoryLevel: units on hand, or -1 non-stocked, -2 stocked (qty not reported),
+    -3 unknown, -4 RFQ (NexarDeveloper/stock-locator-tool)."""
+    if level is None or level in (-3, -4):
+        return None
+    return level > 0 or level == -2
 
 
 def fetch_offers(
@@ -89,22 +101,34 @@ def fetch_offers(
                             {
                                 "seller": seller["company"]["name"],
                                 "url": offer.get("clickUrl"),
+                                "in_stock": _in_stock(offer.get("inventoryLevel")),
                                 "breaks": breaks,
                             }
                         )
     return offers
 
 
-def best_offer(offers: list[dict], qty: int) -> tuple[float, str | None] | None:
-    """Cheapest (unit price, url) when buying qty: each offer's largest break at or below qty."""
-    best = None
+def line_offers(offers: list[dict], qty: int) -> list[dict]:
+    """BomOffer dicts for buying qty, one per seller, cheapest first: each offer's unit price is its
+    largest break at or below qty."""
+    priced = []
     for offer in offers:
         breaks = offer["breaks"]
         # shortcut: below the smallest break (MOQ) we still use its unit price; fine for hobby qty.
         price = next((p for q, p in reversed(breaks) if q <= qty), breaks[0][1])
-        if best is None or price < best[0]:
-            best = (price, offer.get("url"))
-    return best
+        priced.append(
+            {
+                "seller": offer["seller"],
+                "url": offer.get("url"),
+                "unit_price_usd": price,
+                "in_stock": offer.get("in_stock"),
+            }
+        )
+    cheapest: dict[str, dict] = {}
+    # A seller can list several offers (cut tape, reel): keep its cheapest.
+    for o in sorted(priced, key=lambda o: (o["unit_price_usd"], o["seller"])):
+        cheapest.setdefault(o["seller"], o)
+    return list(cheapest.values())
 
 
 def _live_offers(mpns: list[str]) -> tuple[dict[str, list[dict]], list[ToolError]]:
@@ -167,10 +191,13 @@ def price_bom(
         owned = min(spec.user.owned.get(pid, 0), qty)
         buy = max(qty - owned, 1)  # fully owned lines still show what one would cost
         source, unit, url = "missing", None, part.vendor_url
-        if part.mpn in live and (hit := best_offer(live[part.mpn], buy)):
-            source, (unit, url) = "live", hit
-        elif part.mpn in cached and (hit := best_offer(cached[part.mpn], buy)):
-            source, (unit, url), used_cache = "cache", hit, True
+        offers = line_offers(live.get(part.mpn, []), buy)
+        if offers:
+            source = "live"
+        elif offers := line_offers(cached.get(part.mpn, []), buy):
+            source, used_cache = "cache", True
+        if offers:
+            unit, url = offers[0]["unit_price_usd"], offers[0]["url"]
         elif part.manual_price_usd is not None:
             source, unit = "manual", part.manual_price_usd
         else:
