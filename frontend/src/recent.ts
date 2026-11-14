@@ -27,11 +27,12 @@ export function loadRecent(): Recent[] {
   }
 }
 
-/** Puts the project first, merging the change into what we already had. */
+/** Merges the change into the project's entry. A new project goes first; a known one keeps its place,
+ * so the list stays in the order of `at` (when each was started). */
 export function remember(list: Recent[], change: Partial<Recent> & { id: string }): Recent[] {
   const old = list.find((r) => r.id === change.id)
   const entry: Recent = { title: 'New project', prompt: '', files: [], level: null, status: '', at: Date.now(), ...old, ...change }
-  const next = [entry, ...list.filter((r) => r.id !== change.id)].slice(0, MAX)
+  const next = (old ? list.map((r) => (r === old ? entry : r)) : [entry, ...list]).slice(0, MAX)
   try {
     localStorage.setItem(KEY, JSON.stringify(next))
   } catch {

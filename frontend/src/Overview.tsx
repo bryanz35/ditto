@@ -363,7 +363,14 @@ function Dock({ reply }: { reply: Reply }) {
       <QuestionCard reply={reply} />
       <div className="chips">
         {QUICK_REPLIES.map(([icon, label]) => (
-          <button key={label} type="button" className="chip" disabled={!reply.ready} onClick={() => void submit(label)}>
+          // a chip is an edit, never an answer to the open question
+          <button
+            key={label}
+            type="button"
+            className="chip"
+            disabled={!reply.ready || reply.question !== null}
+            onClick={() => void submit(label)}
+          >
             <Icon name={icon} />
             {label}
           </button>

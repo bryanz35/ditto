@@ -81,7 +81,8 @@ const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
   if (url.endsWith('/answer')) return { ok: true, status: 200, text: async () => '{"ok":true}' }
   if (url === '/api/memory' && init?.method === 'PUT') {
     if (putStatus >= 300) return { ok: false, status: putStatus, text: async () => '{"detail":"unknown part id: nope"}' }
-    memory = JSON.parse(init.body as string)
+    const sent = JSON.parse(init.body as string)
+    memory = { ...sent, owned: Object.fromEntries(Object.entries(sent.owned).filter(([, qty]) => Number(qty) > 0)) }
     return { ok: true, json: async () => memory }
   }
   if (url === '/api/memory') {
@@ -305,6 +306,19 @@ describe('Overview', () => {
     expect(chip().disabled).toBe(false)
   })
 
+  it('answers a question from the text box, never with a quick reply', async () => {
+    const stream = openRun()
+    stream.emit(lines)
+    const question = { id: 'q2', text: 'This goes over budget by $4. Go ahead?', options: ['Yes', 'No'], timeout_s: 60 }
+    stream.emit([JSON.stringify({ ...JSON.parse(lines[22]), seq: 28, status: 'waiting', message: 'Question for you', artifacts: {}, data: { question } })])
+    expect((screen.getByRole('button', { name: 'Make it simpler' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.change(screen.getByLabelText('Your answer'), { target: { value: 'yes, go ahead' } })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Send' })))
+    const [, init] = lastCall('/api/runs/plant_monitor/answer')!
+    expect(JSON.parse(init!.body as string)).toEqual({ question_id: 'q2', answer: 'yes, go ahead' })
+    expect(lastCall('/api/runs/plant_monitor/edit')).toBeUndefined()
+  })
+
   it('marks the 3D view stale during an edit until the case is rebuilt', () => {
     const stream = openRun()
     stream.emit(lines)
@@ -419,6 +433,12 @@ describe('My parts', () => {
     })
     screen.getByText(/Saved/)
     screen.getByText('2 parts in your kit')
+
+    // a removed part is gone once saved, as the API drops it
+    fireEvent.click(screen.getByRole('button', { name: 'Remove bme280_breakout' }))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Save' })))
+    expect(screen.queryByText('bme280_breakout', { selector: '.inventory code' })).toBeNull()
+    screen.getByText('1 part in your kit')
 
     putStatus = 422
     fireEvent.change(screen.getByLabelText('Part id'), { target: { value: 'nope' } })

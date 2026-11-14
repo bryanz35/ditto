@@ -32,7 +32,11 @@ export default function App() {
     note({ id, title: prompt.trim().slice(0, 60), prompt, files: files.map((f) => ({ name: f.name, size: f.size })), level, status: 'Planning…', at: Date.now() })
     open(id)
   }
-  const save = async (next: UserContext) => setMemory(await putMemory(next))
+  const save = async (next: UserContext) => {
+    const saved = await putMemory(next)
+    setMemory(saved)
+    return saved
+  }
   // read-modify-write on a fresh copy, so another tab's changes aren't lost
   const own = async (partId: string) => {
     const now = await getMemory()

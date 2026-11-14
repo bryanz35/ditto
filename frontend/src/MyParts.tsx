@@ -13,7 +13,8 @@ export function MyParts({
 }: {
   /** null while loading, or when the memory API isn't there */
   memory: UserContext | null
-  onSave: (memory: UserContext) => Promise<void>
+  /** Resolves with what the API stored. */
+  onSave: (memory: UserContext) => Promise<UserContext>
 }) {
   const [draft, setDraft] = useState<UserContext>(memory ?? EMPTY)
   const [newPart, setNewPart] = useState('')
@@ -36,8 +37,8 @@ export function MyParts({
       <form
         onSubmit={async (e) => {
           e.preventDefault()
-          // the API drops zero quantities
-          setSaved(await send(() => onSave(draft)))
+          // show what was stored: the API drops zero quantities
+          setSaved(await send(async () => setDraft(await onSave(draft))))
         }}
       >
         <ul className="inventory" aria-label="Owned parts">
