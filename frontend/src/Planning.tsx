@@ -1,6 +1,6 @@
 // Project · Planning: the prompt as a chat turn and Ditto at work under it (Figma 11:142).
 import { useEffect, useState } from 'react'
-import type { Reply } from './api'
+import { useSend, type Reply } from './api'
 import { Icon, type IconName } from './Icon'
 import { QuestionCard } from './panels'
 import { ago, type Recent } from './recent'
@@ -28,6 +28,7 @@ export function Planning({
   entry,
   reply,
   onDetails,
+  onStop,
 }: {
   state: RunState
   title: string
@@ -36,6 +37,8 @@ export function Planning({
   entry: Recent | null
   reply: Reply
   onDetails: () => void
+  /** Cancels the run (POST /runs/{id}/cancel). */
+  onStop: () => Promise<void>
 }) {
   const now = useNow()
   const first = state.log[0]
@@ -105,13 +108,14 @@ export function Planning({
           <QuestionCard reply={reply} />
         </div>
       </div>
-      <Composer reply={reply} />
+      <Composer reply={reply} done={state.done} onStop={onStop} />
     </main>
   )
 }
 
 /** The docked composer while Ditto works: answers its question; changes open once the plan is ready. */
-function Composer({ reply }: { reply: Reply }) {
+function Composer({ reply, done, onStop }: { reply: Reply; done: boolean; onStop: () => Promise<void> }) {
+  const stop = useSend()
   const [text, setText] = useState('')
   const submit = async () => {
     if (text.trim() && reply.ready && (await reply.send(text))) setText('')
@@ -146,14 +150,13 @@ function Composer({ reply }: { reply: Reply }) {
               Answer
             </button>
           )}
-          {/* shortcut: no way to stop a run until T39 adds POST /runs/{id}/cancel */}
-          <button type="button" className="btn secondary" {...soon('T39')}>
+          <button type="button" className="btn secondary" disabled={stop.sending || done} onClick={() => void stop.send(onStop)}>
             <Icon name="square" />
             Stop
           </button>
         </div>
       </form>
-      {reply.error && <p role="alert">{reply.error}</p>}
+      {(reply.error ?? stop.error) && <p role="alert">{reply.error ?? stop.error}</p>}
       <p className="footnote">Ditto checks every part, wire, line of code and case with code before you see it.</p>
     </div>
   )

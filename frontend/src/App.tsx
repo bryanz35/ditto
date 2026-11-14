@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Build } from './Build'
-import { answerQuestion, editRun, fileUrl, getMemory, putMemory, startRun, useJson, useReply, useRun } from './api'
+import { answerQuestion, cancelRun, editRun, listRuns, fileUrl, getMemory, putMemory, startRun, useJson, useReply, useRun } from './api'
 import type { ProjectSpec, UserContext } from './contracts'
 import { MyParts } from './MyParts'
 import { Overview } from './Overview'
 import { Details } from './panels'
 import { Planning } from './Planning'
-import { loadRecent, remember, type Level, type Recent } from './recent'
+import { loadRecent, mergeRuns, remember, type Level, type Recent } from './recent'
 import { Shell, type Page } from './Shell'
 import { Start } from './Start'
 import { isStale, type RunState } from './state'
@@ -20,6 +20,7 @@ export default function App() {
   const [memory, setMemory] = useState<UserContext | null>(null)
   useEffect(() => {
     getMemory().then(setMemory, () => {}) // no memory API: the kit count just stays hidden
+    listRuns().then((runs) => setRecent((list) => mergeRuns(list, runs)), () => {}) // no list: this browser's only
   }, [])
   const note = useCallback((change: Partial<Recent> & { id: string }) => setRecent((list) => remember(list, change)), [])
 
@@ -172,6 +173,7 @@ function Workspace({
         entry={entry}
         reply={reply}
         onDetails={() => setDetails(!details)}
+        onStop={() => cancelRun(runId)}
       />
       {banner}
       {drawer}

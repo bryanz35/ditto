@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { loadRecent, remember } from './recent'
+import { loadRecent, mergeRuns, remember } from './recent'
 
 beforeEach(() => localStorage.clear())
 
@@ -14,5 +14,21 @@ describe('remember', () => {
       ['a', 1, 'Plan ready'],
     ])
     expect(loadRecent()).toEqual(list)
+  })
+})
+
+describe('mergeRuns', () => {
+  it("adds the server's unknown runs, keeps this browser's entries, newest first", () => {
+    const local = remember([], { id: 'a', title: 'Plant monitor', prompt: 'a plant monitor', at: 2_000_000 })
+    const runs = [
+      { run_id: 'a', title: 'Plant monitor', stage: 'done' as const, status: 'passed' as const, ts: 5000, spec_rev: 1 },
+      { run_id: 'b', title: '', stage: 'firmware' as const, status: 'running' as const, ts: 3000, spec_rev: 0 },
+      { run_id: 'c', title: 'Old lamp', stage: 'done' as const, status: 'failed' as const, ts: 1000, spec_rev: 2 },
+    ]
+    expect(mergeRuns(local, runs).map((r) => [r.id, r.title, r.status, r.prompt])).toEqual([
+      ['b', 'New project', 'Planning…', ''],
+      ['a', 'Plant monitor', '', 'a plant monitor'],
+      ['c', 'Old lamp', 'Needs a look', ''],
+    ])
   })
 })
