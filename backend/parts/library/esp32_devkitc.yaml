@@ -1,0 +1,111 @@
+# Espressif ESP32-DevKitC V4 with ESP32-WROOM-32E (the WROVER variant uses GPIO16/17 for PSRAM: not this file).
+# Pins and flash/input-only notes: Espressif user guide (source). Strapping and ADC pins: ESP32 datasheet,
+# https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf
+# Dimensions: https://dl.espressif.com/dl/schematics/esp32_devkitc_v4_dimensions.pdf
+#   PCB 48.26 x 27.94; the module's antenna overhangs one short edge by 6.04, so l = 54.30.
+#   h is an estimate: ~8.5 male headers below + 1.6 PCB + 3.1 module. Measure at H1.
+# Regulator: AMS1117-3.3 (1 A) per https://dl.espressif.com/dl/schematics/esp32_devkitc_v4_sch.pdf;
+#   power_budget_ma leaves headroom for the ESP32's own ~500 mA Wi-Fi peaks.
+# Wokwi pin names: https://github.com/wokwi/wokwi-boards/blob/main/boards/esp32-devkit-c-v4/board.json
+id: esp32_devkitc
+name: ESP32-DevKitC V4 (ESP32-WROOM-32E)
+category: mcu
+logic_voltage: 3.3
+supply_voltage: [5.0]  # micro-USB or the 5V pin
+max_current_ma: 500
+pio_board: esp32dev
+wokwi_board: board-esp32-devkit-c-v4
+pins:
+  - {name: 3V3, type: power, voltage: 3.3}
+  - {name: 5V, type: power, voltage: 5.0}
+  - {name: GND, type: gnd}
+  - {name: GPIO0, type: gpio}
+  - {name: GPIO1, type: gpio}
+  - {name: GPIO2, type: gpio}
+  - {name: GPIO3, type: gpio}
+  - {name: GPIO4, type: gpio}
+  - {name: GPIO5, type: gpio}
+  - {name: GPIO6, type: gpio}
+  - {name: GPIO7, type: gpio}
+  - {name: GPIO8, type: gpio}
+  - {name: GPIO9, type: gpio}
+  - {name: GPIO10, type: gpio}
+  - {name: GPIO11, type: gpio}
+  - {name: GPIO12, type: gpio}
+  - {name: GPIO13, type: gpio}
+  - {name: GPIO14, type: gpio}
+  - {name: GPIO15, type: gpio}
+  - {name: GPIO16, type: gpio}
+  - {name: GPIO17, type: gpio}
+  - {name: GPIO18, type: gpio}
+  - {name: GPIO19, type: gpio}
+  - {name: GPIO21, type: gpio}
+  - {name: GPIO22, type: gpio}
+  - {name: GPIO23, type: gpio}
+  - {name: GPIO25, type: gpio}
+  - {name: GPIO26, type: gpio}
+  - {name: GPIO27, type: gpio}
+  - {name: GPIO32, type: gpio}
+  - {name: GPIO33, type: gpio}
+  - {name: GPIO34, type: gpio}
+  - {name: GPIO35, type: gpio}
+  - {name: GPIO36, type: gpio}
+  - {name: GPIO39, type: gpio}
+reserved_pins: [GPIO1, GPIO3, GPIO6, GPIO7, GPIO8, GPIO9, GPIO10, GPIO11]  # UART0 to USB (serial log), SPI flash
+input_only_pins: [GPIO34, GPIO35, GPIO36, GPIO39]
+strapping_pins: [GPIO0, GPIO2, GPIO5, GPIO12, GPIO15]
+adc1_pins: [GPIO32, GPIO33, GPIO34, GPIO35, GPIO36, GPIO39]
+adc2_pins: [GPIO0, GPIO2, GPIO4, GPIO12, GPIO13, GPIO14, GPIO15, GPIO25, GPIO26, GPIO27]
+power_budget_ma: 300
+board_mm: {l: 54.3, w: 27.94, h: 13.5}
+provisional: true
+dims_source: datasheet
+mount_holes: []  # the DevKitC V4 has no mounting holes
+features:
+  # Micro-USB centred on the short edge opposite the antenna; plug overmolds need a generous opening.
+  - {kind: usb, face: left, offset_mm: [13.97, 11.5], size_mm: [12.0, 8.0]}
+pio_lib_deps: []
+snippet: null
+mpn: ESP32-DEVKITC-32E
+vendor_url: null
+manual_price_usd: 10.0
+owned_alternatives: []
+wokwi_type: null  # boards use wokwi_board
+wokwi_pins:
+  3V3: "3V3"
+  5V: "5V"
+  GND: GND.1
+  GPIO0: "0"
+  GPIO1: TX
+  GPIO2: "2"
+  GPIO3: RX
+  GPIO4: "4"
+  GPIO5: "5"
+  GPIO6: CLK
+  GPIO7: D0
+  GPIO8: D1
+  GPIO9: D2
+  GPIO10: D3
+  GPIO11: CMD
+  GPIO12: "12"
+  GPIO13: "13"
+  GPIO14: "14"
+  GPIO15: "15"
+  GPIO16: "16"
+  GPIO17: "17"
+  GPIO18: "18"
+  GPIO19: "19"
+  GPIO21: "21"
+  GPIO22: "22"
+  GPIO23: "23"
+  GPIO25: "25"
+  GPIO26: "26"
+  GPIO27: "27"
+  GPIO32: "32"
+  GPIO33: "33"
+  GPIO34: "34"
+  GPIO35: "35"
+  GPIO36: VP
+  GPIO39: VN
+wokwi_attrs: {}
+source: https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32/esp32-devkitc/user_guide.html

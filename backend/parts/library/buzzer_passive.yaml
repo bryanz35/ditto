@@ -1,0 +1,31 @@
+# KY-006 passive piezo buzzer module: S (signal), middle, - (GND). 1.5-15 V, 1.5-2.5 kHz, 18.5 x 15 mm.
+# Source (Electrokit datasheet): "Connect signal (S) to pin 8 on the Arduino and ground (-) to GND.
+# The middle pin is not used." Some kits label the middle pin +V; leave it unconnected.
+# Drive it with tone(); a passive buzzer stays silent on a steady HIGH.
+# max_current_ma and h are estimates. Measure at H1.
+id: buzzer_passive
+name: Passive buzzer module (KY-006)
+category: output
+logic_voltage: 3.3
+supply_voltage: []  # no supply pin: powered by the signal
+max_current_ma: 10
+pins:
+  - {name: SIG, type: gpio_out}  # silkscreen "S"
+  - {name: MID, type: power, optional: true}  # unused
+  - {name: GND, type: gnd}  # silkscreen "-"
+board_mm: {l: 18.5, w: 15.0, h: 12.0}
+provisional: true
+dims_source: datasheet
+mount_holes: []
+features:
+  - {kind: sound, face: top, offset_mm: [9.25, 7.5], size_mm: [10.0, 10.0]}
+pio_lib_deps: []
+snippet: snippets/buzzer_passive.cpp
+mpn: null
+vendor_url: null
+manual_price_usd: 1.5
+owned_alternatives: []
+wokwi_type: wokwi-buzzer
+wokwi_pins: {SIG: "2", GND: "1"}  # Wokwi: 2 = positive, 1 = negative
+wokwi_attrs: {}
+source: https://www.electrokit.com/upload/product/41015/41015714/Passive_Piezo_Buzzer.pdf

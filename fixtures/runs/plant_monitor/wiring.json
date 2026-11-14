@@ -1,0 +1,122 @@
+{
+  "spec_rev": 2,
+  "rows": [
+    {
+      "part_ref": "env1",
+      "part_name": "BME280 temperature, humidity and pressure module, I2C, 3.3 V only (GY-BME280)",
+      "part_pin": "VCC",
+      "pin_type": "power",
+      "mcu_pin": "3V3",
+      "bus": "power",
+      "reason": "3.3 V only module"
+    },
+    {
+      "part_ref": "env1",
+      "part_name": "BME280 temperature, humidity and pressure module, I2C, 3.3 V only (GY-BME280)",
+      "part_pin": "GND",
+      "pin_type": "gnd",
+      "mcu_pin": "GND",
+      "bus": "power",
+      "reason": ""
+    },
+    {
+      "part_ref": "env1",
+      "part_name": "BME280 temperature, humidity and pressure module, I2C, 3.3 V only (GY-BME280)",
+      "part_pin": "SCL",
+      "pin_type": "i2c_scl",
+      "mcu_pin": "GPIO22",
+      "bus": "i2c",
+      "reason": "ESP32 default I2C pins; the bus is shared with the other I2C part"
+    },
+    {
+      "part_ref": "env1",
+      "part_name": "BME280 temperature, humidity and pressure module, I2C, 3.3 V only (GY-BME280)",
+      "part_pin": "SDA",
+      "pin_type": "i2c_sda",
+      "mcu_pin": "GPIO21",
+      "bus": "i2c",
+      "reason": "ESP32 default I2C pins; the bus is shared with the other I2C part"
+    },
+    {
+      "part_ref": "oled1",
+      "part_name": "0.96\" OLED, 128x64, I2C (SSD1306)",
+      "part_pin": "VCC",
+      "pin_type": "power",
+      "mcu_pin": "3V3",
+      "bus": "power",
+      "reason": ""
+    },
+    {
+      "part_ref": "oled1",
+      "part_name": "0.96\" OLED, 128x64, I2C (SSD1306)",
+      "part_pin": "GND",
+      "pin_type": "gnd",
+      "mcu_pin": "GND",
+      "bus": "power",
+      "reason": ""
+    },
+    {
+      "part_ref": "oled1",
+      "part_name": "0.96\" OLED, 128x64, I2C (SSD1306)",
+      "part_pin": "SCL",
+      "pin_type": "i2c_scl",
+      "mcu_pin": "GPIO22",
+      "bus": "i2c",
+      "reason": "ESP32 default I2C pins; the bus is shared with the other I2C part"
+    },
+    {
+      "part_ref": "oled1",
+      "part_name": "0.96\" OLED, 128x64, I2C (SSD1306)",
+      "part_pin": "SDA",
+      "pin_type": "i2c_sda",
+      "mcu_pin": "GPIO21",
+      "bus": "i2c",
+      "reason": "ESP32 default I2C pins; the bus is shared with the other I2C part"
+    },
+    {
+      "part_ref": "soil1",
+      "part_name": "Capacitive soil moisture sensor v1.2 (analog)",
+      "part_pin": "VCC",
+      "pin_type": "power",
+      "mcu_pin": "3V3",
+      "bus": "power",
+      "reason": "keeps the analog output below 3.3 V"
+    },
+    {
+      "part_ref": "soil1",
+      "part_name": "Capacitive soil moisture sensor v1.2 (analog)",
+      "part_pin": "GND",
+      "pin_type": "gnd",
+      "mcu_pin": "GND",
+      "bus": "power",
+      "reason": ""
+    },
+    {
+      "part_ref": "soil1",
+      "part_name": "Capacitive soil moisture sensor v1.2 (analog)",
+      "part_pin": "AOUT",
+      "pin_type": "analog",
+      "mcu_pin": "GPIO34",
+      "bus": "analog",
+      "reason": "ADC1 pin: still works if Wi-Fi is added later"
+    },
+    {
+      "part_ref": "buzzer1",
+      "part_name": "Passive buzzer module (KY-006)",
+      "part_pin": "SIG",
+      "pin_type": "gpio_out",
+      "mcu_pin": "GPIO25",
+      "bus": "gpio",
+      "reason": "free output pin that isn't a strapping pin"
+    },
+    {
+      "part_ref": "buzzer1",
+      "part_name": "Passive buzzer module (KY-006)",
+      "part_pin": "GND",
+      "pin_type": "gnd",
+      "mcu_pin": "GND",
+      "bus": "power",
+      "reason": ""
+    }
+  ]
+}

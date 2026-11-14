@@ -25,6 +25,9 @@ dev = [
     "ruff>=0.17.5",
 ]
 
+[tool.ruff.lint]
+extend-ignore = ["RUF012"]  # Pydantic copies mutable field defaults; `= []` is safe on models
+
 [tool.ruff.format]
 exclude = ["*.md"]  # don't reflow code samples in the plan docs
 

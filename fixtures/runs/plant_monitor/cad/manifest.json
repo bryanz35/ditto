@@ -1,0 +1,89 @@
+{
+  "spec_rev": 2,
+  "template": "box_lid",
+  "wall_mm": 2.0,
+  "cavity_mm": [
+    85.3,
+    45.94,
+    16.0
+  ],
+  "outer_mm": [
+    89.3,
+    49.94,
+    20.0
+  ],
+  "cutouts": [
+    {
+      "for_ref": "buzzer1",
+      "feature": "sound",
+      "face": "top",
+      "center_mm": [
+        26.75,
+        37.44
+      ],
+      "size_mm": [
+        10.0,
+        10.0
+      ]
+    },
+    {
+      "for_ref": "env1",
+      "feature": "vent",
+      "face": "top",
+      "center_mm": [
+        8.75,
+        35.69
+      ],
+      "size_mm": [
+        6.0,
+        6.0
+      ]
+    },
+    {
+      "for_ref": "esp32",
+      "feature": "usb",
+      "face": "left",
+      "center_mm": [
+        14.97,
+        11.5
+      ],
+      "size_mm": [
+        12.0,
+        8.0
+      ]
+    },
+    {
+      "for_ref": "oled1",
+      "feature": "display_window",
+      "face": "top",
+      "center_mm": [
+        70.3,
+        13.5
+      ],
+      "size_mm": [
+        22.0,
+        11.0
+      ]
+    },
+    {
+      "for_ref": "soil1",
+      "feature": "cable",
+      "face": "back",
+      "center_mm": [
+        60.0,
+        8.0
+      ],
+      "size_mm": [
+        6.0,
+        6.0
+      ]
+    }
+  ],
+  "unmeasured_refs": [
+    "buzzer1",
+    "env1",
+    "esp32",
+    "oled1",
+    "soil1"
+  ]
+}

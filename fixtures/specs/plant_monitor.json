@@ -1,0 +1,167 @@
+{
+  "rev": 2,
+  "title": "Plant monitor",
+  "prompt": "A plant monitor for my desk: show soil moisture, temperature and humidity on a small screen, and beep when the soil gets too dry. Budget about $30.",
+  "requirements": [
+    "Reads soil moisture, temperature and humidity every 10 minutes",
+    "Shows the latest readings on a display",
+    "Beeps when soil moisture falls below a dry threshold",
+    "Total parts cost at most $30"
+  ],
+  "assumptions": [
+    "Powered from USB (no answer to the power question within 60 s)",
+    "The soil probe sits outside the case on its cable"
+  ],
+  "user": {
+    "budget_usd": 30.0,
+    "owned_part_ids": [],
+    "printer": null,
+    "rejected": []
+  },
+  "mcu": {
+    "ref": "esp32",
+    "part_id": "esp32_devkitc",
+    "qty": 1,
+    "role": "runs the firmware",
+    "reason": "Common, cheap, enough pins and ADC1 inputs; Wi-Fi available for later"
+  },
+  "parts": [
+    {
+      "ref": "env1",
+      "part_id": "bme280_breakout",
+      "qty": 1,
+      "role": "measures temperature and humidity",
+      "reason": "One I2C sensor gives temperature, humidity and pressure"
+    },
+    {
+      "ref": "oled1",
+      "part_id": "ssd1306_096_i2c",
+      "qty": 1,
+      "role": "shows the readings",
+      "reason": "Small and cheap; shares the I2C bus with the BME280"
+    },
+    {
+      "ref": "soil1",
+      "part_id": "soil_moisture_capacitive",
+      "qty": 1,
+      "role": "measures soil moisture",
+      "reason": "Capacitive probes don't corrode like resistive ones"
+    },
+    {
+      "ref": "buzzer1",
+      "part_id": "buzzer_passive",
+      "qty": 1,
+      "role": "beeps when the soil is dry",
+      "reason": "Driven straight from a GPIO with tone()"
+    }
+  ],
+  "connections": [
+    {
+      "part_ref": "env1",
+      "part_pin": "VCC",
+      "mcu_pin": "3V3",
+      "bus": "power",
+      "reason": "3.3 V only module"
+    },
+    {
+      "part_ref": "env1",
+      "part_pin": "GND",
+      "mcu_pin": "GND",
+      "bus": "power",
+      "reason": ""
+    },
+    {
+      "part_ref": "env1",
+      "part_pin": "SCL",
+      "mcu_pin": "GPIO22",
+      "bus": "i2c",
+      "reason": "ESP32 default I2C pins; the bus is shared with the other I2C part"
+    },
+    {
+      "part_ref": "env1",
+      "part_pin": "SDA",
+      "mcu_pin": "GPIO21",
+      "bus": "i2c",
+      "reason": "ESP32 default I2C pins; the bus is shared with the other I2C part"
+    },
+    {
+      "part_ref": "oled1",
+      "part_pin": "VCC",
+      "mcu_pin": "3V3",
+      "bus": "power",
+      "reason": ""
+    },
+    {
+      "part_ref": "oled1",
+      "part_pin": "GND",
+      "mcu_pin": "GND",
+      "bus": "power",
+      "reason": ""
+    },
+    {
+      "part_ref": "oled1",
+      "part_pin": "SCL",
+      "mcu_pin": "GPIO22",
+      "bus": "i2c",
+      "reason": "ESP32 default I2C pins; the bus is shared with the other I2C part"
+    },
+    {
+      "part_ref": "oled1",
+      "part_pin": "SDA",
+      "mcu_pin": "GPIO21",
+      "bus": "i2c",
+      "reason": "ESP32 default I2C pins; the bus is shared with the other I2C part"
+    },
+    {
+      "part_ref": "soil1",
+      "part_pin": "VCC",
+      "mcu_pin": "3V3",
+      "bus": "power",
+      "reason": "keeps the analog output below 3.3 V"
+    },
+    {
+      "part_ref": "soil1",
+      "part_pin": "GND",
+      "mcu_pin": "GND",
+      "bus": "power",
+      "reason": ""
+    },
+    {
+      "part_ref": "soil1",
+      "part_pin": "AOUT",
+      "mcu_pin": "GPIO34",
+      "bus": "analog",
+      "reason": "ADC1 pin: still works if Wi-Fi is added later"
+    },
+    {
+      "part_ref": "buzzer1",
+      "part_pin": "SIG",
+      "mcu_pin": "GPIO25",
+      "bus": "gpio",
+      "reason": "free output pin that isn't a strapping pin"
+    },
+    {
+      "part_ref": "buzzer1",
+      "part_pin": "GND",
+      "mcu_pin": "GND",
+      "bus": "power",
+      "reason": ""
+    }
+  ],
+  "firmware": {
+    "framework": "arduino",
+    "behaviors": [
+      "Every 10 minutes, read soil moisture, temperature and humidity",
+      "Show the latest readings on the OLED",
+      "Beep three times when soil moisture is below the dry threshold"
+    ],
+    "needs_wifi": false
+  },
+  "enclosure": {
+    "template": "box_lid",
+    "wall_mm": 2.0,
+    "clearance_mm": 1.0,
+    "cutouts": [],
+    "extras": []
+  }
+}

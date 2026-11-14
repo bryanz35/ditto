@@ -9,7 +9,7 @@ node_modules/
 frontend/dist/
 
 # Runs and build output (fixture meshes are kept)
-runs/
+/runs/
 .pio/
 *.stl
 !fixtures/**/*.stl

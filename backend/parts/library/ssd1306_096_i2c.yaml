@@ -1,0 +1,40 @@
+# 0.96" 128x64 SSD1306 OLED module, 4-pin I2C. Supply 3.3 or 5 V (on-board regulator), 28 x 28 mm module,
+# 21.7 x 10.8 mm active area, 10 mA typical: source (vendor page). Pin order varies by vendor
+# (GND VCC SCL SDA or VCC GND SCL SDA): wire by the silkscreen names.
+# 0x3D: most modules move a resistor on the back to change the address (Wokwi documents both addresses,
+# https://docs.wokwi.com/parts/board-ssd1306).
+# Mount holes: M2, 23.3 x 23.6 mm centre to centre from a buyer's caliper measurement. Window position and h
+# (~8.5 headers + 1.6 PCB + 1.5 glass) are estimates. Measure at H1.
+id: ssd1306_096_i2c
+name: 0.96" OLED, 128x64, I2C (SSD1306)
+category: display
+logic_voltage: 3.3
+supply_voltage: [3.3, 5.0]
+max_current_ma: 20  # 10 mA typical; more with most pixels lit
+i2c_addresses: ["0x3C", "0x3D"]
+pins:
+  - {name: GND, type: gnd}
+  - {name: VCC, type: power}
+  - {name: SCL, type: i2c_scl}
+  - {name: SDA, type: i2c_sda}
+board_mm: {l: 28.0, w: 28.0, h: 12.0}
+provisional: true
+dims_source: listing
+mount_holes:
+  - {x_mm: 2.35, y_mm: 2.2, d_mm: 2.0}
+  - {x_mm: 25.65, y_mm: 2.2, d_mm: 2.0}
+  - {x_mm: 2.35, y_mm: 25.8, d_mm: 2.0}
+  - {x_mm: 25.65, y_mm: 25.8, d_mm: 2.0}
+features:
+  # Header along the back edge; the glass fills the rest, active area roughly centred below the header.
+  - {kind: display_window, face: top, offset_mm: [14.0, 12.5], size_mm: [22.0, 11.0]}
+pio_lib_deps: ["adafruit/Adafruit SSD1306", "adafruit/Adafruit GFX Library"]
+snippet: snippets/ssd1306_096_i2c.cpp
+mpn: null
+vendor_url: https://protosupplies.com/product/oled-0-96-128x64-i2c-blue-display/
+manual_price_usd: 5.0
+owned_alternatives: []
+wokwi_type: board-ssd1306
+wokwi_pins: {}  # Wokwi uses the same names: GND, VCC, SCL, SDA
+wokwi_attrs: {i2cAddress: "0x3c"}
+source: https://protosupplies.com/product/oled-0-96-128x64-i2c-blue-display/

@@ -1,0 +1,31 @@
+# Capacitive soil moisture sensor v1.2 (98 x 23 mm probe), 3-pin GND VCC AOUT, 3.3-5.5 V, ~5 mA.
+# Output: higher voltage when dry (~2.5 V), lower when wet (~1.0 V); calibrate per soil. Source: vendor manual.
+# Some clones carry an NE555 that misbehaves at 3.3 V (the intended part is a TLC555): check on the bench.
+# The probe goes into the soil, so the part sits outside the case and the enclosure gets a cable hole.
+# h is an estimate (PCB + 3-pin connector). Measure at H1.
+id: soil_moisture_capacitive
+name: Capacitive soil moisture sensor v1.2 (analog)
+category: sensor
+logic_voltage: 3.3
+supply_voltage: [3.3, 5.0]
+max_current_ma: 5
+pins:
+  - {name: GND, type: gnd}
+  - {name: VCC, type: power}
+  - {name: AOUT, type: analog}
+board_mm: {l: 98.0, w: 23.0, h: 7.0}
+mounting: external
+provisional: true
+dims_source: listing
+mount_holes: []
+features: []
+pio_lib_deps: []
+snippet: snippets/soil_moisture_capacitive.cpp
+mpn: null
+vendor_url: https://shillehtek.com/blogs/shillehtek-product-manuals/capacitive-soil-moisture-sensor-v1-2-manual
+manual_price_usd: 2.5
+owned_alternatives: []
+wokwi_type: null  # Wokwi has no soil sensor; T26 may choose a wokwi-potentiometer stand-in
+wokwi_pins: {}
+wokwi_attrs: {}
+source: https://shillehtek.com/blogs/shillehtek-product-manuals/capacitive-soil-moisture-sensor-v1-2-manual

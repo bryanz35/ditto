@@ -250,16 +250,17 @@ Every card lists the paths it owns. Anything not listed belongs to someone else.
   3. `backend/contracts/results.py`, `events.py`, `runner.py` as summarized in `CLAUDE.md`. Event stages
      include `assembly` and `simulate`; the runtime skips stages that `handoff/HARDWARE.md`'s mode doesn't need.
   4. `backend/contracts/tools.py`: one `Protocol` per tool, and `ToolBox` (a dataclass holding them).
-     Signatures (all return `ToolResult`):
+     Signatures (all return `ToolResult`; as built at G0, `backend/contracts/tools.py` is authoritative):
      ```python
      validate_spec(spec, lib)
-     compute_layout(spec, lib)                       # data["layout"] = Layout
+     compute_layout(spec, lib, out_dir)              # artifacts: layout_json; data["layout"] = Layout
      build_enclosure(spec, layout, lib, out_dir)     # artifacts: base_stl, base_step, lid_stl, lid_step, manifest
      check_enclosure(spec, layout, lib, out_dir, printer_id)
      write_firmware_project(spec, lib, main_cpp, out_dir)  # artifacts: platformio_ini, pins_h, main_cpp
      lint_firmware(project_dir)
      compile_firmware(project_dir)
-     price_bom(spec, lib, prices, owned)             # data: lines, total_usd, over_budget
+     build_wiring(spec, lib, out_dir)                # artifacts: wiring_json (T14, backend/runtime/wiring.py)
+     price_bom(spec, lib, prices, owned, out_dir)    # artifacts: bom_json; data: Bom
      preprocess_input(paths, out_dir)                # data: images, transcript
      cross_checks(run_dir, spec, lib)
      build_assembly(spec, layout, lib, out_dir)      # artifacts: assembly_glb

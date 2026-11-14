@@ -1,0 +1,6 @@
+# Conservative profile used until handoff/HARDWARE.md names a printer (T11 owns this folder and adds
+# vendor-cited profiles). 180 mm cube = the smallest common hobby build volume (Prusa MINI+, Bambu Lab A1 mini).
+id: generic
+name: Generic small FDM printer
+build_volume_mm: [180, 180, 180]
+source: conservative default, not a specific printer

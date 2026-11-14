@@ -1,0 +1,85 @@
+{
+  "spec_rev": 2,
+  "artifacts": {
+    "spec": {
+      "path": "spec.json",
+      "stage": "validate",
+      "spec_rev": 2
+    },
+    "layout_json": {
+      "path": "cad/layout.json",
+      "stage": "layout",
+      "spec_rev": 2
+    },
+    "base_stl": {
+      "path": "cad/base.stl",
+      "stage": "enclosure",
+      "spec_rev": 2
+    },
+    "base_step": {
+      "path": "cad/base.step",
+      "stage": "enclosure",
+      "spec_rev": 2
+    },
+    "lid_stl": {
+      "path": "cad/lid.stl",
+      "stage": "enclosure",
+      "spec_rev": 2
+    },
+    "lid_step": {
+      "path": "cad/lid.step",
+      "stage": "enclosure",
+      "spec_rev": 2
+    },
+    "manifest": {
+      "path": "cad/manifest.json",
+      "stage": "enclosure",
+      "spec_rev": 2
+    },
+    "assembly_glb": {
+      "path": "cad/assembly.glb",
+      "stage": "assembly",
+      "spec_rev": 2
+    },
+    "platformio_ini": {
+      "path": "firmware/platformio.ini",
+      "stage": "firmware",
+      "spec_rev": 2
+    },
+    "pins_h": {
+      "path": "firmware/include/pins.h",
+      "stage": "firmware",
+      "spec_rev": 2
+    },
+    "main_cpp": {
+      "path": "firmware/src/main.cpp",
+      "stage": "firmware",
+      "spec_rev": 2
+    },
+    "wiring_json": {
+      "path": "wiring.json",
+      "stage": "wiring",
+      "spec_rev": 2
+    },
+    "diagram_json": {
+      "path": "sim/diagram.json",
+      "stage": "simulate",
+      "spec_rev": 2
+    },
+    "wokwi_toml": {
+      "path": "sim/wokwi.toml",
+      "stage": "simulate",
+      "spec_rev": 2
+    },
+    "serial_log": {
+      "path": "sim/serial.log",
+      "stage": "simulate",
+      "spec_rev": 2
+    },
+    "bom_json": {
+      "path": "bom.json",
+      "stage": "bom",
+      "spec_rev": 2
+    }
+  }
+}

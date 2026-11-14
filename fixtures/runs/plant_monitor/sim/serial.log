@@ -1,0 +1,4 @@
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+BME280 not found at 0x76
+soil=0 temp=nan humidity=nan
+P2D_READY

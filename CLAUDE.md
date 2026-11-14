@@ -62,22 +62,30 @@ Files are created as stubs in T00/T01 so that no two tasks ever create the same 
 
 ## Contracts (summary; the code in `backend/contracts/` is authoritative)
 
+- `base.py`: the `Model` base class (unknown fields are errors) and the **coordinate frames** for parts
+  and the enclosure (origin at the front-left-bottom corner, mm). Read it before touching geometry.
 - `spec.py`: `ProjectSpec` (has `rev: int`), `PartInstance`, `Connection`, `EnclosureSpec`, `FirmwareSpec`,
-  `UserContext`, `Placement`, `Layout`.
-- `parts.py`: `PartDef`, `BoardDef` (adds `reserved_pins`, `input_only_pins`, `strapping_pins`,
-  `adc2_pins`, `pio_board`), `PartLibrary` with `load_library()`, `get()`, `pin_type()`.
+  `UserContext`, `Placement`, `Layout`. Refs are lowercase letters and digits (they become `PIN_<REF>_<PIN>`).
+- `parts.py`: `PartDef` (pins with MCU-side types, `mounting: inside | external`, features, Wokwi
+  mapping), `BoardDef` (adds `reserved_pins`, `input_only_pins`, `strapping_pins`, `adc1_pins`, `adc2_pins`,
+  `pio_board`, `power_budget_ma`), `PartLibrary` with `load_library()`, `get()`, `pin_type(part_id, pin)`.
 - `results.py`: `ToolError(code, message, field=None, hint=None, severity="error")` and
   `ToolResult(ok, errors, artifacts, data, log)`. **Every tool returns a `ToolResult`; tools never raise
   for expected failures.** Error messages are read by an LLM, so make them specific and actionable
   ("GPIO34 is input-only but drives buzzer1.SIG; free output pins: GPIO4, GPIO16, GPIO17").
+  Error codes `not_implemented` and `skipped` mean the stage didn't run (`result.skipped`): emit it as
+  `skipped`, never retry it.
 - `events.py`: `Event(run_id, seq, ts, stage, status, message, spec_rev, artifacts, errors, data)`.
   Stages: `plan, validate, layout, enclosure, assembly, firmware, wiring, simulate, bom, checks, done`.
   Statuses: `queued, running, passed, failed, stale, skipped, waiting` (`waiting` = a question for the
-  user; the question and the agent's todo list travel in `data`).
-- `runner.py`: `RunRequest`, `EditRequest`, and the `Runner` protocol
-  (`run(request, emit) -> ProjectSpec`, `edit(run_id, request, emit) -> ProjectSpec`).
+  user). `data` carries `todos` (list of `Todo`), `question` (`Question`) and `attempt`.
+- `artifacts.py`: shapes of the shared run files: `RunManifest` (`manifest.json`), `Wiring`, `Bom`,
+  `EnclosureManifest` (`cad/manifest.json`).
+- `runner.py`: the run directory layout, `RunRequest`, `EditRequest`, `AnswerRequest`, `Emit` (sync,
+  thread-safe) and the async `Runner` protocol (`run`, `edit`, `answer`).
 - `tools.py`: the signatures of every tool function (`Protocol`s) and the `ToolBox` that bundles them,
-  so the agent and API can swap stubs, fakes and real tools.
+  so the agent and API can swap stubs, fakes and real tools. Tools that make files take an `out_dir`.
+- `hardware.py`: `load_hardware()` reads `handoff/HARDWARE.md` (mode, printer, whether to simulate).
 
 ## Commands
 

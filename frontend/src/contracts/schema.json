@@ -1,0 +1,1871 @@
+{
+  "$defs": {
+    "AnswerRequest": {
+      "additionalProperties": false,
+      "description": "Body of POST /runs/{id}/answer: the user's reply to a \"waiting\" event's question.",
+      "properties": {
+        "answer": {
+          "type": "string"
+        },
+        "question_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "question_id",
+        "answer"
+      ],
+      "title": "AnswerRequest",
+      "type": "object"
+    },
+    "ArtifactInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "description": "Relative to the run directory.",
+          "type": "string"
+        },
+        "spec_rev": {
+          "type": "integer"
+        },
+        "stage": {
+          "enum": [
+            "plan",
+            "validate",
+            "layout",
+            "enclosure",
+            "assembly",
+            "firmware",
+            "wiring",
+            "simulate",
+            "bom",
+            "checks",
+            "done"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "stage",
+        "spec_rev"
+      ],
+      "title": "ArtifactInfo",
+      "type": "object"
+    },
+    "BoardDef": {
+      "additionalProperties": false,
+      "description": "A microcontroller board: load_library uses this model for files with category \"mcu\".",
+      "properties": {
+        "adc1_pins": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "adc2_pins": {
+          "description": "Analog reads here fail while Wi-Fi is on.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "board_mm": {
+          "$ref": "#/$defs/Dims"
+        },
+        "category": {
+          "enum": [
+            "mcu",
+            "sensor",
+            "display",
+            "light",
+            "input",
+            "output",
+            "power"
+          ],
+          "type": "string"
+        },
+        "dims_source": {
+          "enum": [
+            "measured",
+            "datasheet",
+            "listing"
+          ],
+          "type": "string"
+        },
+        "features": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Feature"
+          },
+          "type": "array"
+        },
+        "i2c_addresses": {
+          "default": [],
+          "description": "First is the default; the rest are selectable on the module.",
+          "items": {
+            "pattern": "^0x[0-9A-F]{2}$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "description": "Equals the YAML file name.",
+          "pattern": "^[a-z0-9_]+$",
+          "type": "string"
+        },
+        "input_only_pins": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "logic_voltage": {
+          "type": "number"
+        },
+        "manual_price_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "max_current_ma": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "mount_holes": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/MountHole"
+          },
+          "type": "array"
+        },
+        "mounting": {
+          "default": "inside",
+          "description": "external: sits outside the case (soil probe, servo arm); the enclosure gets a cable hole\ninstead of a placement.",
+          "enum": [
+            "inside",
+            "external"
+          ],
+          "type": "string"
+        },
+        "mpn": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "name": {
+          "type": "string"
+        },
+        "owned_alternatives": {
+          "default": [],
+          "description": "Part ids that can stand in for this one.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "pins": {
+          "items": {
+            "$ref": "#/$defs/PinDef"
+          },
+          "type": "array"
+        },
+        "pio_board": {
+          "description": "PlatformIO board id, e.g. \"esp32dev\".",
+          "type": "string"
+        },
+        "pio_lib_deps": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "power_budget_ma": {
+          "description": "Current the board's regulator can give the attached parts.",
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "provisional": {
+          "default": true,
+          "description": "True until a human has measured the part with calipers.",
+          "type": "boolean"
+        },
+        "reserved_pins": {
+          "description": "Never usable (flash, USB serial).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "snippet": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Known-good example program, relative to backend/parts/ (e.g. \"snippets/<id>.cpp\")."
+        },
+        "source": {
+          "description": "Datasheet or vendor URL for the pins, voltages and addresses.",
+          "type": "string"
+        },
+        "strapping_pins": {
+          "description": "Usable, but outputs here can break boot: warn.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "supply_voltage": {
+          "description": "Supply rails the part accepts, e.g. [3.3, 5.0].",
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "vendor_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "wokwi_attrs": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "wokwi_board": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "wokwi_pins": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Our pin name -> Wokwi pin name, where they differ.",
+          "type": "object"
+        },
+        "wokwi_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Wokwi part type; None when Wokwi doesn't have the part."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "category",
+        "pins",
+        "logic_voltage",
+        "supply_voltage",
+        "max_current_ma",
+        "i2c_addresses",
+        "board_mm",
+        "mounting",
+        "mount_holes",
+        "features",
+        "provisional",
+        "dims_source",
+        "pio_lib_deps",
+        "snippet",
+        "mpn",
+        "vendor_url",
+        "manual_price_usd",
+        "owned_alternatives",
+        "wokwi_type",
+        "wokwi_pins",
+        "wokwi_attrs",
+        "source",
+        "pio_board",
+        "wokwi_board",
+        "reserved_pins",
+        "input_only_pins",
+        "strapping_pins",
+        "adc1_pins",
+        "adc2_pins",
+        "power_budget_ma"
+      ],
+      "title": "BoardDef",
+      "type": "object"
+    },
+    "Bom": {
+      "additionalProperties": false,
+      "description": "bom.json, and the data of price_bom's ToolResult.",
+      "properties": {
+        "budget_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/BomLine"
+          },
+          "type": "array"
+        },
+        "over_budget": {
+          "type": "boolean"
+        },
+        "prices_fetched_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "When the price cache was refreshed (ISO 8601), if any line came from it."
+        },
+        "spec_rev": {
+          "type": "integer"
+        },
+        "total_usd": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "spec_rev",
+        "lines",
+        "total_usd",
+        "budget_usd",
+        "over_budget",
+        "prices_fetched_at"
+      ],
+      "title": "Bom",
+      "type": "object"
+    },
+    "BomLine": {
+      "additionalProperties": false,
+      "properties": {
+        "line_total_usd": {
+          "description": "(qty - owned_qty) * unit price; 0 when fully owned or unpriced.",
+          "type": "number"
+        },
+        "mpn": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "name": {
+          "type": "string"
+        },
+        "owned_qty": {
+          "default": 0,
+          "type": "integer"
+        },
+        "part_id": {
+          "type": "string"
+        },
+        "price_source": {
+          "enum": [
+            "live",
+            "cache",
+            "manual",
+            "fake",
+            "missing"
+          ],
+          "type": "string"
+        },
+        "qty": {
+          "type": "integer"
+        },
+        "refs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "unit_price_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "vendor_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "part_id",
+        "name",
+        "refs",
+        "qty",
+        "owned_qty",
+        "unit_price_usd",
+        "line_total_usd",
+        "price_source",
+        "vendor_url",
+        "mpn"
+      ],
+      "title": "BomLine",
+      "type": "object"
+    },
+    "Connection": {
+      "additionalProperties": false,
+      "properties": {
+        "bus": {
+          "enum": [
+            "i2c",
+            "spi",
+            "i2s",
+            "uart",
+            "gpio",
+            "analog",
+            "power"
+          ],
+          "type": "string"
+        },
+        "mcu_pin": {
+          "description": "Pin name from the board's library entry, e.g. \"GPIO21\", \"3V3\", \"GND\".",
+          "type": "string"
+        },
+        "part_pin": {
+          "description": "Pin name from the part's library entry, e.g. \"SDA\".",
+          "type": "string"
+        },
+        "part_ref": {
+          "description": "Ref of the part, e.g. \"oled1\".",
+          "type": "string"
+        },
+        "reason": {
+          "default": "",
+          "description": "Explain mode: why this pin.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "part_ref",
+        "part_pin",
+        "mcu_pin",
+        "bus",
+        "reason"
+      ],
+      "title": "Connection",
+      "type": "object"
+    },
+    "Cutout": {
+      "additionalProperties": false,
+      "description": "An extra opening the user asked for. Openings for part features come from the library.",
+      "properties": {
+        "face": {
+          "enum": [
+            "top",
+            "front",
+            "back",
+            "left",
+            "right"
+          ],
+          "type": "string"
+        },
+        "feature": {
+          "description": "e.g. \"usb\", \"lens\", \"window\", \"button\".",
+          "type": "string"
+        },
+        "for_ref": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "for_ref",
+        "feature",
+        "face"
+      ],
+      "title": "Cutout",
+      "type": "object"
+    },
+    "CutoutRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "center_mm": {
+          "description": "Face-plane (u, v) in the enclosure frame (see base.py).",
+          "items": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "face": {
+          "enum": [
+            "top",
+            "front",
+            "back",
+            "left",
+            "right"
+          ],
+          "type": "string"
+        },
+        "feature": {
+          "enum": [
+            "usb",
+            "display_window",
+            "lens",
+            "button",
+            "led",
+            "sound",
+            "vent",
+            "cable"
+          ],
+          "type": "string"
+        },
+        "for_ref": {
+          "type": "string"
+        },
+        "size_mm": {
+          "items": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "required": [
+        "for_ref",
+        "feature",
+        "face",
+        "center_mm",
+        "size_mm"
+      ],
+      "title": "CutoutRecord",
+      "type": "object"
+    },
+    "Dims": {
+      "additionalProperties": false,
+      "properties": {
+        "h": {
+          "description": "Overall height, including pin headers and the tallest component.",
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "l": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "w": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "l",
+        "w",
+        "h"
+      ],
+      "title": "Dims",
+      "type": "object"
+    },
+    "EditRequest": {
+      "additionalProperties": false,
+      "description": "Body of POST /runs/{id}/edit.",
+      "properties": {
+        "instruction": {
+          "description": "e.g. \"add a buzzer\", \"make the walls 3 mm\".",
+          "type": "string"
+        }
+      },
+      "required": [
+        "instruction"
+      ],
+      "title": "EditRequest",
+      "type": "object"
+    },
+    "EnclosureManifest": {
+      "additionalProperties": false,
+      "description": "cad/manifest.json, written by build_enclosure: which opening serves which part feature.",
+      "properties": {
+        "cavity_mm": {
+          "items": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "cutouts": {
+          "items": {
+            "$ref": "#/$defs/CutoutRecord"
+          },
+          "type": "array"
+        },
+        "outer_mm": {
+          "description": "Outside size of the closed box, lid included.",
+          "items": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "spec_rev": {
+          "type": "integer"
+        },
+        "template": {
+          "const": "box_lid",
+          "default": "box_lid",
+          "type": "string"
+        },
+        "unmeasured_refs": {
+          "default": [],
+          "description": "Parts whose dims_source isn't \"measured\": the UI says \"verify before printing\".",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "wall_mm": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "spec_rev",
+        "template",
+        "wall_mm",
+        "cavity_mm",
+        "outer_mm",
+        "cutouts",
+        "unmeasured_refs"
+      ],
+      "title": "EnclosureManifest",
+      "type": "object"
+    },
+    "EnclosureSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "clearance_mm": {
+          "default": 1.0,
+          "minimum": 0,
+          "type": "number"
+        },
+        "cutouts": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Cutout"
+          },
+          "type": "array"
+        },
+        "extras": {
+          "default": [],
+          "description": "Free-form CAD requests, e.g. \"belt clip\".",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "template": {
+          "const": "box_lid",
+          "default": "box_lid",
+          "type": "string"
+        },
+        "wall_mm": {
+          "default": 2.0,
+          "maximum": 4.0,
+          "minimum": 1.2,
+          "type": "number"
+        }
+      },
+      "required": [
+        "template",
+        "wall_mm",
+        "clearance_mm",
+        "cutouts",
+        "extras"
+      ],
+      "title": "EnclosureSpec",
+      "type": "object"
+    },
+    "Event": {
+      "additionalProperties": false,
+      "properties": {
+        "artifacts": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Artifact name -> path relative to the run directory.",
+          "type": "object"
+        },
+        "data": {
+          "additionalProperties": true,
+          "default": {},
+          "type": "object"
+        },
+        "errors": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ToolError"
+          },
+          "type": "array"
+        },
+        "message": {
+          "default": "",
+          "type": "string"
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "seq": {
+          "default": 0,
+          "description": "Set by the run engine when it records the event: 1, 2, 3... per run (the SSE id).",
+          "type": "integer"
+        },
+        "spec_rev": {
+          "default": 0,
+          "type": "integer"
+        },
+        "stage": {
+          "enum": [
+            "plan",
+            "validate",
+            "layout",
+            "enclosure",
+            "assembly",
+            "firmware",
+            "wiring",
+            "simulate",
+            "bom",
+            "checks",
+            "done"
+          ],
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "passed",
+            "failed",
+            "stale",
+            "skipped",
+            "waiting"
+          ],
+          "type": "string"
+        },
+        "ts": {
+          "default": 0.0,
+          "description": "Unix time in seconds, set by the run engine.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "run_id",
+        "seq",
+        "ts",
+        "stage",
+        "status",
+        "message",
+        "spec_rev",
+        "artifacts",
+        "errors",
+        "data"
+      ],
+      "title": "Event",
+      "type": "object"
+    },
+    "Feature": {
+      "additionalProperties": false,
+      "description": "Something on the part that needs an opening in the enclosure (part frame, see base.py).",
+      "properties": {
+        "face": {
+          "description": "The face of the part it points out of.",
+          "enum": [
+            "top",
+            "front",
+            "back",
+            "left",
+            "right"
+          ],
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "usb",
+            "display_window",
+            "lens",
+            "button",
+            "led",
+            "sound",
+            "vent",
+            "cable"
+          ],
+          "type": "string"
+        },
+        "offset_mm": {
+          "description": "Centre of the feature in face-plane coordinates (u, v) from the part's origin.",
+          "items": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "size_mm": {
+          "description": "Opening width and height along (u, v).",
+          "items": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "face",
+        "offset_mm",
+        "size_mm"
+      ],
+      "title": "Feature",
+      "type": "object"
+    },
+    "FirmwareSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "behaviors": {
+          "description": "e.g. \"every 10 min, read soil moisture and show it\".",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "framework": {
+          "const": "arduino",
+          "default": "arduino",
+          "type": "string"
+        },
+        "needs_wifi": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "framework",
+        "behaviors",
+        "needs_wifi"
+      ],
+      "title": "FirmwareSpec",
+      "type": "object"
+    },
+    "Hardware": {
+      "additionalProperties": false,
+      "properties": {
+        "has_parts": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "None while unknown."
+        },
+        "has_printer": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mode": {
+          "description": "Unknown counts as V, the strictest mode.",
+          "enum": [
+            "P",
+            "E",
+            "V"
+          ],
+          "type": "string"
+        },
+        "printer_model": {
+          "description": "Printer profile id in backend/parts/printers/.",
+          "type": "string"
+        },
+        "simulate": {
+          "description": "Whether the simulate stage runs (SIMULATE=auto: on in modes E and V, off in P).",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "has_parts",
+        "has_printer",
+        "printer_model",
+        "mode",
+        "simulate"
+      ],
+      "title": "Hardware",
+      "type": "object"
+    },
+    "Layout": {
+      "additionalProperties": false,
+      "properties": {
+        "cavity_mm": {
+          "description": "Inside length (x), width (y) and height (z).",
+          "items": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "placements": {
+          "description": "One per part mounted inside (`PartDef.mounting == \"inside\"`), sorted by ref.",
+          "items": {
+            "$ref": "#/$defs/Placement"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "placements",
+        "cavity_mm"
+      ],
+      "title": "Layout",
+      "type": "object"
+    },
+    "MountHole": {
+      "additionalProperties": false,
+      "properties": {
+        "d_mm": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "x_mm": {
+          "type": "number"
+        },
+        "y_mm": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "x_mm",
+        "y_mm",
+        "d_mm"
+      ],
+      "title": "MountHole",
+      "type": "object"
+    },
+    "PartDef": {
+      "additionalProperties": false,
+      "properties": {
+        "board_mm": {
+          "$ref": "#/$defs/Dims"
+        },
+        "category": {
+          "enum": [
+            "mcu",
+            "sensor",
+            "display",
+            "light",
+            "input",
+            "output",
+            "power"
+          ],
+          "type": "string"
+        },
+        "dims_source": {
+          "enum": [
+            "measured",
+            "datasheet",
+            "listing"
+          ],
+          "type": "string"
+        },
+        "features": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Feature"
+          },
+          "type": "array"
+        },
+        "i2c_addresses": {
+          "default": [],
+          "description": "First is the default; the rest are selectable on the module.",
+          "items": {
+            "pattern": "^0x[0-9A-F]{2}$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "description": "Equals the YAML file name.",
+          "pattern": "^[a-z0-9_]+$",
+          "type": "string"
+        },
+        "logic_voltage": {
+          "type": "number"
+        },
+        "manual_price_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "max_current_ma": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "mount_holes": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/MountHole"
+          },
+          "type": "array"
+        },
+        "mounting": {
+          "default": "inside",
+          "description": "external: sits outside the case (soil probe, servo arm); the enclosure gets a cable hole\ninstead of a placement.",
+          "enum": [
+            "inside",
+            "external"
+          ],
+          "type": "string"
+        },
+        "mpn": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "name": {
+          "type": "string"
+        },
+        "owned_alternatives": {
+          "default": [],
+          "description": "Part ids that can stand in for this one.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "pins": {
+          "items": {
+            "$ref": "#/$defs/PinDef"
+          },
+          "type": "array"
+        },
+        "pio_lib_deps": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "provisional": {
+          "default": true,
+          "description": "True until a human has measured the part with calipers.",
+          "type": "boolean"
+        },
+        "snippet": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Known-good example program, relative to backend/parts/ (e.g. \"snippets/<id>.cpp\")."
+        },
+        "source": {
+          "description": "Datasheet or vendor URL for the pins, voltages and addresses.",
+          "type": "string"
+        },
+        "supply_voltage": {
+          "description": "Supply rails the part accepts, e.g. [3.3, 5.0].",
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "vendor_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "wokwi_attrs": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "wokwi_pins": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Our pin name -> Wokwi pin name, where they differ.",
+          "type": "object"
+        },
+        "wokwi_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Wokwi part type; None when Wokwi doesn't have the part."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "category",
+        "pins",
+        "logic_voltage",
+        "supply_voltage",
+        "max_current_ma",
+        "i2c_addresses",
+        "board_mm",
+        "mounting",
+        "mount_holes",
+        "features",
+        "provisional",
+        "dims_source",
+        "pio_lib_deps",
+        "snippet",
+        "mpn",
+        "vendor_url",
+        "manual_price_usd",
+        "owned_alternatives",
+        "wokwi_type",
+        "wokwi_pins",
+        "wokwi_attrs",
+        "source"
+      ],
+      "title": "PartDef",
+      "type": "object"
+    },
+    "PartInstance": {
+      "additionalProperties": false,
+      "properties": {
+        "part_id": {
+          "description": "Key into the parts library.",
+          "type": "string"
+        },
+        "qty": {
+          "default": 1,
+          "description": "Use a separate ref for every part that gets wired; qty > 1 only for unwired extras.",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "reason": {
+          "description": "Explain mode: why this part was chosen.",
+          "type": "string"
+        },
+        "ref": {
+          "description": "Unique in this spec, e.g. \"oled1\".",
+          "pattern": "^[a-z][a-z0-9]*$",
+          "type": "string"
+        },
+        "role": {
+          "description": "What it does in this device, e.g. \"shows soil moisture\".",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref",
+        "part_id",
+        "qty",
+        "role",
+        "reason"
+      ],
+      "title": "PartInstance",
+      "type": "object"
+    },
+    "PinDef": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "As printed on the module; becomes part of PIN_<REF>_<PIN>, so no spaces or slashes.",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_]*$",
+          "type": "string"
+        },
+        "optional": {
+          "default": false,
+          "description": "May be left unconnected (e.g. an address-select pin with an on-board pull-down).",
+          "type": "boolean"
+        },
+        "type": {
+          "enum": [
+            "power",
+            "gnd",
+            "gpio",
+            "gpio_in",
+            "gpio_out",
+            "analog",
+            "i2c_sda",
+            "i2c_scl",
+            "spi_sck",
+            "spi_mosi",
+            "spi_miso",
+            "spi_cs",
+            "uart_tx",
+            "uart_rx",
+            "i2s_bclk",
+            "i2s_ws",
+            "i2s_din",
+            "i2s_dout",
+            "config"
+          ],
+          "type": "string"
+        },
+        "voltage": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Rail voltage for power pins; None means the part's logic_voltage."
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "voltage",
+        "optional"
+      ],
+      "title": "PinDef",
+      "type": "object"
+    },
+    "Placement": {
+      "additionalProperties": false,
+      "description": "Where the layout put one part inside the cavity (enclosure frame, see base.py).",
+      "properties": {
+        "against_wall": {
+          "anyOf": [
+            {
+              "enum": [
+                "front",
+                "back",
+                "left",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The wall this part touches because one of its features faces it."
+        },
+        "ref": {
+          "pattern": "^[a-z][a-z0-9]*$",
+          "type": "string"
+        },
+        "rot_deg": {
+          "default": 0,
+          "description": "Rotation about the vertical axis, counter-clockwise seen from above.",
+          "enum": [
+            0,
+            90,
+            180,
+            270
+          ],
+          "type": "integer"
+        },
+        "x_mm": {
+          "description": "Left edge of the part's footprint after rotation, measured from the left wall.",
+          "type": "number"
+        },
+        "y_mm": {
+          "description": "Front edge of the part's footprint after rotation, measured from the front wall.",
+          "type": "number"
+        },
+        "z_mm": {
+          "default": 0.0,
+          "description": "Bottom of the part above the cavity floor (standoff height).",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ref",
+        "x_mm",
+        "y_mm",
+        "z_mm",
+        "rot_deg",
+        "against_wall"
+      ],
+      "title": "Placement",
+      "type": "object"
+    },
+    "ProjectSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "assumptions": {
+          "default": [],
+          "description": "Stated when we didn't ask.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "connections": {
+          "items": {
+            "$ref": "#/$defs/Connection"
+          },
+          "type": "array"
+        },
+        "enclosure": {
+          "$ref": "#/$defs/EnclosureSpec",
+          "default": {
+            "clearance_mm": 1.0,
+            "cutouts": [],
+            "extras": [],
+            "template": "box_lid",
+            "wall_mm": 2.0
+          }
+        },
+        "firmware": {
+          "$ref": "#/$defs/FirmwareSpec"
+        },
+        "mcu": {
+          "$ref": "#/$defs/PartInstance"
+        },
+        "parts": {
+          "items": {
+            "$ref": "#/$defs/PartInstance"
+          },
+          "type": "array"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "requirements": {
+          "description": "Restated, testable requirements.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "rev": {
+          "default": 0,
+          "description": "Bumped by every saved change; each artifact records the rev it was built from.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "user": {
+          "$ref": "#/$defs/UserContext",
+          "default": {
+            "budget_usd": null,
+            "owned_part_ids": [],
+            "printer": null,
+            "rejected": []
+          }
+        }
+      },
+      "required": [
+        "rev",
+        "title",
+        "prompt",
+        "requirements",
+        "assumptions",
+        "user",
+        "mcu",
+        "parts",
+        "connections",
+        "firmware",
+        "enclosure"
+      ],
+      "title": "ProjectSpec",
+      "type": "object"
+    },
+    "Question": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "options": {
+          "default": [],
+          "description": "Suggested answers; the user may also type free text.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "text": {
+          "type": "string"
+        },
+        "timeout_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "After this the agent states an assumption and continues."
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "options",
+        "timeout_s"
+      ],
+      "title": "Question",
+      "type": "object"
+    },
+    "RunManifest": {
+      "additionalProperties": false,
+      "description": "runs/<id>/manifest.json, written by the run engine from the events it records.",
+      "properties": {
+        "artifacts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ArtifactInfo"
+          },
+          "type": "object"
+        },
+        "spec_rev": {
+          "description": "Rev of the current spec.json. Artifacts with an older spec_rev are stale.",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "spec_rev",
+        "artifacts"
+      ],
+      "title": "RunManifest",
+      "type": "object"
+    },
+    "RunRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "files": {
+          "default": [],
+          "description": "Uploaded files, relative to the run directory (input/...).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "user": {
+          "$ref": "#/$defs/UserContext",
+          "default": {
+            "budget_usd": null,
+            "owned_part_ids": [],
+            "printer": null,
+            "rejected": []
+          }
+        }
+      },
+      "required": [
+        "run_id",
+        "prompt",
+        "files",
+        "user"
+      ],
+      "title": "RunRequest",
+      "type": "object"
+    },
+    "Todo": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "in_progress",
+            "completed"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "content",
+        "status"
+      ],
+      "title": "Todo",
+      "type": "object"
+    },
+    "ToolError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "description": "Stable snake_case id, e.g. \"pin_conflict\".",
+          "type": "string"
+        },
+        "field": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Spec path the error is about, e.g. \"connections[3].mcu_pin\"."
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "message": {
+          "description": "Read by an LLM: name the pin, part and value, and give free alternatives where possible.",
+          "type": "string"
+        },
+        "severity": {
+          "default": "error",
+          "enum": [
+            "error",
+            "warning"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "field",
+        "hint",
+        "severity"
+      ],
+      "title": "ToolError",
+      "type": "object"
+    },
+    "ToolResult": {
+      "additionalProperties": false,
+      "properties": {
+        "artifacts": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Artifact name -> path of a file the tool wrote inside its out_dir.",
+          "type": "object"
+        },
+        "data": {
+          "additionalProperties": true,
+          "default": {},
+          "description": "JSON-serialisable values (models as model_dump(mode=\"json\")).",
+          "type": "object"
+        },
+        "errors": {
+          "default": [],
+          "description": "Warnings may appear even when ok is true.",
+          "items": {
+            "$ref": "#/$defs/ToolError"
+          },
+          "type": "array"
+        },
+        "log": {
+          "default": "",
+          "type": "string"
+        },
+        "ok": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ok",
+        "errors",
+        "artifacts",
+        "data",
+        "log"
+      ],
+      "title": "ToolResult",
+      "type": "object"
+    },
+    "UserContext": {
+      "additionalProperties": false,
+      "properties": {
+        "budget_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "owned_part_ids": {
+          "default": [],
+          "description": "From the inventory memory.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "printer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Printer profile id, e.g. \"generic\"."
+        },
+        "rejected": {
+          "default": [],
+          "description": "Choices the user turned down before, e.g. \"no buzzers\", \"smaller case\".",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "budget_usd",
+        "owned_part_ids",
+        "printer",
+        "rejected"
+      ],
+      "title": "UserContext",
+      "type": "object"
+    },
+    "Wiring": {
+      "additionalProperties": false,
+      "description": "wiring.json: the spec's connections enriched with library names, for the wiring tab.",
+      "properties": {
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/WiringRow"
+          },
+          "type": "array"
+        },
+        "spec_rev": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "spec_rev",
+        "rows"
+      ],
+      "title": "Wiring",
+      "type": "object"
+    },
+    "WiringRow": {
+      "additionalProperties": false,
+      "properties": {
+        "bus": {
+          "enum": [
+            "i2c",
+            "spi",
+            "i2s",
+            "uart",
+            "gpio",
+            "analog",
+            "power"
+          ],
+          "type": "string"
+        },
+        "mcu_pin": {
+          "type": "string"
+        },
+        "part_name": {
+          "type": "string"
+        },
+        "part_pin": {
+          "type": "string"
+        },
+        "part_ref": {
+          "type": "string"
+        },
+        "pin_type": {
+          "enum": [
+            "power",
+            "gnd",
+            "gpio",
+            "gpio_in",
+            "gpio_out",
+            "analog",
+            "i2c_sda",
+            "i2c_scl",
+            "spi_sck",
+            "spi_mosi",
+            "spi_miso",
+            "spi_cs",
+            "uart_tx",
+            "uart_rx",
+            "i2s_bclk",
+            "i2s_ws",
+            "i2s_din",
+            "i2s_dout",
+            "config"
+          ],
+          "type": "string"
+        },
+        "reason": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "part_ref",
+        "part_name",
+        "part_pin",
+        "pin_type",
+        "mcu_pin",
+        "bus",
+        "reason"
+      ],
+      "title": "WiringRow",
+      "type": "object"
+    }
+  },
+  "title": "P2DContracts"
+}

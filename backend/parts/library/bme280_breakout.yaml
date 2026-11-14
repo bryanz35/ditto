@@ -1,0 +1,35 @@
+# GY-BME280 "3.3 V" module: no regulator and no level shifter, 1x6 header VCC GND SCL SDA CSB SDO.
+# Pins, supply range (1.7-3.6 V), addresses, CSB pull-up, SDO pull-down and PCB size: source (vendor page).
+# Chip: Bosch BME280 datasheet, https://www.bosch-sensortec.com/products/environmental-sensors/humidity-sensors-bme280/
+# The 4-pin "5 V" GY-BME280 variant has a regulator; it is a different part.
+# h is an estimate: ~8.5 headers + 1.6 PCB + sensor. Measure at H1.
+id: bme280_breakout
+name: BME280 temperature, humidity and pressure module, I2C, 3.3 V only (GY-BME280)
+category: sensor
+logic_voltage: 3.3
+supply_voltage: [3.3]
+max_current_ma: 1  # the BME280 draws well under 1 mA, even while measuring
+i2c_addresses: ["0x76", "0x77"]
+pins:
+  - {name: VCC, type: power, voltage: 3.3}
+  - {name: GND, type: gnd}
+  - {name: SCL, type: i2c_scl}
+  - {name: SDA, type: i2c_sda}
+  - {name: CSB, type: config, optional: true}  # 10k pull-up on the module selects I2C; never ground it
+  - {name: SDO, type: config, optional: true}  # pull-down gives 0x76; wire to 3V3 for 0x77
+board_mm: {l: 15.5, w: 11.5, h: 11.0}
+provisional: true
+dims_source: listing
+mount_holes: []  # not documented: measure at H1
+features:
+  - {kind: vent, face: top, offset_mm: [7.75, 5.75], size_mm: [6.0, 6.0]}  # air for the sensor
+pio_lib_deps: ["adafruit/Adafruit BME280 Library"]
+snippet: snippets/bme280_breakout.cpp
+mpn: null
+vendor_url: https://protosupplies.com/product/gy-bme280-pressure-humidity-temperature-sensor-module/
+manual_price_usd: 6.0
+owned_alternatives: []
+wokwi_type: null  # Wokwi has no BME280 (only board-bmp180, a different chip)
+wokwi_pins: {}
+wokwi_attrs: {}
+source: https://protosupplies.com/product/gy-bme280-pressure-humidity-temperature-sensor-module/
