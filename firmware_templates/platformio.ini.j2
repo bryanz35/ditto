@@ -1,0 +1,8 @@
+[env:{{ pio_board }}]
+platform = espressif32
+board = {{ pio_board }}
+framework = arduino
+monitor_speed = 115200
+{% if lib_deps %}lib_deps =
+{% for dep in lib_deps %}    {{ dep }}
+{% endfor %}{% endif %}
