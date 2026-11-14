@@ -1,3 +1,4 @@
+from backend.contracts.spec import ProjectSpec
 from backend.runtime.deps import ORDER, changed_fields, stages_to_rerun
 
 
@@ -10,10 +11,34 @@ def test_enclosure_change_reruns_only_the_cad_stages():
     assert stages_to_rerun({"enclosure"}) == ["layout", "enclosure", "assembly"]
 
 
-def test_firmware_and_user_changes():
-    assert stages_to_rerun({"firmware"}) == ["firmware", "simulate"]
-    assert stages_to_rerun({"user"}) == ["bom"]
-    assert stages_to_rerun({"title"}) == []
+CAD = ["layout", "enclosure", "assembly"]
+RERUNS = {  # every ProjectSpec field -> the stages an edit of it reruns
+    "rev": [],
+    "title": [],
+    "prompt": [],
+    "requirements": [],
+    "assumptions": [],
+    "user": [
+        "enclosure",
+        "assembly",
+        "bom",
+    ],  # printer (check_enclosure), owned and budget
+    "mcu": ORDER,
+    "parts": ORDER,
+    "connections": ["validate", "firmware", "wiring", "simulate"],
+    "firmware": [
+        "validate",
+        "firmware",
+        "simulate",
+    ],  # needs_wifi: validate's adc2_wifi check
+    "enclosure": CAD,
+}
+
+
+def test_each_spec_field_reruns_the_stages_that_read_it():
+    assert set(RERUNS) == set(ProjectSpec.model_fields), "add the new field to RERUNS"
+    for field, stages in RERUNS.items():
+        assert stages_to_rerun({field}) == stages, field
 
 
 def test_changed_fields():

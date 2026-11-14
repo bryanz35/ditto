@@ -6,6 +6,8 @@ from backend.runtime.replay_runner import ReplayRunner
 from backend.runtime.runs import engine_from_env
 from tests.unit.api.conftest import read_stream
 
+ENCLOSURE_STAGES = {"layout", "enclosure", "assembly"}
+
 
 async def start(client):
     response = await client.post("/runs", data={"prompt": "a plant monitor"})
@@ -71,7 +73,10 @@ async def test_edit_bumps_rev_and_reruns(client):
     assert response.status_code == 202
     second = await read_stream(client, run_id, last_event_id=first[-1]["seq"])
     assert second[-1]["stage"] == "done" and second[-1]["spec_rev"] == 3
-    assert {e["stage"] for e in second if e["status"] == "passed"} >= {*ORDER, "checks"}
+    # the fake edit changes the walls: only the enclosure stages go stale and rerun
+    assert {e["stage"] for e in second if e["status"] == "stale"} == ENCLOSURE_STAGES
+    passed = {e["stage"] for e in second if e["status"] == "passed"}
+    assert passed == {"plan", *ENCLOSURE_STAGES, "checks", "done"}
     assert (await client.get(f"/runs/{run_id}/spec")).json()["rev"] == 3
     fresh = await read_stream(
         client, run_id

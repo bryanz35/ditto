@@ -59,7 +59,8 @@ class ReplayRunner:
         return spec
 
     async def edit(self, run_id: str, request: EditRequest, emit: Emit) -> ProjectSpec:
-        """No model: bump rev and save, so the engine reruns the stages with the fake tools."""
+        """No model: whatever the instruction, toggle the walls between 2 and 3 mm (the recorded
+        fixture edit), bump rev and save, so the engine reruns the enclosure stages with the fake tools."""
         run_dir = run_dir_for(run_id)
         spec = ProjectSpec.model_validate_json((run_dir / "spec.json").read_text())
         emit(
@@ -71,14 +72,17 @@ class ReplayRunner:
                 spec_rev=spec.rev,
             )
         )
-        spec = spec.model_copy(update={"rev": spec.rev + 1})
+        old_wall = spec.enclosure.wall_mm
+        wall = 3.0 if old_wall != 3.0 else 2.0
+        enclosure = spec.enclosure.model_copy(update={"wall_mm": wall})
+        spec = spec.model_copy(update={"rev": spec.rev + 1, "enclosure": enclosure})
         _save(run_dir, spec)
         emit(
             Event(
                 run_id=run_id,
                 stage="plan",
                 status="passed",
-                message=f"Spec rev {spec.rev} (replay: the spec itself is unchanged)",
+                message=f"Spec rev {spec.rev}: enclosure.wall_mm {old_wall} -> {wall} (replay)",
                 spec_rev=spec.rev,
                 artifacts={"spec": "spec.json"},
             )

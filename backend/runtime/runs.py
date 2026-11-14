@@ -1,8 +1,10 @@
 """The run engine: owns the pipeline (backend/contracts/runner.py) and records every event.
 
 After runner.run() or runner.edit() returns, it runs every stage that hasn't passed at the current
-spec rev through the StageRunner, then `checks`, then emits `done`. Events go to
-runs/<id>/events.jsonl (seq and ts set here); passed artifacts go to runs/<id>/manifest.json.
+spec rev through the StageRunner, then `checks`, then emits `done`. After an edit, only the stages the
+changed spec fields affect (deps.stages_to_rerun) are marked `stale` and rerun; the others carry
+their artifacts forward to the new rev. Events go to runs/<id>/events.jsonl (seq and ts set here);
+passed artifacts go to runs/<id>/manifest.json.
 """
 
 import asyncio
@@ -27,7 +29,7 @@ from backend.contracts.runner import (
     run_dir_for,
 )
 from backend.contracts.spec import ProjectSpec
-from backend.runtime.deps import ORDER
+from backend.runtime.deps import ORDER, changed_fields, stages_to_rerun
 from backend.runtime.replay_runner import ReplayRunner
 from backend.runtime.stages import run_stages
 
@@ -48,16 +50,15 @@ class RunEngine:
         self.runner, self.stage_runner = runner, stage_runner
         self._lock = threading.Lock()
         self._seq: dict[str, int] = {}
-        self._passed: dict[
-            tuple[str, str], int
-        ] = {}  # (run_id, stage) -> rev it passed at
         self._tasks: dict[str, asyncio.Task] = {}
 
     def start(self, request: RunRequest) -> None:
         self._spawn(request.run_id, lambda emit: self.runner.run(request, emit))
 
     def edit(self, run_id: str, request: EditRequest) -> None:
-        self._spawn(run_id, lambda emit: self.runner.edit(run_id, request, emit))
+        self._spawn(
+            run_id, lambda emit: self.runner.edit(run_id, request, emit), edit=True
+        )
 
     def busy(self, run_id: str) -> bool:
         task = self._tasks.get(run_id)
@@ -66,16 +67,18 @@ class RunEngine:
     def emitter(self, run_id: str) -> Emit:
         return partial(self._emit, run_id)
 
-    def _spawn(self, run_id: str, work: ModelWork) -> None:
-        self._tasks[run_id] = asyncio.create_task(self._pipeline(run_id, work))
+    def _spawn(self, run_id: str, work: ModelWork, edit: bool = False) -> None:
+        self._tasks[run_id] = asyncio.create_task(self._pipeline(run_id, work, edit))
 
-    async def _pipeline(self, run_id: str, work: ModelWork) -> None:
+    async def _pipeline(self, run_id: str, work: ModelWork, edit: bool) -> None:
         emit = self.emitter(run_id)
-        rev = _saved_rev(run_dir_for(run_id))
+        run_dir = run_dir_for(run_id)
+        rev = _saved_rev(run_dir)
         try:
+            old = _saved_spec(run_dir) if edit else None
             spec = await work(emit)
             rev = spec.rev
-            stages = [s for s in ORDER if self._passed.get((run_id, s)) != rev]
+            stages = self._stale_stages(run_id, old, spec, emit)
             results = await asyncio.to_thread(
                 self.stage_runner, run_id, [*stages, "checks"], spec, emit
             )
@@ -99,6 +102,54 @@ class RunEngine:
             )
         )
 
+    def _stale_stages(
+        self, run_id: str, old: dict | None, spec: ProjectSpec, emit: Emit
+    ) -> list[str]:
+        """The stages to run now. After an edit, emits `stale` for the affected ones (then their
+        passed event again if runner.edit() already passed them at the new rev) and carries the
+        unaffected settled ones forward to the new rev."""
+        last = {e.stage: e for e in read_events(run_id) if e.stage in ORDER}
+        passed = {s: e.spec_rev for s, e in last.items() if e.status == "passed"}
+        if (
+            old is None
+        ):  # a new run (or one that never saved a spec): all must pass at this rev
+            return [s for s in ORDER if passed.get(s) != spec.rev]
+        changed = changed_fields(old, spec.model_dump(mode="json")) - {"rev"}
+        # shortcut: a passed or skipped stage counts as current unless this edit affects it; a crash
+        # between runner.edit() saving the spec and the stale events would leave it looking current
+        settled = {s for s, e in last.items() if e.status in ("passed", "skipped")}
+        # stages that didn't settle earlier rerun too, with everything downstream of them
+        rerun = [
+            s
+            for s in stages_to_rerun(changed | (set(ORDER) - settled))
+            if passed.get(s) != spec.rev  # runner.edit() may have rerun some already
+        ]
+        with self._lock:
+            _carry_forward(
+                run_dir_for(run_id), [s for s in ORDER if s not in rerun], spec.rev
+            )
+        affected = stages_to_rerun(changed)
+        message = f"{', '.join(sorted(changed))} changed"
+        for stage in affected:
+            emit(
+                Event(
+                    run_id=run_id,
+                    stage=stage,
+                    status="stale",
+                    message=message,
+                    spec_rev=spec.rev,
+                )
+            )
+            if (
+                stage not in rerun
+            ):  # a sub-agent already passed it at this rev during the edit
+                emit(
+                    last[stage].model_copy(
+                        update={"message": "Checked during the edit"}
+                    )
+                )
+        return rerun
+
     def _emit(self, run_id: str, event: Event) -> None:
         run_dir = run_dir_for(run_id)
         with self._lock:
@@ -112,10 +163,6 @@ class RunEngine:
             run_dir.mkdir(parents=True, exist_ok=True)
             with (run_dir / "events.jsonl").open("a") as f:
                 f.write(event.model_dump_json() + "\n")
-            if event.status == "passed" and event.stage in ORDER:
-                self._passed[(run_id, event.stage)] = event.spec_rev
-            elif event.stage in ORDER:
-                self._passed.pop((run_id, event.stage), None)
             _update_manifest(run_dir, event)
 
 
@@ -137,6 +184,35 @@ def _update_manifest(run_dir: Path, event: Event) -> None:
                 path=rel, stage=event.stage, spec_rev=event.spec_rev
             )
     path.write_text(manifest.model_dump_json(indent=2) + "\n")
+
+
+def _carry_forward(run_dir: Path, stages: list[str], rev: int) -> None:
+    """Restamp the artifacts of stages an edit didn't affect: their manifest entries and the
+    top-level spec_rev of their JSON files (bom.json, wiring.json, cad/manifest.json)."""
+    path = run_dir / "manifest.json"
+    if not stages or not path.is_file():
+        return
+    manifest = RunManifest.model_validate_json(path.read_text())
+    for info in manifest.artifacts.values():
+        if info.stage not in stages or info.spec_rev == rev:
+            continue
+        info.spec_rev = rev
+        file = run_dir / info.path
+        if file.suffix == ".json" and file.is_file():
+            content = json.loads(file.read_text())
+            if isinstance(content, dict) and "spec_rev" in content:
+                content["spec_rev"] = rev
+                file.write_text(
+                    json.dumps(content, indent=2, ensure_ascii=False) + "\n"
+                )
+    manifest.spec_rev = _saved_rev(run_dir, manifest.spec_rev)
+    path.write_text(manifest.model_dump_json(indent=2) + "\n")
+
+
+def _saved_spec(run_dir: Path) -> dict | None:
+    """The saved spec as JSON; None if the run never saved one (an edit then reruns everything)."""
+    path = run_dir / "spec.json"
+    return json.loads(path.read_text()) if path.is_file() else None
 
 
 def _saved_rev(run_dir: Path, default: int = 0) -> int:
