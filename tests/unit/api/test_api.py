@@ -1,5 +1,7 @@
 import asyncio
 
+import pytest
+
 from backend.contracts.events import Event
 from backend.runtime.deps import ORDER
 from backend.runtime.replay_runner import ReplayRunner
@@ -113,8 +115,12 @@ async def test_answer_and_uploads(client, runs_dir):
     await asyncio.wait_for(read_stream(client, run_id), 10)
 
 
-async def test_bad_user_context_is_a_422(client):
-    data = {"prompt": "p", "user_context": '{"budget": 1}'}
+@pytest.mark.parametrize(
+    "user",
+    ['{"budget": 1}', '{"owned": {"esp32_devkitc": -5}}', '{"budget_usd": -1}'],
+)
+async def test_bad_user_context_is_a_422(client, user):
+    data = {"prompt": "p", "user_context": user}
     assert (await client.post("/runs", data=data)).status_code == 422
 
 

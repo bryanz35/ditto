@@ -38,8 +38,8 @@ def test_get_put_round_trip(client):
     ("body", "detail"),
     [
         ({"owned": {"flux_capacitor": 1}}, "unknown part ids in owned: flux_capacitor"),
-        ({"owned": {"esp32_devkitc": -1}}, "negative quantities"),
-        ({"budget_usd": -5}, "budget_usd must be 0 or more"),
+        ({"owned": {"esp32_devkitc": -1}}, None),  # UserContext: owned >= 0
+        ({"budget_usd": -5}, None),  # UserContext: budget_usd >= 0
         ({"printer": "nope"}, "unknown printer 'nope'"),
         ({"owned": {"esp32_devkitc": "many"}}, None),  # Pydantic rejects the shape
     ],

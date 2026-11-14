@@ -49,6 +49,10 @@ def test_write_spec_saves_with_code_owned_fields(events):
 
     assert tools["set_enclosure"].invoke({"wall_mm": 3.0}).startswith("PASSED")
     assert (ctx.load_spec().rev, ctx.load_spec().enclosure.wall_mm) == (2, 3.0)
+    # every rev kept whole for the engine; no temp file left behind
+    folder = ctx.spec_path.parent
+    assert sorted(p.name for p in (folder / "specs").iterdir()) == ["1.json", "2.json"]
+    assert not (folder / "spec.json.tmp").exists()
 
 
 def test_schema_errors_count_as_attempts(events):

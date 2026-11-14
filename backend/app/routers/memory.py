@@ -32,11 +32,6 @@ def put_memory(user: UserContext, store: Store) -> UserContext:
     unknown = sorted(pid for pid in user.owned if pid not in lib)
     if unknown:
         problems.append(f"unknown part ids in owned: {', '.join(unknown)}")
-    negative = sorted(pid for pid, qty in user.owned.items() if qty < 0)
-    if negative:
-        problems.append(f"negative quantities in owned: {', '.join(negative)}")
-    if user.budget_usd is not None and user.budget_usd < 0:
-        problems.append("budget_usd must be 0 or more")
     printers = sorted(p.stem for p in (PARTS_DIR / "printers").glob("*.yaml"))
     if user.printer is not None and user.printer not in printers:
         problems.append(

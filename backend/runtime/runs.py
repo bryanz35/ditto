@@ -41,6 +41,7 @@ log = logging.getLogger(__name__)
 ModelWork = Callable[[Emit], Awaitable[ProjectSpec]]
 RUN_ID = re.compile(r"[A-Za-z0-9_-]+")
 CANCELLED = "Cancelled by the user"
+INTERRUPTED = "Stopped: the server restarted during the run"
 
 
 class RunCancelled(Exception):
@@ -83,6 +84,31 @@ def list_runs() -> list[RunSummary]:
                 )
             )
     return sorted(runs, key=lambda r: r.ts, reverse=True)
+
+
+def end_interrupted_runs() -> list[str]:
+    """End every run whose latest event isn't `done` with a failed `done`: a restart (make dev
+    reloads on every save) killed its pipeline, and nothing else would ever end it.
+    shortcut: assumes one API process owns every run; with several workers this ends their runs."""
+    ended = []
+    for run in list_runs():
+        if run.stage == "done":
+            continue
+        last = read_events(run.run_id)[-1]
+        _append(
+            run_dir_for(run.run_id),
+            Event(
+                run_id=run.run_id,
+                seq=last.seq + 1,
+                ts=time.time(),
+                stage="done",
+                status="failed",
+                message=INTERRUPTED,
+                spec_rev=last.spec_rev,
+            ),
+        )
+        ended.append(run.run_id)
+    return ended
 
 
 class RunEngine:
@@ -166,10 +192,15 @@ class RunEngine:
         unaffected settled ones forward to the new rev."""
         last = {e.stage: e for e in read_events(run_id) if e.stage in ORDER}
         passed = {s: e.spec_rev for s, e in last.items() if e.status == "passed"}
-        if (
-            old is None
-        ):  # a new run (or one that never saved a spec): all must pass at this rev
-            return [s for s in ORDER if passed.get(s) != spec.rev]
+        run_dir = run_dir_for(run_id)
+        if old is None:
+            # A new run: the tools bump rev as they go (set_enclosure, firmware behaviours), so a
+            # stage that passed at an older rev is current if no field it reads changed since.
+            stale = {s for s in ORDER if not _current(run_dir, s, passed.get(s), spec)}
+            rerun = stages_to_rerun(stale)  # stage names pull in what reads them
+            with self._lock:
+                _carry_forward(run_dir, [s for s in ORDER if s not in rerun], spec.rev)
+            return rerun
         changed = changed_fields(old, spec.model_dump(mode="json")) - {"rev"}
         # shortcut: a passed or skipped stage counts as current unless this edit affects it; a crash
         # between runner.edit() saving the spec and the stale events would leave it looking current
@@ -181,9 +212,7 @@ class RunEngine:
             if passed.get(s) != spec.rev  # runner.edit() may have rerun some already
         ]
         with self._lock:
-            _carry_forward(
-                run_dir_for(run_id), [s for s in ORDER if s not in rerun], spec.rev
-            )
+            _carry_forward(run_dir, [s for s in ORDER if s not in rerun], spec.rev)
         affected = stages_to_rerun(changed)
         message = f"{', '.join(sorted(changed))} changed"
         for stage in affected:
@@ -221,10 +250,14 @@ class RunEngine:
             event = event.model_copy(
                 update={"run_id": run_id, "seq": self._seq[run_id], "ts": time.time()}
             )
-            run_dir.mkdir(parents=True, exist_ok=True)
-            with (run_dir / "events.jsonl").open("a") as f:
-                f.write(event.model_dump_json() + "\n")
-            _update_manifest(run_dir, event)
+            _append(run_dir, event)
+
+
+def _append(run_dir: Path, event: Event) -> None:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    with (run_dir / "events.jsonl").open("a") as f:
+        f.write(event.model_dump_json() + "\n")
+    _update_manifest(run_dir, event)
 
 
 def _update_manifest(run_dir: Path, event: Event) -> None:
@@ -268,6 +301,17 @@ def _carry_forward(run_dir: Path, stages: list[str], rev: int) -> None:
                 )
     manifest.spec_rev = _saved_rev(run_dir, manifest.spec_rev)
     path.write_text(manifest.model_dump_json(indent=2) + "\n")
+
+
+def _current(run_dir: Path, stage: str, rev: int | None, spec: ProjectSpec) -> bool:
+    """Whether a stage that last passed at `rev` still holds for `spec`."""
+    if rev == spec.rev:
+        return True
+    then = run_dir / "specs" / f"{rev}.json"
+    if rev is None or not then.is_file():
+        return False
+    changed = changed_fields(json.loads(then.read_text()), spec.model_dump(mode="json"))
+    return stage not in stages_to_rerun(changed - {"rev"})
 
 
 def _saved_spec(run_dir: Path) -> dict | None:

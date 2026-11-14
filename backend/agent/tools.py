@@ -17,10 +17,12 @@ from langchain_core.tools import BaseTool, tool
 from pydantic import ValidationError
 
 from backend.contracts.events import Event, Stage
+from backend.contracts.invariants import parse_pins_h
 from backend.contracts.parts import BoardDef, PartLibrary
 from backend.contracts.results import ToolError, ToolResult
-from backend.contracts.runner import Emit, StageRunner, run_dir_for
+from backend.contracts.runner import Emit, StageRunner, run_dir_for, save_spec
 from backend.contracts.spec import EnclosureSpec, ProjectSpec, UserContext
+from backend.tools.firmware import pins_header
 
 MAX_FAILURES = 4
 """1 try + 3 retries, enforced here rather than in the prompt."""
@@ -50,24 +52,17 @@ class RunContext:
         return ProjectSpec.model_validate_json(p.read_text()) if p.exists() else None
 
     def save_spec(self, spec: ProjectSpec) -> None:
-        self.spec_path.parent.mkdir(parents=True, exist_ok=True)
-        self.spec_path.write_text(spec.model_dump_json(indent=2) + "\n")
+        save_spec(self.spec_path, spec)
 
     def pin_macros(self) -> str:
-        """The PIN_* macros pins.h defines for the saved spec (T12's rule: GPIO connections only)."""
+        """The PIN_* macros pins.h defines for the saved spec (T12's pins_header, parsed back)."""
         spec = self.load_spec()
         if spec is None:
             return "No spec is saved yet, so pins.h has no macros."
-        macros = sorted(
-            {
-                f"- PIN_{c.part_ref.upper()}_{c.part_pin.upper()} ({c.mcu_pin})"
-                for c in spec.connections
-                if c.mcu_pin.startswith("GPIO")
-            }
-        )
+        macros = parse_pins_h(pins_header(spec))
         return (
             "pins.h for the saved spec defines exactly these macros; use no others:\n"
-            + ("\n".join(macros) or "(none)")
+            + ("\n".join(f"- {m} (GPIO{n})" for m, n in macros.items()) or "(none)")
         )
 
     def next_rev(self) -> int:
@@ -214,19 +209,16 @@ def make_tools(ctx: RunContext) -> dict[str, BaseTool]:
             )
 
     @tool
-    def set_enclosure(
-        wall_mm: float = 2.0, clearance_mm: float = 1.0, extras: list[str] | None = None
-    ) -> str:
+    def set_enclosure(wall_mm: float = 2.0, clearance_mm: float = 1.0) -> str:
         """Set the enclosure parameters, then compute the layout and build and check the case.
-        Saved only if it builds. Geometry comes from the parts library and the template."""
+        Saved only if it builds. Geometry comes from the parts library and the template, which
+        has no extras (clips, mounts): only the walls and the clearance can change."""
         with ctx.lock:
             spec = ctx.load_spec()
             if spec is None:
                 return "No validated spec yet: the parts-and-pins agent must save one first."
             try:
-                enclosure = EnclosureSpec(
-                    wall_mm=wall_mm, clearance_mm=clearance_mm, extras=extras or []
-                )
+                enclosure = EnclosureSpec(wall_mm=wall_mm, clearance_mm=clearance_mm)
             except ValidationError as e:
                 return _schema_failure(ctx, "enclosure", "enclosure", e)
             spec = spec.model_copy(update={"rev": spec.rev + 1, "enclosure": enclosure})

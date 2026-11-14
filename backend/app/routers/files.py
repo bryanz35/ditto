@@ -1,15 +1,14 @@
 """Run files API: GET /runs/{id}/spec and GET /runs/{id}/files/{path} (paths stay inside the run)."""
 
-import re
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
 from backend.contracts.runner import run_dir_for
+from backend.runtime.runs import RUN_ID
 
 router = APIRouter()
-RUN_ID = re.compile(r"[A-Za-z0-9_-]+")
 
 
 def existing_run_dir(run_id: str) -> Path:

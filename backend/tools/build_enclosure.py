@@ -13,13 +13,9 @@ from backend.contracts.artifacts import CutoutRecord, EnclosureManifest
 from backend.contracts.parts import PartLibrary
 from backend.contracts.results import ToolError, ToolResult
 from backend.contracts.spec import Layout, ProjectSpec
-from backend.tools.layout import inside_parts
+from backend.tools.layout import _r, inside_parts
 
 CABLE_HOLE_MM = 6.0
-
-
-def _r(v: float) -> float:
-    return round(v, 2) + 0.0
 
 
 def enclosure_manifest(

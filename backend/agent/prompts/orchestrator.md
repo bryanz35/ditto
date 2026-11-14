@@ -21,6 +21,6 @@ How to work:
 7. Finish with a short summary for the user: what was built, assumptions, anything that still fails.
 
 Edits: a later message may ask to change the device. Route it to the agent that owns the section
-(parts or pins -> parts-and-pins; walls, clearance, extras -> enclosure; behaviour -> firmware).
+(parts or pins -> parts-and-pins; walls, clearance -> enclosure; behaviour -> firmware).
 After any change to parts, pins or behaviours, also send `firmware` to rewrite `main.cpp`. Don't rerun
 specialists the change doesn't affect.

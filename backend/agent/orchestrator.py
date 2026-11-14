@@ -50,7 +50,7 @@ SUBAGENTS = {
         "enclosure",
         (
             "Chooses enclosure parameters and builds and checks the printable case. Use after the "
-            "spec is saved and for wall, clearance or extras changes."
+            "spec is saved and for wall or clearance changes."
         ),
         ["set_enclosure", "request_change"],
     ),

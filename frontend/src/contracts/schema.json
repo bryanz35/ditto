@@ -1852,6 +1852,7 @@
         "budget_usd": {
           "anyOf": [
             {
+              "minimum": 0,
               "type": "number"
             },
             {
@@ -1884,6 +1885,7 @@
         },
         "owned": {
           "additionalProperties": {
+            "minimum": 0,
             "type": "integer"
           },
           "default": {},

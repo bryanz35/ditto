@@ -1,4 +1,7 @@
+import threading
+import time
 from dataclasses import replace
+from functools import partial
 from pathlib import Path
 
 import pytest
@@ -88,3 +91,35 @@ def test_a_crashing_tool_fails_its_stage_only(run):
         final["bom"].errors[0].code == "exception" and "kaboom" in final["bom"].message
     )
     assert final["checks"].status == "passed"
+
+
+def test_one_stage_of_one_run_never_runs_twice_at_once(runs_dir):
+    """A cancelled stage thread still compiling must finish before an edit reruns that stage."""
+    inside, peak, lock = [0], [0], threading.Lock()
+
+    def slow_validate(spec, lib):
+        with lock:
+            inside[0] += 1
+            peak[0] = max(peak[0], inside[0])
+        time.sleep(0.05)
+        with lock:
+            inside[0] -= 1
+        return ToolResult(ok=True)
+
+    toolbox = replace(fake_toolbox(), validate_spec=slow_validate)
+    go = partial(
+        run_stages,
+        "r1",
+        ["validate"],
+        SPEC,
+        lambda e: None,
+        toolbox=toolbox,
+        lib=load_library(),
+        hardware=MODE_V,
+    )
+    threads = [threading.Thread(target=go) for _ in range(3)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert peak[0] == 1

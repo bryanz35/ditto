@@ -12,6 +12,7 @@ from backend.contracts.runner import (
     Emit,
     RunRequest,
     run_dir_for,
+    save_spec,
 )
 from backend.contracts.spec import ProjectSpec
 
@@ -99,4 +100,4 @@ class ReplayRunner:
 
 
 def _save(run_dir: Path, spec: ProjectSpec) -> None:
-    (run_dir / "spec.json").write_text(spec.model_dump_json(indent=2) + "\n")
+    save_spec(run_dir / "spec.json", spec)
