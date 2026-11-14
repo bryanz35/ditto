@@ -706,6 +706,9 @@ inventory and explain UI. Its acceptance item moved to T36.
 - **Owns:** `backend/app/routers/runs.py`, `backend/runtime/`
 - **Build:** `GET /runs` (id, `spec.title`, latest stage and status, last event `ts`, newest first) so
   Recent projects work across browsers; `POST /runs/{id}/cancel` that stops the run and emits a final event.
+  The `GET /runs` item model goes through a contract request, so `make types` gives the frontend its type.
+  Event statuses have no `cancelled`: end with an existing one (e.g. stage `done`, status `failed`,
+  message "Cancelled by the user") or ask for a new status in the same request.
 - **Acceptance:** async API tests for both; cancelling a running fake run ends its stream.
 
 ### T40 · Build guide screens
@@ -716,7 +719,14 @@ inventory and explain UI. Its acceptance item moved to T36.
 - **Build:** "Start building" opens a step-by-step guide derived from the spec, layout and wiring: print
   the case (STL downloads), place and screw each part, wire each part (wire colours from `pin_type`,
   a checklist), upload the code, close the lid; step tracker and progress kept per run in the browser.
-- **Acceptance:** the plant-monitor fixture yields a complete guide whose wiring steps match `wiring.json`.
+- **Also connects T36's placeholders:** T37–T39 own backend files only, so B-web connects their UI. When
+  one of them merges (B-web consumes all three, so the board sends a `REBASE`), connect it in this branch:
+  skill level and account name (T37), More stores and Buy all (T38), Stop and server-side Recent
+  projects (T39). Remove each `soon('T3x')` marker and its `shortcut:` comment. If T40 is already
+  merged, use a short follow-up branch.
+- **Acceptance:**
+  - [ ] The plant-monitor fixture yields a complete guide whose wiring steps match `wiring.json`.
+  - [ ] Each of T37–T39 that merged before T40 has its placeholder connected and covered by a vitest.
 
 ### T35 · Release check
 

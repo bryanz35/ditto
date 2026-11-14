@@ -261,6 +261,54 @@ For reference, the order is:
 | B-bom | T16 → T17 → T38 | D |
 | QA | T19 → T30 (needs example prompt 3 from H3) | D |
 
+### Wave 4: connect the Ditto V2 placeholders (T37–T40), then the docs (T33)
+
+T36 drew every Ditto V2 screen. Controls with no backend behind them yet are inert and marked
+"not connected yet". T37–T40 connect them. T33 (docs) starts only after all four are merged, so the
+README and Devpost describe the finished product.
+
+| Task | Person | Agent | Contract request first | Connects in the UI |
+| --- | --- | --- | --- | --- |
+| T37 User profile | A | B-agent | Yes: `UserContext.level` and a display name | Skill level on Start, account name in the sidebar |
+| T38 Store offers | D | B-bom | Yes: `BomLine.offers` | More stores and Buy all in Where to buy |
+| T39 Run list + cancel | C | B-api | Yes: the `GET /runs` item model (the frontend needs its type) | Stop in Planning, Recent projects across browsers |
+| T40 Build guide | D | B-web | No | Start building on Overview |
+
+All four can start now, in parallel.
+
+1. **Create the worktrees.** In a plain terminal in the main folder, each person runs their lines. Remove
+   a finished worktree first if its folder still exists (`scripts/setup_worktrees.sh remove T13`, and the
+   same for T22, T17 and T36).
+
+   ```bash
+   git pull
+   scripts/setup_worktrees.sh add T37 profile      # Person A
+   scripts/setup_worktrees.sh add T39 run-list     # Person C
+   scripts/setup_worktrees.sh add T38 offers       # Person D
+   scripts/setup_worktrees.sh add T40 build-guide  # Person D, 3 minutes later
+   ```
+
+2. **Start each session** as in section 5. Open a new tab, run `cd ../ditto-<TASK>-<slug>` and
+   `claude --permission-mode plan`, and paste the task's kickoff prompt from the appendix. Approve the
+   plan, then type `/loop`.
+3. **Contract requests.** For T37, T38 and T39, the builder's first commit is a request file:
+   `handoff/contract-requests/<TASK>-<slug>.md`. The builder pushes it and runs `board.py request`, then
+   keeps building against a local stand-in.
+   The Integrator gets `DECIDE_CONTRACT`. It lands the model change in `backend/contracts/`, bumps
+   `CONTRACT_VERSION`, runs `make types` (so `frontend/src/contracts/` gets the new fields) and logs the
+   change in `handoff/MERGES.md`. Then it runs `board.py announce "<what changed>" --rebase`.
+   **Person A:** answer these within 30 minutes. None of the three tasks can finish without its contract.
+4. **Frontend hookup.** T37, T38 and T39 own backend files only; `frontend/` belongs to B-web. B-web is
+   the consumer of all three, so its `SIGNOFF` checks that the backend gives what the placeholder needs.
+   When one of them merges, the board sends B-web a `REBASE`. In its T40 branch, B-web then connects that
+   placeholder: it removes the `soon('T3x')` marker and its `shortcut:` comment, and adds a vitest. If
+   T40 is already merged by then, B-web opens a short follow-up branch instead.
+5. **Then T33.** When T37, T38, T39 and T40 are all merged, T33 appears under "Ready to start now".
+   Person A runs `scripts/setup_worktrees.sh remove T37` and `scripts/setup_worktrees.sh add T33 docs`,
+   then pastes the T33 kickoff prompt. T33 needs a human sign-off: follow the README on a clean machine,
+   then run `python3 scripts/board.py signoff T33 ok --as human --notes "README walkthrough passed"`.
+6. **Release.** T35 starts when T30, T31 and T33 are done (section 8).
+
 **Gates** (Person A announces each one in the team chat):
 
 - **G1, hour 18:** when the Integrator finishes T20, ask QA: `Run tests/e2e/test_plant_monitor.py with the real runner (make test-live for that file only) and report pass/fail with the output.`
@@ -826,7 +874,7 @@ You are the B-agent agent, a Builder, for task T37 (User profile: skill level an
    `gh pr create --fill --base main`, then `python3 scripts/board.py submit`.
 7. From then on, follow `python3 scripts/board.py next`: fix review notes, sign off other agents' work
    when asked, rebase when told. When it says DONE, tell me and stop.
-Notes for this task: File the UserContext change as a contract request first and build the prompt side against it.
+Notes for this task: First file the contract request handoff/contract-requests/T37-user-level.md: `UserContext.level` (beginner | intermediate | expert) and a display name, both with defaults so existing fixtures and saved memory still load. Then build the prompt side in backend/agent/ against it. Prove the acceptance criterion with one live smoke test (the same prompt at beginner and at expert; it costs money, so run it once). Don't edit frontend/: B-web connects the level selector and the account name after you merge.
 If a contract looks wrong or you need a file you don't own, file a contract request (CLAUDE.md explains
 how) and keep going with the current contract. Don't work around it.
 ```
@@ -851,7 +899,7 @@ You are the B-bom agent, a Builder, for task T38 (Several store offers per part)
    `gh pr create --fill --base main`, then `python3 scripts/board.py submit`.
 7. From then on, follow `python3 scripts/board.py next`: fix review notes, sign off other agents' work
    when asked, rebase when told. When it says DONE, tell me and stop.
-Notes for this task: File the BomLine.offers change as a contract request first; mock every Nexar call in tests.
+Notes for this task: First file the contract request handoff/contract-requests/T38-bom-offers.md for `BomLine.offers: [{seller, url, unit_price_usd, in_stock}]`, sorted by price. Keep `unit_price_usd` and `vendor_url` as the cheapest offer so the current UI keeps working. Check Nexar's schema explorer for the seller and stock fields before coding, and mock every Nexar call in tests. Don't edit frontend/: B-web connects Where to buy and Buy all after you merge.
 If a contract looks wrong or you need a file you don't own, file a contract request (CLAUDE.md explains
 how) and keep going with the current contract. Don't work around it.
 ```
@@ -876,7 +924,7 @@ You are the B-api agent, a Builder, for task T39 (Run list and cancel endpoints)
    `gh pr create --fill --base main`, then `python3 scripts/board.py submit`.
 7. From then on, follow `python3 scripts/board.py next`: fix review notes, sign off other agents' work
    when asked, rebase when told. When it says DONE, tell me and stop.
-Notes for this task: Read runs only from the run directories (spec.json, events.jsonl); no new storage.
+Notes for this task: Read runs only from the run directories (spec.json, events.jsonl); add no new storage. First file a contract request for the `GET /runs` item model, so `make types` gives the frontend its type. Event statuses have no `cancelled`: end a cancelled run with an existing status (for example stage `done`, status `failed`, message "Cancelled by the user"), or put a new status in the same request. Don't edit frontend/: B-web connects Stop and Recent projects after you merge.
 If a contract looks wrong or you need a file you don't own, file a contract request (CLAUDE.md explains
 how) and keep going with the current contract. Don't work around it.
 ```
@@ -901,7 +949,7 @@ You are the B-web agent, a Builder, for task T40 (Build guide screens), working 
    `gh pr create --fill --base main`, then `python3 scripts/board.py submit`.
 7. From then on, follow `python3 scripts/board.py next`: fix review notes, sign off other agents' work
    when asked, rebase when told. When it says DONE, tell me and stop.
-Notes for this task: The design is the Figma file "Ditto V2", frames 25:735 and 28:900; build on T36's components and tokens.
+Notes for this task: The design is the Figma file "Ditto V2", frames 25:735 and 28:900. Read it through the Figma MCP, which has a small monthly call budget. Build on T36's components and tokens. Derive every step from the run's spec, layout and wiring.json, and test against fixtures/runs/plant_monitor. When T37, T38 or T39 merges (you get a REBASE), connect its placeholder in this branch: remove the soon('T3x') marker and its shortcut: comment, and add a vitest.
 If a contract looks wrong or you need a file you don't own, file a contract request (CLAUDE.md explains
 how) and keep going with the current contract. Don't work around it.
 ```
@@ -926,7 +974,7 @@ You are the B-agent agent, a Builder, for task T33 (Docs and Devpost), working i
    `gh pr create --fill --base main`, then `python3 scripts/board.py submit`.
 7. From then on, follow `python3 scripts/board.py next`: fix review notes, sign off other agents' work
    when asked, rebase when told. When it says DONE, tell me and stop.
-Notes for this task: Write for judges and for a teammate on a clean machine. Include the track notes from the card. Verify every command in the README by running it.
+Notes for this task: This task runs last, after T37–T40 are merged. Document the finished product, including skill level, store offers, the run list and Stop, and the build guide. Write for judges and for a teammate on a clean machine. Include the track notes from the card. Verify every command in the README by running it.
 If a contract looks wrong or you need a file you don't own, file a contract request (CLAUDE.md explains
 how) and keep going with the current contract. Don't work around it.
 ```
