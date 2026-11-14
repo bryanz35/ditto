@@ -127,3 +127,43 @@ export function isStale(state: RunState, name: string): boolean {
   const a = state.artifacts[name]
   return a !== undefined && state.stale.includes(a.stage)
 }
+
+const GENERIC = ['Dittoing…', 'Planning…', 'Thinking it through…']
+// Plain words for a stage, for "Fixing a problem with the …".
+const NOUN: Partial<Record<Stage, string>> = {
+  validate: 'wiring',
+  layout: 'layout',
+  enclosure: 'case',
+  assembly: 'case',
+  firmware: 'code',
+  wiring: 'wiring',
+  simulate: 'code',
+  bom: 'prices',
+  checks: 'checks',
+}
+const DOING: Partial<Record<Stage, string>> = {
+  validate: 'Checking the wiring…',
+  wiring: 'Checking the wiring…',
+  firmware: 'Writing and testing the code…',
+  simulate: 'Writing and testing the code…',
+  layout: 'Designing the case…',
+  enclosure: 'Designing the case…',
+  assembly: 'Designing the case…',
+  bom: 'Finding prices…',
+  checks: 'Checking everything…',
+}
+
+/** The line next to Ditto's sprite (Figma "Spec · Ditto status line"): what it is doing right now,
+ * from the latest event. `tick` rotates the generic lines while there is nothing specific to say. */
+export function statusLine(state: RunState, project: string | null, tick = 0): string {
+  if (state.question) return 'Ditto has a question for you'
+  const last = state.log.at(-1)
+  const generic = GENERIC[tick % GENERIC.length]
+  if (!last || last.stage === 'done') return generic
+  const stage = state.stages[last.stage]!
+  if (stage.status === 'failed' || (stage.status === 'running' && (stage.attempt ?? 1) > 1)) {
+    return `Fixing a problem with the ${NOUN[last.stage] ?? last.stage}…`
+  }
+  if (last.stage === 'plan') return project ? `Picking parts for your ${project.toLowerCase()}…` : generic
+  return DOING[last.stage] ?? generic
+}

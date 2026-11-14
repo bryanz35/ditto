@@ -4,11 +4,26 @@ import runJsonl from '../../fixtures/events/plant_monitor.jsonl?raw'
 import editJsonl from '../../fixtures/events/plant_monitor_edit.jsonl?raw'
 import App from './App'
 
-// jsdom has no WebGL: stand in for the canvas and show what it was given.
+// jsdom has no WebGL: stand in for the canvas, show what it was given and let a test click a part.
 vi.mock('./Viewer3D', () => ({
-  default: ({ base, lid, assembly }: { base: string | null; lid: string | null; assembly: string | null }) => (
+  default: ({
+    base,
+    lid,
+    assembly,
+    selected,
+    onSelect,
+  }: {
+    base: string | null
+    lid: string | null
+    assembly: string | null
+    selected: { ref: string; label: string } | null
+    onSelect?: (ref: string) => void
+  }) => (
     <div data-testid="viewer">
-      {base} {lid} {assembly}
+      {base} {lid} {assembly} {selected && `label:${selected.ref}`}
+      <button type="button" onClick={() => onSelect?.('oled1')}>
+        click oled1
+      </button>
     </div>
   ),
 }))
@@ -52,6 +67,9 @@ class FakeEventSource {
 }
 
 let editStatus = 202
+let putStatus = 200
+/** What GET /memory returns; null: the memory API isn't there (404). */
+let memory: Record<string, unknown> | null = null
 
 const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
   if (url === '/api/runs' && init?.method === 'POST') {
@@ -61,6 +79,15 @@ const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     return { ok: editStatus < 300, status: editStatus, text: async () => '{"detail":"The run is still working"}' }
   }
   if (url.endsWith('/answer')) return { ok: true, status: 200, text: async () => '{"ok":true}' }
+  if (url === '/api/memory' && init?.method === 'PUT') {
+    if (putStatus >= 300) return { ok: false, status: putStatus, text: async () => '{"detail":"unknown part id: nope"}' }
+    const sent = JSON.parse(init.body as string)
+    memory = { ...sent, owned: Object.fromEntries(Object.entries(sent.owned).filter(([, qty]) => Number(qty) > 0)) }
+    return { ok: true, json: async () => memory }
+  }
+  if (url === '/api/memory') {
+    return memory ? { ok: true, json: async () => memory } : { ok: false, status: 404, text: async () => 'not found' }
+  }
   const body = fileBody(url)
   return body === undefined
     ? { ok: false, status: 404, text: async () => 'not found' }
@@ -81,13 +108,23 @@ const openRun = () => {
   render(<App />)
   return openStream()
 }
-const lastCall = (url: string) => fetchMock.mock.calls.filter(([u]) => u === url).at(-1)
+const lastCall = (url: string, method?: string) =>
+  fetchMock.mock.calls.filter(([u, init]) => u === url && (!method || init?.method === method)).at(-1)
 const openStream = () => FakeEventSource.instances.at(-1)!
+const checks = () => screen.getByLabelText('Checks')
+const stage = (name: string) => checks().querySelector(`[data-stage="${name}"]`) as HTMLElement
+/** The status pill in the overview's top bar opens the Details drawer. */
+const openDetails = () => fireEvent.click(screen.getByRole('button', { name: /Plan ready|Updating/ }))
+const tab = (name: string) => fireEvent.click(screen.getByRole('tab', { name }))
+const PLANT_MEMORY = { budget_usd: 30, owned: { bme280_breakout: 1 }, printer: null, rejected: [] }
 
 beforeEach(() => {
   FakeEventSource.instances = []
   fetchMock.mockClear()
   editStatus = 202
+  putStatus = 200
+  memory = null
+  localStorage.clear()
   vi.stubGlobal('EventSource', FakeEventSource)
   vi.stubGlobal('fetch', fetchMock)
 })
@@ -97,59 +134,59 @@ afterEach(() => {
   history.replaceState(null, '', '/')
 })
 
-describe('App', () => {
+describe('Start', () => {
   it('resumes the run named in the URL after a refresh', () => {
     history.replaceState(null, '', '/?run=abc')
     render(<App />)
     expect(openStream().url).toBe('/api/runs/abc/events')
   })
 
-  it('starts a run and keeps its id in the URL', async () => {
+  it('starts a run with the saved parts, keeps its id in the URL and lists it under Recent', async () => {
+    memory = PLANT_MEMORY
     render(<App />)
+    await screen.findByText('1 part in your kit')
     expect(FakeEventSource.instances).toHaveLength(0)
-    fireEvent.change(screen.getByLabelText('Describe the device'), { target: { value: 'plant monitor' } })
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Build it' })))
-    const [url, init] = fetchMock.mock.calls.find(([u]) => u === '/api/runs')!
-    expect(url).toBe('/api/runs')
-    expect((init!.body as FormData).get('prompt')).toBe('plant monitor')
+    fireEvent.change(screen.getByLabelText('Describe what you want to make'), { target: { value: 'plant monitor' } })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Plan it' })))
+    const [, init] = lastCall('/api/runs', 'POST')!
+    const body = init!.body as FormData
+    expect(body.get('prompt')).toBe('plant monitor')
+    expect(JSON.parse(body.get('user_context') as string)).toEqual(PLANT_MEMORY)
     expect(location.search).toBe('?run=r1')
     expect(openStream().url).toBe('/api/runs/r1/events')
+
+    cleanup() // a reload: the project is still listed
+    history.replaceState(null, '', '/')
+    render(<App />)
+    const row = within(screen.getByRole('navigation', { name: 'Projects' })).getByRole('button', { name: /plant monitor/ })
+    expect(row.textContent).toMatch(/Planning…/)
   })
 
-  it('fills every tab and the checks panel from the fixture run', async () => {
-    history.replaceState(null, '', '/?run=plant_monitor')
+  it('sends with Enter, while Shift+Enter starts a new line', async () => {
     render(<App />)
-    openStream().emit(lines)
+    const box = screen.getByLabelText('Describe what you want to make')
+    fireEvent.change(box, { target: { value: 'night light' } })
+    fireEvent.keyDown(box, { key: 'Enter', shiftKey: true })
+    expect(lastCall('/api/runs', 'POST')).toBeUndefined()
+    await act(async () => fireEvent.keyDown(box, { key: 'Enter' }))
+    expect((lastCall('/api/runs', 'POST')![1]!.body as FormData).get('prompt')).toBe('night light')
+  })
+})
 
-    // checks panel, on every tab: the failed-then-retried validate stage
-    const validate = screen.getByLabelText('Checks').querySelector('[data-stage="validate"]') as HTMLElement
-    expect(validate.textContent).toMatch(/attempt 1: failed/)
-    expect(validate.textContent).toMatch(/pin_conflict/)
-    expect(validate.textContent).toMatch(/attempt 2: passed/)
-    const done = screen.getByLabelText('Checks').querySelector('[data-stage="done"]') as HTMLElement
-    expect(done.textContent).toMatch(/passed/)
-    const crossChecks = screen.getByLabelText('Checks').querySelectorAll('[data-check]')
-    expect([...crossChecks].map((row) => row.querySelector('.badge')?.textContent)).toEqual(Array(7).fill('passed'))
-
-    const viewer = await screen.findByTestId('viewer')
-    expect(viewer.textContent).toContain('/api/runs/plant_monitor/files/cad/base.stl')
-    expect(viewer.textContent).toContain('/api/runs/plant_monitor/files/cad/lid.stl')
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Wiring' }))
-    const wiring = await screen.findByRole('table')
-    expect(within(wiring).getAllByRole('row')).toHaveLength(14) // header + 13 rows
-    expect(wiring.textContent).toContain('3V3')
-
-    fireEvent.click(screen.getByRole('tab', { name: 'BOM' }))
-    await screen.findByText(/vs budget \$30\.00/)
-    screen.getByText('$25.00')
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Code' }))
-    expect((await screen.findByLabelText('src/main.cpp')).textContent).toContain('P2D_READY')
-    expect((await screen.findByLabelText('include/pins.h')).textContent).toContain('PIN_')
-    expect((await screen.findByLabelText('platformio.ini')).textContent).toContain('platform')
-
-    screen.getByLabelText('Checks') // still there on the last tab
+describe('Planning', () => {
+  it('shows Ditto at work: its plan, what it is doing and the prompt', async () => {
+    const stream = openRun()
+    stream.emit(lines.slice(0, 1))
+    expect(screen.getByLabelText('Plan').textContent).toContain('Choose parts and pins')
+    screen.getByText(/Dittoing · \d+:\d\d/)
+    stream.emit(lines.slice(1, 2))
+    screen.getByText('Ditto has a question for you')
+    stream.emit(lines.slice(2, 6)) // validate failed, retrying
+    screen.getByText('Fixing a problem with the wiring…')
+    stream.emit(lines.slice(6, 8)) // the spec is saved; parts and pins chosen
+    await screen.findByText('Picking parts for your plant monitor…')
+    await screen.findByText(/A plant monitor for my desk/) // the prompt, from the spec
+    expect(screen.getByRole('heading', { level: 2, name: 'Recent' })).toBeTruthy()
   })
 
   it('answers a question with one of its options', async () => {
@@ -163,7 +200,7 @@ describe('App', () => {
     expect(screen.queryByText(/USB power or from a battery/)).toBeNull()
   })
 
-  it('answers a question in free text', async () => {
+  it('answers a question in free text from the composer', async () => {
     openRun().emit(lines.slice(0, 2))
     fireEvent.change(screen.getByLabelText('Your answer'), { target: { value: 'a USB power bank' } })
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Answer' })))
@@ -171,39 +208,124 @@ describe('App', () => {
     expect(JSON.parse(init!.body as string)).toEqual({ question_id: 'q1', answer: 'a USB power bank' })
   })
 
-  it('sends an edit only once the run is done, and shows a refusal', async () => {
+  it('lists attempts only when one failed (sub-agents also run stages to check their work)', () => {
+    const pass = (seq: number) => JSON.stringify({ ...JSON.parse(lines[6]), seq, message: `check ${seq}` }) // validate passed
+    openRun().emit([...lines.slice(0, 3), pass(4), pass(5)])
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    expect(stage('validate').textContent).toContain('check 5')
+    expect(stage('validate').textContent).not.toMatch(/attempt/)
+  })
+
+  it('shows the running attempt of a retried stage', () => {
+    openRun().emit(lines.slice(0, 6))
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    expect(stage('validate').textContent).toMatch(/running.*attempt 2: Checking the revised spec/)
+  })
+
+  it('draws the controls the backend cannot serve yet as placeholders that name their task', () => {
+    openRun().emit(lines.slice(0, 1))
+    const stop = screen.getByRole('button', { name: 'Stop' })
+    expect(stop.getAttribute('aria-disabled')).toBe('true')
+    expect(stop.title).toBe('Not connected yet (T39)')
+  })
+})
+
+describe('Overview', () => {
+  it('opens once the plan is done, with the parts from the BOM and their roles from the spec', async () => {
+    openRun().emit(lines)
+    screen.getByRole('button', { name: 'Plan ready · all checks passed' })
+    const parts = screen.getByRole('region', { name: 'Parts list' })
+    await within(parts).findByText('5 items')
+    await within(parts).findByText('shows the readings · 1×')
+    within(parts).getByText(/^\$25\.00 to buy/)
+    within(parts).getByText('$25.00') // the total
+    expect(screen.getByRole('button', { name: /Buy all/ }).title).toBe('Not connected yet (T38)')
+    expect(screen.getByRole('button', { name: /Start building/ }).title).toBe('Not connected yet (T40)')
+
+    // the part's reason and wiring when its row opens
+    fireEvent.click(within(parts).getByRole('button', { name: /OLED/ }))
+    within(parts).getByText('Small and cheap; shares the I2C bus with the BME280')
+    within(parts).getByText('4 wires (I2C)')
+    within(parts).getByText('3V3 from the board')
+
+    fireEvent.click(within(parts).getByRole('button', { name: /^Buy$/ }))
+    const store = within(screen.getByRole('region', { name: 'Where to buy' })).getByRole('link', { name: /protosupplies\.com/ })
+    expect(store.getAttribute('href')).toBe('https://protosupplies.com/product/oled-0-96-128x64-i2c-blue-display/')
+  })
+
+  it('switches between the exploded assembly and the closed case, and finds a clicked part in the list', async () => {
+    openRun().emit(lines)
+    const viewer = await screen.findByTestId('viewer')
+    expect(viewer.textContent).toContain('/api/runs/plant_monitor/files/cad/assembly.glb')
+    fireEvent.click(screen.getByRole('button', { name: 'click oled1' }))
+    const row = screen.getByRole('button', { name: /OLED/ }).closest('li')!
+    expect(row.getAttribute('aria-expanded')).toBe('true')
+    expect(viewer.textContent).toContain('label:oled1')
+    fireEvent.click(screen.getByRole('button', { name: 'Assembled' }))
+    expect(screen.getByTestId('viewer').textContent).not.toContain('assembly.glb')
+    expect(screen.getByTestId('viewer').textContent).toContain('/api/runs/plant_monitor/files/cad/lid.stl')
+  })
+
+  it('shows only the case when there is no assembly preview', async () => {
+    openRun().emit(withStage('assembly', (e) => ({ ...e, status: 'skipped', artifacts: {} })))
+    expect((await screen.findByTestId('viewer')).textContent).toContain('cad/base.stl')
+    expect(screen.queryByRole('button', { name: 'Exploded' })).toBeNull()
+  })
+
+  it('adds a part to My parts with "I have one"', async () => {
+    memory = PLANT_MEMORY
+    openRun().emit(lines)
+    fireEvent.click(await screen.findByRole('button', { name: /OLED/ }))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'I have one' })))
+    const [, init] = lastCall('/api/memory', 'PUT')!
+    expect(JSON.parse(init!.body as string).owned).toEqual({ bme280_breakout: 1, ssd1306_096_i2c: 1 })
+    screen.getByRole('button', { name: 'Added to My parts' })
+  })
+
+  it('sends a quick reply or a typed change only when idle, and shows a refusal', async () => {
     const stream = openRun()
-    stream.emit(lines.slice(0, 20))
-    fireEvent.change(screen.getByLabelText('Change the design'), { target: { value: 'add a buzzer' } })
-    const button = () => screen.getByRole('button', { name: /Apply change|Working/ }) as HTMLButtonElement
-    expect(button().disabled).toBe(true)
-    stream.emit(lines.slice(20))
-    expect(button().disabled).toBe(false)
+    stream.emit(lines)
+    const chip = () => screen.getByRole('button', { name: 'Make it simpler' }) as HTMLButtonElement
+    expect(chip().disabled).toBe(false)
 
     editStatus = 409
-    await act(async () => fireEvent.click(button()))
+    await act(async () => fireEvent.click(chip()))
     expect(screen.getByRole('alert').textContent).toMatch(/409.*still working/)
 
     editStatus = 202
-    await act(async () => fireEvent.click(button()))
+    fireEvent.change(screen.getByLabelText('Change the design'), { target: { value: 'add a buzzer' } })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Send' })))
     const [, init] = lastCall('/api/runs/plant_monitor/edit')!
     expect(JSON.parse(init!.body as string)).toEqual({ instruction: 'add a buzzer' })
     expect(screen.queryByRole('alert')).toBeNull()
-    fireEvent.change(screen.getByLabelText('Change the design'), { target: { value: 'make the walls 3 mm' } })
-    expect(button().disabled).toBe(true) // until the edit's events arrive and finish
+    expect(chip().disabled).toBe(true) // until the edit's events arrive and finish
     stream.emit(editLines.slice(0, 1))
-    expect(button().disabled).toBe(true)
+    expect(chip().disabled).toBe(true)
+    screen.getByRole('button', { name: /^Updating/ })
     stream.emit(editLines.slice(1))
-    expect(button().disabled).toBe(false)
+    expect(chip().disabled).toBe(false)
   })
 
-  it('marks the 3D view stale during an edit until the enclosure is rebuilt', () => {
+  it('answers a question from the text box, never with a quick reply', async () => {
+    const stream = openRun()
+    stream.emit(lines)
+    const question = { id: 'q2', text: 'This goes over budget by $4. Go ahead?', options: ['Yes', 'No'], timeout_s: 60 }
+    stream.emit([JSON.stringify({ ...JSON.parse(lines[22]), seq: 28, status: 'waiting', message: 'Question for you', artifacts: {}, data: { question } })])
+    expect((screen.getByRole('button', { name: 'Make it simpler' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.change(screen.getByLabelText('Your answer'), { target: { value: 'yes, go ahead' } })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Send' })))
+    const [, init] = lastCall('/api/runs/plant_monitor/answer')!
+    expect(JSON.parse(init!.body as string)).toEqual({ question_id: 'q2', answer: 'yes, go ahead' })
+    expect(lastCall('/api/runs/plant_monitor/edit')).toBeUndefined()
+  })
+
+  it('marks the 3D view stale during an edit until the case is rebuilt', () => {
     const stream = openRun()
     stream.emit(lines)
     expect(screen.queryByText(/Out of date/)).toBeNull()
-    stream.emit(editLines.slice(0, 4)) // through "enclosure stale"
+    stream.emit(editLines.slice(0, 5)) // through "assembly stale"
     screen.getByText(/Out of date/)
-    stream.emit(editLines.slice(4))
+    stream.emit(editLines.slice(5))
     expect(screen.queryByText(/Out of date/)).toBeNull()
   })
 
@@ -211,7 +333,8 @@ describe('App', () => {
     const stream = openRun()
     stream.emit(lines)
     stream.emit(editLines.slice(0, 5)) // layout, enclosure and assembly marked stale
-    const enclosure = () => screen.getByLabelText('Checks').querySelector('[data-stage="enclosure"] .badge')!.textContent
+    openDetails()
+    const enclosure = () => stage('enclosure').querySelector('.badge')!.textContent
     expect(enclosure()).toBe('stale')
     const event = (seq: number, status: string, extra = {}) =>
       JSON.stringify({ ...JSON.parse(editLines[7]), seq, status, message: `enclosure ${status}`, artifacts: {}, ...extra })
@@ -223,33 +346,48 @@ describe('App', () => {
     ])
     expect(enclosure()).toBe('failed')
     screen.getByText(/base\.stl has open edges/)
-    screen.getByText(/Out of date/) // the 3D view still shows the rev 2 enclosure
+    screen.getByText(/Out of date/) // the 3D view still shows the rev 2 case
   })
+})
 
-  it('offers the assembly view once assembly.glb exists', async () => {
-    const stream = openRun()
-    stream.emit(lines.slice(0, 13)) // enclosure passed, assembly not built yet
-    expect((await screen.findByTestId('viewer')).textContent).toContain('cad/base.stl')
-    expect(screen.queryByRole('button', { name: 'Assembly' })).toBeNull()
-    stream.emit(lines.slice(13, 15))
-    expect(screen.getByTestId('viewer').textContent).not.toContain('assembly.glb')
-    fireEvent.click(screen.getByRole('button', { name: 'Assembly' }))
-    expect(screen.getByTestId('viewer').textContent).toContain('/api/runs/plant_monitor/files/cad/assembly.glb')
-    fireEvent.click(screen.getByRole('button', { name: 'Enclosure' }))
-    expect(screen.getByTestId('viewer').textContent).not.toContain('assembly.glb')
-  })
-
-  it('shows the serial log and screenshot when the simulate stage ran', async () => {
+describe('Details drawer', () => {
+  it('keeps every check and file from the old tabs', async () => {
     openRun().emit(lines)
-    fireEvent.click(screen.getByRole('tab', { name: 'Simulation' }))
+    openDetails()
+
+    expect(stage('validate').textContent).toMatch(/attempt 1: failed/)
+    expect(stage('validate').textContent).toMatch(/pin_conflict/)
+    expect(stage('validate').textContent).toMatch(/attempt 2: passed/)
+    expect(stage('done').textContent).toMatch(/passed/)
+    const crossChecks = checks().querySelectorAll('[data-check]')
+    expect([...crossChecks].map((row) => row.querySelector('.badge')?.textContent)).toEqual(Array(7).fill('passed'))
+
+    tab('Wiring')
+    const wiring = await screen.findByRole('table')
+    expect(within(wiring).getAllByRole('row')).toHaveLength(14) // header + 13 rows
+    expect(wiring.textContent).toContain('3V3')
+
+    tab('BOM')
+    await screen.findByText(/vs budget \$30\.00/)
+
+    tab('Code')
+    expect((await screen.findByLabelText('src/main.cpp')).textContent).toContain('P2D_READY')
+    expect((await screen.findByLabelText('include/pins.h')).textContent).toContain('PIN_')
+    expect((await screen.findByLabelText('platformio.ini')).textContent).toContain('platform')
+
+    tab('Simulation')
     expect((await screen.findByLabelText('Serial log')).textContent).toContain('P2D_READY')
     expect(screen.getByRole('img', { name: 'Simulator screenshot' }).getAttribute('src')).toContain(
       '/api/runs/plant_monitor/files/sim/screenshot.png',
     )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close details' }))
+    expect(screen.queryByRole('complementary', { name: 'Details' })).toBeNull()
   })
 
   it('hides the simulation tab when simulate was skipped', () => {
     openRun().emit(withStage('simulate', (e) => ({ ...e, status: 'skipped', message: 'No WOKWI_CLI_TOKEN', artifacts: {} })))
+    openDetails()
     screen.getByRole('tab', { name: 'BOM' })
     expect(screen.queryByRole('tab', { name: 'Simulation' })).toBeNull()
   })
@@ -268,27 +406,49 @@ describe('App', () => {
           : e,
       ),
     )
-    const checks = screen.getByLabelText('Checks').querySelector('[data-stage="checks"]') as HTMLElement
-    expect(checks.querySelector('[data-check="stale_artifact"]')!.textContent).toMatch(/failed.*bom\.json is at rev 1/)
-    expect(checks.querySelector('[data-check="pins_mismatch"]')!.textContent).toMatch(/passed/)
-    expect(checks.textContent).toContain('a check the UI has no row for')
+    fireEvent.click(screen.getByRole('button', { name: 'Plan ready · some checks need a look' }))
+    const row = stage('checks')
+    expect(row.querySelector('[data-check="stale_artifact"]')!.textContent).toMatch(/failed.*bom\.json is at rev 1/)
+    expect(row.querySelector('[data-check="pins_mismatch"]')!.textContent).toMatch(/passed/)
+    expect(row.textContent).toContain('a check the UI has no row for')
   })
+})
 
-  it('lists attempts only when one failed (sub-agents also run stages to check their work)', () => {
-    const pass = (seq: number) =>
-      JSON.stringify({ ...JSON.parse(lines[6]), seq, message: `check ${seq}` }) // validate passed
-    openRun().emit([...lines.slice(0, 3), pass(4), pass(5)])
-    const validate = screen.getByLabelText('Checks').querySelector('[data-stage="validate"]') as HTMLElement
-    expect(validate.textContent).toContain('check 5')
-    expect(validate.textContent).not.toMatch(/attempt/)
+describe('My parts', () => {
+  it('saves the inventory and budget, and shows a refusal', async () => {
+    memory = PLANT_MEMORY
+    render(<App />)
+    await screen.findByText('1 part in your kit')
+    fireEvent.click(screen.getByRole('button', { name: /My parts/ }))
+    within(screen.getByRole('list', { name: 'Owned parts' })).getByText('bme280_breakout')
+    fireEvent.change(screen.getByLabelText('Part id'), { target: { value: 'ssd1306_096_i2c' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    fireEvent.change(screen.getByLabelText('Budget (USD)'), { target: { value: '20' } })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Save' })))
+    const [, init] = lastCall('/api/memory', 'PUT')!
+    expect(JSON.parse(init!.body as string)).toEqual({
+      ...PLANT_MEMORY,
+      budget_usd: 20,
+      owned: { bme280_breakout: 1, ssd1306_096_i2c: 1 },
+    })
+    screen.getByText(/Saved/)
+    screen.getByText('2 parts in your kit')
+
+    // a removed part is gone once saved, as the API drops it
+    fireEvent.click(screen.getByRole('button', { name: 'Remove bme280_breakout' }))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Save' })))
+    expect(screen.queryByText('bme280_breakout', { selector: '.inventory code' })).toBeNull()
+    screen.getByText('1 part in your kit')
+
+    putStatus = 422
+    fireEvent.change(screen.getByLabelText('Part id'), { target: { value: 'nope' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Save' })))
+    expect(screen.getByRole('alert').textContent).toMatch(/422.*unknown part id/)
   })
+})
 
-  it('shows the running attempt of a retried stage', () => {
-    openRun().emit(lines.slice(0, 6))
-    const validate = screen.getByLabelText('Checks').querySelector('[data-stage="validate"]') as HTMLElement
-    expect(validate.textContent).toMatch(/running.*attempt 2: Checking the revised spec/)
-  })
-
+describe('Connection', () => {
   it('says when the stream is down and reopens it on Retry', () => {
     const first = openRun()
     first.emit(lines.slice(0, 5))
@@ -300,7 +460,8 @@ describe('App', () => {
     expect(openStream()).not.toBe(first)
     expect(screen.queryByText(/Lost the connection/)).toBeNull()
     openStream().emit(lines) // starts again at seq 1: the events already shown are dropped
-    expect(screen.getByLabelText('Checks').querySelector('[data-stage="done"]')!.textContent).toMatch(/passed/)
+    openDetails()
+    expect(stage('done').textContent).toMatch(/passed/)
     openStream().fail(FakeEventSource.CONNECTING) // the server ends the stream at done
     expect(screen.queryByText(/Reconnecting/)).toBeNull()
   })
