@@ -25,3 +25,4 @@ you depend on appears here.
 | 6 | b76fa7b | T21 | cross_checks over a run dir (pins.h vs connections, cutouts, placements in cavity, BOM vs parts, stale spec_rev). Still imports tests.integration.invariants (works via the CR#3 re-export); T21 follow-up: import backend.contracts.invariants |
 | 8 | 12d380a | T23 | Every library snippet linted and compiled on esp32_devkitc (tests/unit/firmware/test_snippets.py, slow) |
 | 8 | d6452c7 | T21 | Follow-up: cross_checks imports backend.contracts.invariants (CR#3), no longer tests.integration |
+| 9 | 0e1b1bf | T26 | Simulation: build_simulation writes Wokwi diagram.json from spec + layout and runs wokwi-cli (waits for P2D_READY); live run passed |
