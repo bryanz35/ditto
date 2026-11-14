@@ -6,6 +6,7 @@ runs/<id>/events.jsonl (seq and ts set here); passed artifacts go to runs/<id>/m
 """
 
 import asyncio
+import json
 import logging
 import os
 import threading
@@ -70,7 +71,7 @@ class RunEngine:
 
     async def _pipeline(self, run_id: str, work: ModelWork) -> None:
         emit = self.emitter(run_id)
-        rev = 0
+        rev = _saved_rev(run_dir_for(run_id))
         try:
             spec = await work(emit)
             rev = spec.rev
@@ -125,17 +126,24 @@ def _update_manifest(run_dir: Path, event: Event) -> None:
         if path.is_file()
         else RunManifest(spec_rev=0, artifacts={})
     )
-    if event.spec_rev <= manifest.spec_rev and not (
-        event.status == "passed" and event.artifacts
-    ):
+    # the saved spec's rev, not the event's: a draft checked at rev N+1 may never be saved
+    rev = _saved_rev(run_dir, manifest.spec_rev)
+    if rev == manifest.spec_rev and not (event.status == "passed" and event.artifacts):
         return
-    manifest.spec_rev = max(manifest.spec_rev, event.spec_rev)
+    manifest.spec_rev = rev
     if event.status == "passed":
         for name, rel in event.artifacts.items():
             manifest.artifacts[name] = ArtifactInfo(
                 path=rel, stage=event.stage, spec_rev=event.spec_rev
             )
     path.write_text(manifest.model_dump_json(indent=2) + "\n")
+
+
+def _saved_rev(run_dir: Path, default: int = 0) -> int:
+    try:
+        return json.loads((run_dir / "spec.json").read_text())["rev"]
+    except (OSError, ValueError, KeyError):  # not written yet, or mid-write
+        return default
 
 
 def engine_from_env() -> RunEngine:

@@ -1,5 +1,6 @@
 import asyncio
 
+from backend.contracts.events import Event
 from backend.runtime.deps import ORDER
 from backend.runtime.replay_runner import ReplayRunner
 from backend.runtime.runs import engine_from_env
@@ -72,6 +73,10 @@ async def test_edit_bumps_rev_and_reruns(client):
     assert second[-1]["stage"] == "done" and second[-1]["spec_rev"] == 3
     assert {e["stage"] for e in second if e["status"] == "passed"} >= {*ORDER, "checks"}
     assert (await client.get(f"/runs/{run_id}/spec")).json()["rev"] == 3
+    fresh = await read_stream(
+        client, run_id
+    )  # a new client gets both runs, not just the first
+    assert fresh[-1] == second[-1]
 
 
 async def test_edit_while_running_is_refused(client, engine):
@@ -111,3 +116,28 @@ async def test_a_crashing_runner_still_ends_with_done(client, engine, monkeypatc
     events = await read_stream(client, await start(client))
     assert events[-1]["stage"] == "done" and events[-1]["status"] == "failed"
     assert "model down" in events[-1]["message"]
+    assert events[-1]["spec_rev"] == 0  # nothing saved yet
+
+
+def test_manifest_follows_the_saved_spec_not_a_failed_draft(engine, runs_dir):
+    run_dir = runs_dir / "r1"
+    run_dir.mkdir()
+    (run_dir / "spec.json").write_text('{"rev": 2}')
+    emit = engine.emitter("r1")
+    emit(
+        Event(
+            run_id="r1",
+            stage="bom",
+            status="passed",
+            message="",
+            spec_rev=2,
+            artifacts={"bom_json": "bom.json"},
+        )
+    )
+    emit(
+        Event(
+            run_id="r1", stage="validate", status="failed", message="draft", spec_rev=3
+        )
+    )
+    manifest = (run_dir / "manifest.json").read_text()
+    assert '"spec_rev": 2' in manifest and '"spec_rev": 3' not in manifest

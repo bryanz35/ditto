@@ -56,19 +56,21 @@ async def run_events(
     run_id: str,
     last_event_id: Annotated[int, Header(alias="Last-Event-ID")] = 0,
 ) -> EventSourceResponse:
-    """SSE (id = seq). Resumes after Last-Event-ID and ends right after a `done` event; a client
-    that reconnects after `done` waits for the next events (an edit)."""
+    """SSE (id = seq). Resumes after Last-Event-ID and ends once the latest event is `done`; a
+    client that reconnects after that waits for the next events (an edit)."""
     existing_run_dir(run_id)
 
     async def stream():
         after = last_event_id
         while True:
             # shortcut: polls events.jsonl every 0.2 s; use a per-run asyncio.Condition if latency matters
-            for event in read_events(run_id, after):
+            events = read_events(run_id, after)
+            for event in events:
                 after = event.seq
                 yield {"id": str(event.seq), "data": event.model_dump_json()}
-                if event.stage == "done":
-                    return
+            # close only at the latest done, so a fresh client after an edit gets the whole run
+            if events and events[-1].stage == "done":
+                return
             await asyncio.sleep(0.2)
 
     return EventSourceResponse(stream())
