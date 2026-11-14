@@ -416,6 +416,14 @@
         "name": {
           "type": "string"
         },
+        "offers": {
+          "default": [],
+          "description": "Live or cached store offers, one per seller, cheapest first (ties by seller name). Empty for\nmanual, missing and fake prices. unit_price_usd and vendor_url equal offers[0] when there are any.",
+          "items": {
+            "$ref": "#/$defs/BomOffer"
+          },
+          "type": "array"
+        },
         "owned_qty": {
           "default": 0,
           "type": "integer"
@@ -474,9 +482,53 @@
         "line_total_usd",
         "price_source",
         "vendor_url",
-        "mpn"
+        "mpn",
+        "offers"
       ],
       "title": "BomLine",
+      "type": "object"
+    },
+    "BomOffer": {
+      "additionalProperties": false,
+      "properties": {
+        "in_stock": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "None when the seller didn't say (Nexar inventoryLevel -3 unknown, -4 RFQ, or an old cache)."
+        },
+        "seller": {
+          "type": "string"
+        },
+        "unit_price_usd": {
+          "description": "At the line's buy quantity (largest price break at or below it).",
+          "type": "number"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "seller",
+        "url",
+        "unit_price_usd",
+        "in_stock"
+      ],
+      "title": "BomOffer",
       "type": "object"
     },
     "Connection": {

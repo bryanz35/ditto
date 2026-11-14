@@ -40,6 +40,15 @@ class Wiring(Model):
     rows: list[WiringRow]
 
 
+class BomOffer(Model):
+    seller: str
+    url: str | None = None
+    unit_price_usd: float
+    """At the line's buy quantity (largest price break at or below it)."""
+    in_stock: bool | None = None
+    """None when the seller didn't say (Nexar inventoryLevel -3 unknown, -4 RFQ, or an old cache)."""
+
+
 class BomLine(Model):
     part_id: str
     name: str
@@ -52,6 +61,9 @@ class BomLine(Model):
     price_source: Literal["live", "cache", "manual", "fake", "missing"]
     vendor_url: str | None = None
     mpn: str | None = None
+    offers: list[BomOffer] = []
+    """Live or cached store offers, one per seller, cheapest first (ties by seller name). Empty for
+    manual, missing and fake prices. unit_price_usd and vendor_url equal offers[0] when there are any."""
 
 
 class Bom(Model):

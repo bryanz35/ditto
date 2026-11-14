@@ -248,6 +248,11 @@ export interface BomLine {
   line_total_usd: number;
   mpn: string | null;
   name: string;
+  /**
+   * Live or cached store offers, one per seller, cheapest first (ties by seller name). Empty for
+   * manual, missing and fake prices. unit_price_usd and vendor_url equal offers[0] when there are any.
+   */
+  offers: BomOffer[];
   owned_qty: number;
   part_id: string;
   price_source: "live" | "cache" | "manual" | "fake" | "missing";
@@ -255,6 +260,22 @@ export interface BomLine {
   refs: string[];
   unit_price_usd: number | null;
   vendor_url: string | null;
+}
+/**
+ * This interface was referenced by `P2DContracts`'s JSON-Schema
+ * via the `definition` "BomOffer".
+ */
+export interface BomOffer {
+  /**
+   * None when the seller didn't say (Nexar inventoryLevel -3 unknown, -4 RFQ, or an old cache).
+   */
+  in_stock: boolean | null;
+  seller: string;
+  /**
+   * At the line's buy quantity (largest price break at or below it).
+   */
+  unit_price_usd: number;
+  url: string | null;
 }
 /**
  * This interface was referenced by `P2DContracts`'s JSON-Schema
