@@ -101,3 +101,13 @@ async def test_answer_and_uploads(client, runs_dir):
 async def test_bad_user_context_is_a_422(client):
     data = {"prompt": "p", "user_context": '{"budget": 1}'}
     assert (await client.post("/runs", data=data)).status_code == 422
+
+
+async def test_a_crashing_runner_still_ends_with_done(client, engine, monkeypatch):
+    async def crash(request, emit):
+        raise RuntimeError("model down")
+
+    monkeypatch.setattr(engine.runner, "run", crash)
+    events = await read_stream(client, await start(client))
+    assert events[-1]["stage"] == "done" and events[-1]["status"] == "failed"
+    assert "model down" in events[-1]["message"]
