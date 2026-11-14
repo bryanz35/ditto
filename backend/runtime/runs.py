@@ -51,7 +51,9 @@ def read_events(run_id: str, after: int = 0) -> list[Event]:
     path = run_dir_for(run_id) / "events.jsonl"
     if not path.is_file():
         return []
-    events = (Event.model_validate_json(line) for line in path.read_text().splitlines())
+    # [:-1] drops a last line still being written: the engine appends under _lock, readers skip it
+    lines = path.read_text().split("\n")[:-1]
+    events = (Event.model_validate_json(line) for line in lines)
     return [e for e in events if e.seq > after]
 
 

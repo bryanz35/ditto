@@ -73,3 +73,16 @@ async def test_cancel_stops_stage_thread(runs_dir):
     assert late  # the stage thread's event after the cancel was refused
     last = read_events("r1")[-1]
     assert (last.stage, last.status, last.message) == ("done", "failed", CANCELLED)
+
+
+def test_read_events_skips_a_half_written_line(runs_dir):
+    line = Event(run_id="r1", seq=1, stage="plan", status="running").model_dump_json()
+    (runs_dir / "r1").mkdir()
+    (runs_dir / "r1" / "events.jsonl").write_text(line + "\n" + line[:20])
+    assert [e.seq for e in read_events("r1")] == [1]
+
+
+async def test_replay_keeps_cad_manifest(client, runs_dir):
+    run_id = await start(client)
+    await read_stream(client, run_id)
+    assert (runs_dir / run_id / "cad" / "manifest.json").is_file()
