@@ -153,6 +153,30 @@ def test_parse_compile_errors_windows_drive_path(tmp_path):
     assert err.message.endswith("Foo.h:3:1: 'x' does not name a type")
 
 
+def test_undeclared_pin_macro_hint_lists_pins_h(tmp_path):
+    project(tmp_path)
+    log = (
+        "src/main.cpp:12:11: error: 'PIN_BZ1_POSITIVE' was not declared in this scope\n"
+        "src/main.cpp:13:3: error: 'foo' was not declared in this scope\n"
+    )
+    pin_err, other = parse_compile_errors(log, tmp_path)
+    assert "PIN_BUZZER1_SIG" in (pin_err.hint or "")
+    assert "PIN_SOIL1_AOUT" in (pin_err.hint or "")
+    assert other.hint is None
+
+
+def test_pio_that_cannot_start_is_an_error_not_an_exception(tmp_path, monkeypatch):
+    import backend.tools.firmware as fw
+
+    def boom(*a, **k):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(fw.shutil, "which", lambda _: "/usr/bin/pio")
+    monkeypatch.setattr(fw.subprocess, "run", boom)
+    result = compile_firmware(project(tmp_path))
+    assert not result.ok and result.errors[0].code == "pio_failed"
+
+
 @pytest.mark.slow
 @needs_pio
 def test_golden_plant_monitor_compiles(tmp_path):

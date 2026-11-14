@@ -12,6 +12,7 @@ Error codes:
 - compile_error: a compiler error, or a failed build with no parseable error line (compile).
 - compile_timeout: the build took longer than COMPILE_TIMEOUT_S (compile).
 - pio_missing: PlatformIO isn't installed (compile).
+- pio_failed: PlatformIO is installed but couldn't be started (compile).
 """
 
 import re
@@ -45,6 +46,10 @@ _COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
 _COMPILER_ERROR = re.compile(
     r"^(?P<file>(?:[A-Za-z]:)?[^\s:][^:\n]*):(?P<line>\d+):(?P<col>\d+): (?:fatal )?error: (?P<msg>.+)$",
     re.MULTILINE,
+)
+# gcc: "'X' was not declared in this scope"; clang: "use of undeclared identifier 'X'"
+_UNDECLARED_PIN = re.compile(
+    r"'(PIN_\w+)' was not declared|undeclared identifier '(PIN_\w+)'"
 )
 
 
@@ -113,6 +118,14 @@ def write_firmware_project(
     )
 
 
+def _available_pins(project_dir: Path) -> str:
+    pins_h = project_dir / "include" / "pins.h"
+    macros = (
+        re.findall(r"#define (PIN_\w+)", pins_h.read_text()) if pins_h.is_file() else []
+    )
+    return ", ".join(macros) or "none (pins.h defines no GPIO pins)"
+
+
 def _missing_main(project_dir: Path) -> ToolResult:
     return ToolResult(
         ok=False,
@@ -131,11 +144,7 @@ def lint_firmware(project_dir: Path) -> ToolResult:
     if not main.is_file():
         return _missing_main(project_dir)
     text = main.read_text()
-    pins_h = project_dir / "include" / "pins.h"
-    macros = (
-        re.findall(r"#define (PIN_\w+)", pins_h.read_text()) if pins_h.is_file() else []
-    )
-    available = ", ".join(macros) or "none (pins.h defines no GPIO pins)"
+    available = _available_pins(project_dir)
     errors: list[ToolError] = []
 
     if not re.search(r'^\s*#\s*include\s*"pins\.h"', text, re.MULTILINE):
@@ -201,8 +210,16 @@ def parse_compile_errors(log: str, project_dir: Path) -> list[ToolError]:
         ):  # the same header error repeats per translation unit
             continue
         seen.add(where + m["msg"])
+        hint = None
+        if _UNDECLARED_PIN.search(m["msg"]):
+            hint = f"pins.h defines {_available_pins(project_dir)}; use one of these"
         errors.append(
-            ToolError(code="compile_error", message=f"{where}: {m['msg']}", field=where)
+            ToolError(
+                code="compile_error",
+                message=f"{where}: {m['msg']}",
+                field=where,
+                hint=hint,
+            )
         )
     return errors
 
@@ -230,6 +247,19 @@ def compile_firmware(project_dir: Path) -> ToolResult:
             capture_output=True,
             text=True,
             timeout=COMPILE_TIMEOUT_S,
+        )
+    except (
+        OSError
+    ) as e:  # pio on PATH but not runnable (broken shim, no exec permission)
+        return ToolResult(
+            ok=False,
+            errors=[
+                ToolError(
+                    code="pio_failed",
+                    message=f"PlatformIO ({pio}) couldn't be started: {e}",
+                    hint="reinstall it with make setup",
+                )
+            ],
         )
     except subprocess.TimeoutExpired as e:
         out = e.stdout.decode() if isinstance(e.stdout, bytes) else e.stdout or ""
