@@ -10,6 +10,8 @@ export default defineConfig({
   server: {
     port: Number(process.env.WEB_PORT ?? 5173),
     strictPort: true,
+    // Tests import the shared fixtures with ?raw; allow only that folder outside frontend/.
+    fs: { allow: ['.', '../fixtures'] },
     // The UI calls /api/...; the API serves the same routes without the prefix (/runs, /memory, ...).
     proxy: {
       '/api': {
