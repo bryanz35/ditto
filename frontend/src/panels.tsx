@@ -189,7 +189,7 @@ export function ChecksPanel({ state }: { state: RunState }) {
               {s?.message}
               {stage === 'checks' && (s?.status === 'passed' || s?.status === 'failed') ? (
                 <CrossChecks errors={s.errors} />
-              ) : s && s.attempts.length > 1 ? (
+              ) : s && s.attempts.length > 1 && s.attempts.some((a) => a.status === 'failed') ? (
                 <ol className="attempts">
                   {s.attempts.map((a, i) => (
                     <li key={i}>

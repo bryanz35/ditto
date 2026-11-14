@@ -255,6 +255,15 @@ describe('App', () => {
     expect(checks.textContent).toContain('a check the UI has no row for')
   })
 
+  it('lists attempts only when one failed (sub-agents also run stages to check their work)', () => {
+    const pass = (seq: number) =>
+      JSON.stringify({ ...JSON.parse(lines[6]), seq, message: `check ${seq}` }) // validate passed
+    openRun().emit([...lines.slice(0, 3), pass(4), pass(5)])
+    const validate = screen.getByLabelText('Checks').querySelector('[data-stage="validate"]') as HTMLElement
+    expect(validate.textContent).toContain('check 5')
+    expect(validate.textContent).not.toMatch(/attempt/)
+  })
+
   it('shows the running attempt of a retried stage', () => {
     openRun().emit(lines.slice(0, 6))
     const validate = screen.getByLabelText('Checks').querySelector('[data-stage="validate"]') as HTMLElement
