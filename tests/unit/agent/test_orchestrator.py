@@ -7,9 +7,13 @@ from tests.unit.agent.conftest import FakeStageRunner
 
 
 def test_only_the_three_specialists(monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "dummy")  # builds the client; no request is sent
+    monkeypatch.setenv(
+        "ANTHROPIC_API_KEY", "dummy"
+    )  # builds the client; no request is sent
     ctx = RunContext("r1", lambda e: None, FakeStageRunner(), load_library(), "x")
-    agent = build_agent(make_tools(ctx), model_spec("claude-test-model"), InMemorySaver())
+    agent = build_agent(
+        make_tools(ctx), model_spec("claude-test-model"), InMemorySaver()
+    )
     tools = agent.nodes["tools"].bound.tools_by_name
     task = tools["task"].description
     assert "- general-purpose:" not in task
