@@ -125,10 +125,14 @@ flowchart LR
   H2 --> T31[T31 Showcase device]
   T12 & T14 --> T31
   T26 -. required in mode V .-> T31
-  T16 & T24 --> T32[T32 Inventory + explain UI]
+  T16 & T24 --> T36[T36 UI merge · Ditto V2 design]
+  T36 --> T40[T40 Build guide screens]
+  T13 & T14 --> T37[T37 User profile]
+  T16 --> T38[T38 Store offers]
+  T22 --> T39[T39 Run list + cancel]
   T20 --> T33[T33 Docs + Devpost]
   T20 --> T34[T34 Stretch: tscircuit preview]
-  T30 & T31 & T32 & T33 --> T35[T35 Release check]
+  T30 & T31 & T36 & T33 --> T35[T35 Release check]
   T25 & T26 -. if required by mode .-> T35
 
   H1([H1 Measure parts]) -.-> T11
@@ -151,13 +155,13 @@ Put your fastest agents and closest human attention on T13, T11 and T20.
 | --- | --- | --- | --- | --- |
 | **I** Integrator | T00, T01, then merges, contract changes, T20 | main checkout | `main` | Person A |
 | **B-validate** | T10 → T21 | `../<repo>-T10-validators` | `feat/T10-validators`, `feat/T21-cross-checks` | Person C |
-| **B-agent** | T13 → T33 | `../<repo>-T13-agent` | `feat/T13-agent`, `feat/T33-docs` | Person A |
+| **B-agent** | T13 → T33 → T37 | `../<repo>-T13-agent` | `feat/T13-agent`, `feat/T33-docs` | Person A |
 | **B-cad** | T11 → T25 → T34 | `../<repo>-T11-cad` | `feat/T11-cad`, `feat/T25-assembly`, `feat/T34-tscircuit` | Person B |
 | **B-parts** | T18 → T26 | `../<repo>-T18-parts` | `feat/T18-parts`, `feat/T26-simulation` | Person B |
 | **B-fw** | T12 → T23 → T31 | `../<repo>-T12-firmware` | `feat/T12-firmware`, … | Person C |
-| **B-api** | T14 → T22 | `../<repo>-T14-api` | `feat/T14-api`, `feat/T22-edits` | Person C |
-| **B-web** | T15 → T24 → T32 | `../<repo>-T15-web` | `feat/T15-web`, … | Person D |
-| **B-bom** | T16 → T17 | `../<repo>-T16-bom` | `feat/T16-bom`, `feat/T17-input` | Person D |
+| **B-api** | T14 → T22 → T39 | `../<repo>-T14-api` | `feat/T14-api`, `feat/T22-edits` | Person C |
+| **B-web** | T15 → T24 → T36 → T40 | `../<repo>-T15-web` | `feat/T15-web`, … | Person D |
+| **B-bom** | T16 → T17 → T38 | `../<repo>-T16-bom` | `feat/T16-bom`, `feat/T17-input` | Person D |
 | **Q** QA | T19 → T30 | `../<repo>-T19-qa` | `feat/T19-qa`, `feat/T30-evals` | Person D |
 | **R** Reviewer | Reviews every PR; T35 | `../<repo>-review` (detached) | none (read-only) | Person B |
 
@@ -196,9 +200,14 @@ the usual bottleneck by hour 14.
 | T26 | Simulation (Wokwi) | 2 | T12, T18 | B-parts | R | B-fw | Unit on diagram + live sim | 3–4 h |
 | T30 | Evals and demo cache | 3 | T20, T21, T22, H3 | Q | R | I | Eval report | 4 h |
 | T31 | Showcase device (placeholder) | 3 | H2, T12, T14 (T26 in mode V) | B-fw | R | I | Slow compile + mode check (section 0) | 4–6 h |
-| T32 | Inventory and explain UI | 3 | T16, T24 | B-web | R | Q | Vitest | 3 h |
+| T32 | ~~Inventory and explain UI~~ superseded by T36 | — | — | — | — | — | — | — |
 | T33 | Docs and Devpost | 3 | T20 | B-agent | R + human | humans | Links and commands work | 2 h |
 | T34 | Stretch: tscircuit board preview | 3 | T20 | B-cad | R | B-web | Per card | opt. |
+| T36 | UI merge: Ditto V2 design (absorbs T32) | 3 | T16, T24 | B-web | R | Q | Vitest | 6 h |
+| T37 | User profile: skill level and name | 4 | T13, T14 | B-agent | R | B-web | Unit | 2 h |
+| T38 | Several store offers per part | 4 | T16 | B-bom | R | B-web | Unit with mocked HTTP | 2 h |
+| T39 | Run list and cancel endpoints | 4 | T22 | B-api | R | B-web | Unit + async API tests | 2 h |
+| T40 | Build guide screens | 4 | T36 | B-web | R | Q | Vitest | 5 h |
 | T35 | Release check | Release | T30–T33 (T25, T26 if the mode requires them) | R | human | — | Full suite | 1–2 h |
 
 **Human tasks** (not for agents)
@@ -468,7 +477,7 @@ Every card lists the paths it owns. Anything not listed belongs to someone else.
 
 ### T16 · Pricing and memory
 
-- **Agent:** B-bom · **Depends on:** T01 · **Blocks:** T20, T21, T32
+- **Agent:** B-bom · **Depends on:** T01 · **Blocks:** T20, T21, T36
 - **Owns:** `backend/tools/pricing.py`, `backend/memory/`, `backend/app/routers/memory.py`,
   `scripts/prefetch_prices.py`, `tests/unit/pricing/`, `tests/unit/memory/`
 - **Build:**
@@ -634,13 +643,10 @@ Every card lists the paths it owns. Anything not listed belongs to someone else.
   - [ ] Mode V: runs in Wokwi through T26, reaches the relay and shows the result. The simulator runs on
         Wokwi's servers, so the relay needs a public URL (for example a tunnel); confirm this works on day 1.
 
-### T32 · Inventory and explain UI
+### T32 · Inventory and explain UI (superseded by T36)
 
-- **Agent:** B-web · **Depends on:** T16, T24
-- **Owns:** `frontend/`
-- **Build:** inventory panel and budget input (memory API); "why?" tooltips showing each part's and
-  pin's `reason`; owned parts highlighted in the BOM.
-- **Acceptance:** setting "I own a BME280, budget $20" changes the next run's BOM accordingly.
+Folded into T36: the Ditto V2 design's "My parts", "I have one" and part explanations are this card's
+inventory and explain UI. Its acceptance item moved to T36.
 
 ### T33 · Docs and Devpost
 
@@ -655,9 +661,66 @@ Every card lists the paths it owns. Anything not listed belongs to someone else.
 - **Agent:** B-cad, after T25. Render-only custom-board preview from the spec. Start only after G2, and
   drop at G3 if unfinished. (Wokwi simulation moved to T26 because mode V depends on it.)
 
+### T36 · UI merge: Ditto V2 design
+
+- **Agent:** B-web · **Depends on:** T16, T24
+- **Owns:** `frontend/` (except `src/contracts/`)
+- **Design:** Figma "Ditto V2" (`tz00xdvlrDj7dyZJK3tlGm`), frames 7:2 Start · Dashboard, 11:142 Planning,
+  11:394 status-line spec, 17:310 Overview, 19:527 Overview · Buy. Frames 25:735 and 28:900 (build guide) are T40.
+- **Build:** the dark Ditto theme (Figma variables as CSS tokens, Inter + JetBrains Mono, Lucide icons
+  from the file); Start dashboard with sidebar (recent projects kept in the browser) and prompt composer;
+  Planning thread with the Ditto status line, elapsed time and todo checklist; Overview with the 3D
+  viewport (assembled/exploded, grid, gizmo, click a part), parts list from the BOM and spec roles, a
+  Where-to-buy panel, quick-reply edits, and a Details drawer keeping the Wiring, Code, Simulation and
+  Checks views. Absorbs T32: My parts (inventory) and budget on the memory API, "I have one", part
+  `reason`s, owned parts marked in the parts list; runs are started with the saved `user_context`.
+- **Static placeholders** (drawn as in Figma, inert, marked "not connected yet"): skill level (T37),
+  account name (T37), several stores and Buy all (T38), Stop (T39), Start building (T40), Examples.
+- **Acceptance:**
+  - [ ] The fake-runner fixture walks Start → Planning → Overview, and every view the old UI had is still reachable.
+  - [ ] Setting "I own a BME280, budget $20" in My parts changes the next run's BOM accordingly (from T32).
+  - [ ] Each placeholder names the task that will connect it.
+- **Tests:** vitest: the status-line mapping, and the App flow on the fixture (start, question, overview, edit, details, memory).
+
+### T37 · User profile: skill level and name
+
+- **Agent:** B-agent · **Depends on:** T13, T14
+- **Owns:** `backend/agent/` (prompt changes); the contract change goes through a contract request.
+- **Build:** request `UserContext.level` (`beginner | intermediate | expert`) and a display name; the
+  agent adapts its explanations, part choices and questions to the level. T36's level selector and
+  account name then send and show real values.
+- **Acceptance:** the same prompt at beginner and expert produces visibly different explanations (live smoke test).
+
+### T38 · Several store offers per part
+
+- **Agent:** B-bom · **Depends on:** T16
+- **Owns:** `backend/tools/pricing.py`, `tests/unit/pricing/`; the `BomLine` change goes through a contract request.
+- **Build:** keep every offer `fetch_offers` already returns (today `best_offer` keeps only the cheapest
+  and drops the seller): `BomLine.offers: [{seller, url, unit_price_usd, in_stock}]`, sorted by price;
+  ask Nexar for stock. Feeds T36's Where-to-buy panel and Buy all.
+- **Acceptance:** a mocked Nexar response with three sellers gives three offers on the BOM line, cheapest first.
+
+### T39 · Run list and cancel endpoints
+
+- **Agent:** B-api · **Depends on:** T22
+- **Owns:** `backend/app/routers/runs.py`, `backend/runtime/`
+- **Build:** `GET /runs` (id, `spec.title`, latest stage and status, last event `ts`, newest first) so
+  Recent projects work across browsers; `POST /runs/{id}/cancel` that stops the run and emits a final event.
+- **Acceptance:** async API tests for both; cancelling a running fake run ends its stream.
+
+### T40 · Build guide screens
+
+- **Agent:** B-web · **Depends on:** T36
+- **Owns:** `frontend/` (except `src/contracts/`)
+- **Design:** Figma frames 25:735 Build · Step 9 (wiring) and 28:900 Step card examples.
+- **Build:** "Start building" opens a step-by-step guide derived from the spec, layout and wiring: print
+  the case (STL downloads), place and screw each part, wire each part (wire colours from `pin_type`,
+  a checklist), upload the code, close the lid; step tracker and progress kept per run in the browser.
+- **Acceptance:** the plant-monitor fixture yields a complete guide whose wiring steps match `wiring.json`.
+
 ### T35 · Release check
 
-- **Agent:** R · **Depends on:** T30–T33, plus T25/T26 if the mode requires them
+- **Agent:** R · **Depends on:** T30, T31, T33, T36, plus T25/T26 if the mode requires them
 - **Build:** clean-checkout `make setup lint test test-slow`; one `test-live` e2e run; secrets scan of
   the full history (e.g. `gitleaks` if installed, otherwise grep for key prefixes); README walkthrough;
   rehearse the demo path for the mode in `handoff/HARDWARE.md` (section 0) **and** the cached-run

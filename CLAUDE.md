@@ -72,10 +72,10 @@ The board knows the dependency graph, who consumes whose output, every review ve
 | `backend/tools/simulation.py` | T26 | Wokwi diagram + simulator run |
 | `handoff/HARDWARE.md` | Humans only | Parts/printer availability and demo mode |
 | `backend/tools/firmware.py`, `firmware_templates/`, `fixtures/firmware/` | T12 | pins header, project generation, compile, lint, golden firmware |
-| `backend/agent/` | T13 | orchestrator, sub-agents, prompts, tool wrappers |
-| `backend/app/main.py`, `backend/app/routers/runs.py`, `backend/app/routers/files.py`, `backend/runtime/` | T14, then T22 | API, run engine, `deps.py`, replay runner, edit flow |
-| `frontend/` (except `src/contracts/`) | T15, T24, T32 | |
-| `backend/tools/pricing.py`, `backend/memory/`, `backend/app/routers/memory.py`, `scripts/prefetch_prices.py`, `backend/parts/prices.json` | T16 | |
+| `backend/agent/` | T13, then T37 | orchestrator, sub-agents, prompts, tool wrappers |
+| `backend/app/main.py`, `backend/app/routers/runs.py`, `backend/app/routers/files.py`, `backend/runtime/` | T14, then T22, T39 | API, run engine, `deps.py`, replay runner, edit flow |
+| `frontend/` (except `src/contracts/`) | T15, T24, T36, T40 | |
+| `backend/tools/pricing.py`, `backend/memory/`, `backend/app/routers/memory.py`, `scripts/prefetch_prices.py`, `backend/parts/prices.json` | T16, then T38 | |
 | `backend/tools/preprocess_input.py` | T17 | |
 | `backend/parts/library/*.yaml`, `backend/parts/snippets/` | T18 (the 5 plant-monitor parts: T01) | |
 | `tests/integration/`, `tests/e2e/`, `evals/` | T19, T30 (QA) | Builders own `tests/unit/<area>/` |

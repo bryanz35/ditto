@@ -43,10 +43,10 @@ and permissions, answer questions, and do the few human-only tasks.
 
 | Person | Sessions they run (in order over the weekend) | Also responsible for |
 | --- | --- | --- |
-| **A** | Integrator (all weekend) · B-agent: T13 → T33 | Contract review at G0, hardware check (H0) |
+| **A** | Integrator (all weekend) · B-agent: T13 → T33 → T37 | Contract review at G0, hardware check (H0) |
 | **B** | B-cad: T11 → T25 → T34 · B-parts: T18 → T26 · Reviewer (all weekend) | Measuring parts (H1), printing (H4) |
-| **C** | B-api: T14 → T22 · B-fw: T12 → T23 → T31 · B-validate: T10 → T21 | Showcase device choice (H2) and wiring |
-| **D** | B-web: T15 → T24 → T32 · B-bom: T16 → T17 · QA: T19 → T30 | Makerspace interview (H3), demo video, Devpost |
+| **C** | B-api: T14 → T22 → T39 · B-fw: T12 → T23 → T31 · B-validate: T10 → T21 | Showcase device choice (H2) and wiring |
+| **D** | B-web: T15 → T24 → T36 → T40 · B-bom: T16 → T17 → T38 · QA: T19 → T30 | Makerspace interview (H3), demo video, Devpost |
 
 Nobody runs more than three sessions at once. If your team is smaller, merge columns and follow the
 priority order in section 5.
@@ -250,15 +250,15 @@ For reference, the order is:
 | Agent | Tasks in order | Person |
 | --- | --- | --- |
 | Integrator | T00 → T01 → T20 (integration, in the main folder after `/clear`) | A |
-| B-agent | T13 → T33 | A |
+| B-agent | T13 → T33 → T37 | A |
 | B-cad | T11 → T25 → T34 (optional) | B |
 | B-parts | T18 → T26 | B |
 | Reviewer | reviews all weekend → T35 (release check, after `/clear`) | B |
-| B-api | T14 → T22 | C |
+| B-api | T14 → T22 → T39 | C |
 | B-fw | T12 → T23 → T31 (needs the H2 device description) | C |
 | B-validate | T10 → T21 | C |
-| B-web | T15 → T24 → T32 | D |
-| B-bom | T16 → T17 | D |
+| B-web | T15 → T24 → T36 → T40 | D |
+| B-bom | T16 → T17 → T38 | D |
 | QA | T19 → T30 (needs example prompt 3 from H3) | D |
 
 **Gates** (Person A announces each one in the team chat):
@@ -777,25 +777,131 @@ The hardware mode in handoff/HARDWARE.md is: <P, E or V>
 
 ### T32 · Inventory and explain UI
 
-Folder `../ditto-T32-web-explain` · branch `feat/T32-web-explain` · agent B-web · consumer sign-off: QA (T30)
+Superseded by T36 (no session).
+
+### T36 · UI merge: Ditto V2 design
+
+Folder `../ditto-T36-ui-merge` · branch `feat/T36-ui-merge` · agent B-web · consumer sign-off: QA (T30)
 
 ```text
-You are the B-web agent, a Builder, for task T32 (Inventory and explain UI), working in this git worktree on branch feat/T32-web-explain.
-1. Read CLAUDE.md (especially the coordination board section), the T32 card in section 5 of
+You are the B-web agent, a Builder, for task T36 (UI merge: Ditto V2 design), working in this git worktree on branch feat/T36-ui-merge.
+1. Read CLAUDE.md (especially the coordination board section), the T36 card in section 5 of
    handoff/BUILD_PLAN.md, everything in backend/contracts/, handoff/HARDWARE.md, and the parts of
    docs/PROJECT_PLAN.md your card mentions.
 2. Run `python3 scripts/board.py next`. It should say START. If it says anything else, tell me what it
    says and stop.
 3. Propose a plan: the files you'll create or change (only paths your card owns), one test per acceptance
    criterion, and the order you'll build in. Wait for my approval.
-4. After approval: run `python3 scripts/board.py start`, write your plan into handoff/status/T32.md, commit.
+4. After approval: run `python3 scripts/board.py start`, write your plan into handoff/status/T36.md, commit.
 5. Build in small commits. Run `make lint test` as you go.
 6. When every acceptance criterion passes: `git rebase origin/main`, rerun the tests, push
-   (`git push -u origin feat/T32-web-explain`, with --force-with-lease after a rebase), open a PR with
+   (`git push -u origin feat/T36-ui-merge`, with --force-with-lease after a rebase), open a PR with
    `gh pr create --fill --base main`, then `python3 scripts/board.py submit`.
 7. From then on, follow `python3 scripts/board.py next`: fix review notes, sign off other agents' work
    when asked, rebase when told. When it says DONE, tell me and stop.
-Notes for this task: Use only the memory endpoints from T16; if you need a new one, file a contract request.
+Notes for this task: The design is the Figma file "Ditto V2" (frames on the card); read it through the Figma MCP
+(budget: Starter/View seats get 20 calls a month). Use only the existing endpoints; anything without
+backend data is a static placeholder that names the task that will connect it.
+If a contract looks wrong or you need a file you don't own, file a contract request (CLAUDE.md explains
+how) and keep going with the current contract. Don't work around it.
+```
+
+### T37 · User profile: skill level and name
+
+Folder `../ditto-T37-profile` · branch `feat/T37-profile` · agent B-agent · consumer sign-off: B-web (T36/T40)
+
+```text
+You are the B-agent agent, a Builder, for task T37 (User profile: skill level and name), working in this git worktree on branch feat/T37-profile.
+1. Read CLAUDE.md (especially the coordination board section), the T37 card in section 5 of
+   handoff/BUILD_PLAN.md, everything in backend/contracts/, handoff/HARDWARE.md, and the parts of
+   docs/PROJECT_PLAN.md your card mentions.
+2. Run `python3 scripts/board.py next`. It should say START. If it says anything else, tell me what it
+   says and stop.
+3. Propose a plan: the files you'll create or change (only paths your card owns), one test per acceptance
+   criterion, and the order you'll build in. Wait for my approval.
+4. After approval: run `python3 scripts/board.py start`, write your plan into handoff/status/T37.md, commit.
+5. Build in small commits. Run `make lint test` as you go.
+6. When every acceptance criterion passes: `git rebase origin/main`, rerun the tests, push
+   (`git push -u origin feat/T37-profile`, with --force-with-lease after a rebase), open a PR with
+   `gh pr create --fill --base main`, then `python3 scripts/board.py submit`.
+7. From then on, follow `python3 scripts/board.py next`: fix review notes, sign off other agents' work
+   when asked, rebase when told. When it says DONE, tell me and stop.
+Notes for this task: File the UserContext change as a contract request first and build the prompt side against it.
+If a contract looks wrong or you need a file you don't own, file a contract request (CLAUDE.md explains
+how) and keep going with the current contract. Don't work around it.
+```
+
+### T38 · Several store offers per part
+
+Folder `../ditto-T38-offers` · branch `feat/T38-offers` · agent B-bom · consumer sign-off: B-web (T36/T40)
+
+```text
+You are the B-bom agent, a Builder, for task T38 (Several store offers per part), working in this git worktree on branch feat/T38-offers.
+1. Read CLAUDE.md (especially the coordination board section), the T38 card in section 5 of
+   handoff/BUILD_PLAN.md, everything in backend/contracts/, handoff/HARDWARE.md, and the parts of
+   docs/PROJECT_PLAN.md your card mentions.
+2. Run `python3 scripts/board.py next`. It should say START. If it says anything else, tell me what it
+   says and stop.
+3. Propose a plan: the files you'll create or change (only paths your card owns), one test per acceptance
+   criterion, and the order you'll build in. Wait for my approval.
+4. After approval: run `python3 scripts/board.py start`, write your plan into handoff/status/T38.md, commit.
+5. Build in small commits. Run `make lint test` as you go.
+6. When every acceptance criterion passes: `git rebase origin/main`, rerun the tests, push
+   (`git push -u origin feat/T38-offers`, with --force-with-lease after a rebase), open a PR with
+   `gh pr create --fill --base main`, then `python3 scripts/board.py submit`.
+7. From then on, follow `python3 scripts/board.py next`: fix review notes, sign off other agents' work
+   when asked, rebase when told. When it says DONE, tell me and stop.
+Notes for this task: File the BomLine.offers change as a contract request first; mock every Nexar call in tests.
+If a contract looks wrong or you need a file you don't own, file a contract request (CLAUDE.md explains
+how) and keep going with the current contract. Don't work around it.
+```
+
+### T39 · Run list and cancel endpoints
+
+Folder `../ditto-T39-run-list` · branch `feat/T39-run-list` · agent B-api · consumer sign-off: B-web (T36/T40)
+
+```text
+You are the B-api agent, a Builder, for task T39 (Run list and cancel endpoints), working in this git worktree on branch feat/T39-run-list.
+1. Read CLAUDE.md (especially the coordination board section), the T39 card in section 5 of
+   handoff/BUILD_PLAN.md, everything in backend/contracts/, handoff/HARDWARE.md, and the parts of
+   docs/PROJECT_PLAN.md your card mentions.
+2. Run `python3 scripts/board.py next`. It should say START. If it says anything else, tell me what it
+   says and stop.
+3. Propose a plan: the files you'll create or change (only paths your card owns), one test per acceptance
+   criterion, and the order you'll build in. Wait for my approval.
+4. After approval: run `python3 scripts/board.py start`, write your plan into handoff/status/T39.md, commit.
+5. Build in small commits. Run `make lint test` as you go.
+6. When every acceptance criterion passes: `git rebase origin/main`, rerun the tests, push
+   (`git push -u origin feat/T39-run-list`, with --force-with-lease after a rebase), open a PR with
+   `gh pr create --fill --base main`, then `python3 scripts/board.py submit`.
+7. From then on, follow `python3 scripts/board.py next`: fix review notes, sign off other agents' work
+   when asked, rebase when told. When it says DONE, tell me and stop.
+Notes for this task: Read runs only from the run directories (spec.json, events.jsonl); no new storage.
+If a contract looks wrong or you need a file you don't own, file a contract request (CLAUDE.md explains
+how) and keep going with the current contract. Don't work around it.
+```
+
+### T40 · Build guide screens
+
+Folder `../ditto-T40-build-guide` · branch `feat/T40-build-guide` · agent B-web · consumer sign-off: QA (T30)
+
+```text
+You are the B-web agent, a Builder, for task T40 (Build guide screens), working in this git worktree on branch feat/T40-build-guide.
+1. Read CLAUDE.md (especially the coordination board section), the T40 card in section 5 of
+   handoff/BUILD_PLAN.md, everything in backend/contracts/, handoff/HARDWARE.md, and the parts of
+   docs/PROJECT_PLAN.md your card mentions.
+2. Run `python3 scripts/board.py next`. It should say START. If it says anything else, tell me what it
+   says and stop.
+3. Propose a plan: the files you'll create or change (only paths your card owns), one test per acceptance
+   criterion, and the order you'll build in. Wait for my approval.
+4. After approval: run `python3 scripts/board.py start`, write your plan into handoff/status/T40.md, commit.
+5. Build in small commits. Run `make lint test` as you go.
+6. When every acceptance criterion passes: `git rebase origin/main`, rerun the tests, push
+   (`git push -u origin feat/T40-build-guide`, with --force-with-lease after a rebase), open a PR with
+   `gh pr create --fill --base main`, then `python3 scripts/board.py submit`.
+7. From then on, follow `python3 scripts/board.py next`: fix review notes, sign off other agents' work
+   when asked, rebase when told. When it says DONE, tell me and stop.
+Notes for this task: The design is the Figma file "Ditto V2", frames 25:735 and 28:900; build on T36's components and tokens.
 If a contract looks wrong or you need a file you don't own, file a contract request (CLAUDE.md explains
 how) and keep going with the current contract. Don't work around it.
 ```

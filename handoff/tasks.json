@@ -13,7 +13,8 @@
   ],
   "B-agent": [
    "T13",
-   "T33"
+   "T33",
+   "T37"
   ],
   "B-cad": [
    "T11",
@@ -31,16 +32,19 @@
   ],
   "B-api": [
    "T14",
-   "T22"
+   "T22",
+   "T39"
   ],
   "B-web": [
    "T15",
    "T24",
-   "T32"
+   "T36",
+   "T40"
   ],
   "B-bom": [
    "T16",
-   "T17"
+   "T17",
+   "T38"
   ],
   "Q": [
    "T19",
@@ -495,24 +499,6 @@
    "branch": "feat/T31-device"
   },
   {
-   "id": "T32",
-   "title": "Inventory and explain UI",
-   "kind": "builder",
-   "agent": "B-web",
-   "person": "D",
-   "slug": "web-explain",
-   "deps": [
-    "T16",
-    "T24"
-   ],
-   "consumers": [
-    "Q"
-   ],
-   "soft": [],
-   "slow": false,
-   "branch": "feat/T32-web-explain"
-  },
-  {
    "id": "T33",
    "title": "Docs and Devpost",
    "kind": "builder",
@@ -549,6 +535,93 @@
    "branch": "feat/T34-tscircuit"
   },
   {
+   "id": "T36",
+   "title": "UI merge: Ditto V2 design",
+   "kind": "builder",
+   "agent": "B-web",
+   "person": "D",
+   "slug": "ui-merge",
+   "deps": [
+    "T16",
+    "T24"
+   ],
+   "consumers": [
+    "Q"
+   ],
+   "soft": [],
+   "slow": false,
+   "branch": "feat/T36-ui-merge"
+  },
+  {
+   "id": "T37",
+   "title": "User profile: skill level and name",
+   "kind": "builder",
+   "agent": "B-agent",
+   "person": "A",
+   "slug": "profile",
+   "deps": [
+    "T13",
+    "T14"
+   ],
+   "consumers": [
+    "B-web"
+   ],
+   "soft": [],
+   "slow": false,
+   "branch": "feat/T37-profile"
+  },
+  {
+   "id": "T38",
+   "title": "Several store offers per part",
+   "kind": "builder",
+   "agent": "B-bom",
+   "person": "D",
+   "slug": "offers",
+   "deps": [
+    "T16"
+   ],
+   "consumers": [
+    "B-web"
+   ],
+   "soft": [],
+   "slow": false,
+   "branch": "feat/T38-offers"
+  },
+  {
+   "id": "T39",
+   "title": "Run list and cancel endpoints",
+   "kind": "builder",
+   "agent": "B-api",
+   "person": "C",
+   "slug": "run-list",
+   "deps": [
+    "T22"
+   ],
+   "consumers": [
+    "B-web"
+   ],
+   "soft": [],
+   "slow": false,
+   "branch": "feat/T39-run-list"
+  },
+  {
+   "id": "T40",
+   "title": "Build guide screens",
+   "kind": "builder",
+   "agent": "B-web",
+   "person": "D",
+   "slug": "build-guide",
+   "deps": [
+    "T36"
+   ],
+   "consumers": [
+    "Q"
+   ],
+   "soft": [],
+   "slow": false,
+   "branch": "feat/T40-build-guide"
+  },
+  {
    "id": "T35",
    "title": "Release check",
    "kind": "reviewer",
@@ -557,7 +630,7 @@
    "deps": [
     "T30",
     "T31",
-    "T32",
+    "T36",
     "T33"
    ],
    "deps_in_mode": {
