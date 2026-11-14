@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 import yaml
 from pydantic import Field, ValidationError, model_validator
 
-from backend.contracts.base import Face, Model
+from backend.contracts.base import Face, I2cAddress, Model
 
 PARTS_DIR = Path(__file__).resolve().parents[1] / "parts"
 LIBRARY_DIR = PARTS_DIR / "library"
@@ -43,7 +43,6 @@ FeatureKind = Literal[
     "usb", "display_window", "lens", "button", "led", "sound", "vent", "cable"
 ]
 PinName = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_]*$")]
-I2cAddress = Annotated[str, Field(pattern=r"^0x[0-9A-F]{2}$")]
 
 
 class PinDef(Model):
@@ -93,6 +92,9 @@ class PartDef(Model):
     max_current_ma: float = Field(ge=0)
     i2c_addresses: list[I2cAddress] = []
     """First is the default; the rest are selectable on the module."""
+    i2c_address_pin: str | None = None
+    """Pin that selects the address: unconnected or GND gives i2c_addresses[0], 3V3 gives
+    i2c_addresses[1]. None when the address is set on the board (e.g. a solder jumper)."""
     board_mm: Dims
     mounting: Literal["inside", "external"] = "inside"
     """external: sits outside the case (soil probe, servo arm); the enclosure gets a cable hole
@@ -115,6 +117,7 @@ class PartDef(Model):
     wokwi_pins: dict[str, str] = {}
     """Our pin name -> Wokwi pin name, where they differ."""
     wokwi_attrs: dict[str, str] = {}
+    """Static attributes; per-instance values (e.g. the I2C address) come from the spec."""
     source: str
     """Datasheet or vendor URL for the pins, voltages and addresses."""
 
@@ -124,8 +127,12 @@ class PartDef(Model):
         if len(names) != len(set(names)):
             raise ValueError(f"duplicate pin names in {names}")
         unknown = set(self.wokwi_pins) - set(names)
+        if self.i2c_address_pin and self.i2c_address_pin not in names:
+            unknown.add(self.i2c_address_pin)
         if unknown:
-            raise ValueError(f"wokwi_pins names unknown pins {sorted(unknown)}")
+            raise ValueError(
+                f"wokwi_pins or i2c_address_pin name unknown pins {sorted(unknown)}"
+            )
         return self
 
 

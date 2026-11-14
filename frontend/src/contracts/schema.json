@@ -100,6 +100,18 @@
           },
           "type": "array"
         },
+        "i2c_address_pin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Pin that selects the address: unconnected or GND gives i2c_addresses[0], 3V3 gives\ni2c_addresses[1]. None when the address is set on the board (e.g. a solder jumper)."
+        },
         "i2c_addresses": {
           "default": [],
           "description": "First is the default; the rest are selectable on the module.",
@@ -256,6 +268,7 @@
             "type": "string"
           },
           "default": {},
+          "description": "Static attributes; per-instance values (e.g. the I2C address) come from the spec.",
           "type": "object"
         },
         "wokwi_board": {
@@ -299,6 +312,7 @@
         "supply_voltage",
         "max_current_ma",
         "i2c_addresses",
+        "i2c_address_pin",
         "board_mm",
         "mounting",
         "mount_holes",
@@ -508,36 +522,6 @@
       "title": "Connection",
       "type": "object"
     },
-    "Cutout": {
-      "additionalProperties": false,
-      "description": "An extra opening the user asked for. Openings for part features come from the library.",
-      "properties": {
-        "face": {
-          "enum": [
-            "top",
-            "front",
-            "back",
-            "left",
-            "right"
-          ],
-          "type": "string"
-        },
-        "feature": {
-          "description": "e.g. \"usb\", \"lens\", \"window\", \"button\".",
-          "type": "string"
-        },
-        "for_ref": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "for_ref",
-        "feature",
-        "face"
-      ],
-      "title": "Cutout",
-      "type": "object"
-    },
     "CutoutRecord": {
       "additionalProperties": false,
       "properties": {
@@ -722,18 +706,12 @@
     },
     "EnclosureSpec": {
       "additionalProperties": false,
+      "description": "Openings come from the parts' library features (and a cable hole per external part).",
       "properties": {
         "clearance_mm": {
           "default": 1.0,
           "minimum": 0,
           "type": "number"
-        },
-        "cutouts": {
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/Cutout"
-          },
-          "type": "array"
         },
         "extras": {
           "default": [],
@@ -759,7 +737,6 @@
         "template",
         "wall_mm",
         "clearance_mm",
-        "cutouts",
         "extras"
       ],
       "title": "EnclosureSpec",
@@ -981,7 +958,7 @@
           "type": "string"
         },
         "printer_model": {
-          "description": "Printer profile id in backend/parts/printers/.",
+          "description": "Printer profile id in backend/parts/printers/. spec.user.printer wins when it is set.",
           "type": "string"
         },
         "simulate": {
@@ -1020,7 +997,7 @@
           "type": "array"
         },
         "placements": {
-          "description": "One per part mounted inside (`PartDef.mounting == \"inside\"`), sorted by ref.",
+          "description": "One per part mounted inside (`PartDef.mounting == \"inside\"`), the mcu included, sorted by\nref.",
           "items": {
             "$ref": "#/$defs/Placement"
           },
@@ -1088,6 +1065,18 @@
             "$ref": "#/$defs/Feature"
           },
           "type": "array"
+        },
+        "i2c_address_pin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Pin that selects the address: unconnected or GND gives i2c_addresses[0], 3V3 gives\ni2c_addresses[1]. None when the address is set on the board (e.g. a solder jumper)."
         },
         "i2c_addresses": {
           "default": [],
@@ -1216,6 +1205,7 @@
             "type": "string"
           },
           "default": {},
+          "description": "Static attributes; per-instance values (e.g. the I2C address) come from the spec.",
           "type": "object"
         },
         "wokwi_pins": {
@@ -1248,6 +1238,7 @@
         "supply_voltage",
         "max_current_ma",
         "i2c_addresses",
+        "i2c_address_pin",
         "board_mm",
         "mounting",
         "mount_holes",
@@ -1271,6 +1262,19 @@
     "PartInstance": {
       "additionalProperties": false,
       "properties": {
+        "i2c_address": {
+          "anyOf": [
+            {
+              "pattern": "^0x[0-9A-F]{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "For I2C parts: the address this instance uses, one of PartDef.i2c_addresses (None = the\nfirst). If the part has an i2c_address_pin, its wiring must select this address."
+        },
         "part_id": {
           "description": "Key into the parts library.",
           "type": "string"
@@ -1300,7 +1304,8 @@
         "part_id",
         "qty",
         "role",
-        "reason"
+        "reason",
+        "i2c_address"
       ],
       "title": "PartInstance",
       "type": "object"
@@ -1447,7 +1452,6 @@
           "$ref": "#/$defs/EnclosureSpec",
           "default": {
             "clearance_mm": 1.0,
-            "cutouts": [],
             "extras": [],
             "template": "box_lid",
             "wall_mm": 2.0
@@ -1488,7 +1492,7 @@
           "$ref": "#/$defs/UserContext",
           "default": {
             "budget_usd": null,
-            "owned_part_ids": [],
+            "owned": {},
             "printer": null,
             "rejected": []
           }
@@ -1592,7 +1596,7 @@
           "$ref": "#/$defs/UserContext",
           "default": {
             "budget_usd": null,
-            "owned_part_ids": [],
+            "owned": {},
             "printer": null,
             "rejected": []
           }
@@ -1690,7 +1694,7 @@
             "type": "string"
           },
           "default": {},
-          "description": "Artifact name -> path of a file the tool wrote inside its out_dir.",
+          "description": "Artifact name -> absolute path of a file the tool wrote inside its out_dir. (Events carry\npaths relative to the run directory; the StageRunner converts.)",
           "type": "object"
         },
         "data": {
@@ -1739,13 +1743,13 @@
           ],
           "default": null
         },
-        "owned_part_ids": {
-          "default": [],
-          "description": "From the inventory memory.",
-          "items": {
-            "type": "string"
+        "owned": {
+          "additionalProperties": {
+            "type": "integer"
           },
-          "type": "array"
+          "default": {},
+          "description": "Part id -> quantity on hand, from the inventory memory. The BOM prices only what's missing.",
+          "type": "object"
         },
         "printer": {
           "anyOf": [
@@ -1757,7 +1761,7 @@
             }
           ],
           "default": null,
-          "description": "Printer profile id, e.g. \"generic\"."
+          "description": "Printer profile id, e.g. \"generic\". When None, use HARDWARE.md's PRINTER_MODEL."
         },
         "rejected": {
           "default": [],
@@ -1770,7 +1774,7 @@
       },
       "required": [
         "budget_usd",
-        "owned_part_ids",
+        "owned",
         "printer",
         "rejected"
       ],

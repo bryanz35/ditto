@@ -53,6 +53,11 @@ export interface BoardDef {
   dims_source: "measured" | "datasheet" | "listing";
   features: Feature[];
   /**
+   * Pin that selects the address: unconnected or GND gives i2c_addresses[0], 3V3 gives
+   * i2c_addresses[1]. None when the address is set on the board (e.g. a solder jumper).
+   */
+  i2c_address_pin: string | null;
+  /**
    * First is the default; the rest are selectable on the module.
    */
   i2c_addresses: string[];
@@ -111,6 +116,9 @@ export interface BoardDef {
    */
   supply_voltage: number[];
   vendor_url: string | null;
+  /**
+   * Static attributes; per-instance values (e.g. the I2C address) come from the spec.
+   */
   wokwi_attrs: {
     [k: string]: string;
   };
@@ -272,20 +280,6 @@ export interface Connection {
   reason: string;
 }
 /**
- * An extra opening the user asked for. Openings for part features come from the library.
- *
- * This interface was referenced by `P2DContracts`'s JSON-Schema
- * via the `definition` "Cutout".
- */
-export interface Cutout {
-  face: "top" | "front" | "back" | "left" | "right";
-  /**
-   * e.g. "usb", "lens", "window", "button".
-   */
-  feature: string;
-  for_ref: string;
-}
-/**
  * This interface was referenced by `P2DContracts`'s JSON-Schema
  * via the `definition` "CutoutRecord".
  */
@@ -347,12 +341,13 @@ export interface EnclosureManifest {
   wall_mm: number;
 }
 /**
+ * Openings come from the parts' library features (and a cable hole per external part).
+ *
  * This interface was referenced by `P2DContracts`'s JSON-Schema
  * via the `definition` "EnclosureSpec".
  */
 export interface EnclosureSpec {
   clearance_mm: number;
-  cutouts: Cutout[];
   /**
    * Free-form CAD requests, e.g. "belt clip".
    */
@@ -447,7 +442,7 @@ export interface Hardware {
    */
   mode: "P" | "E" | "V";
   /**
-   * Printer profile id in backend/parts/printers/.
+   * Printer profile id in backend/parts/printers/. spec.user.printer wins when it is set.
    */
   printer_model: string;
   /**
@@ -468,7 +463,8 @@ export interface Layout {
    */
   cavity_mm: [number, number, number];
   /**
-   * One per part mounted inside (`PartDef.mounting == "inside"`), sorted by ref.
+   * One per part mounted inside (`PartDef.mounting == "inside"`), the mcu included, sorted by
+   * ref.
    */
   placements: Placement[];
 }
@@ -511,6 +507,11 @@ export interface PartDef {
   dims_source: "measured" | "datasheet" | "listing";
   features: Feature[];
   /**
+   * Pin that selects the address: unconnected or GND gives i2c_addresses[0], 3V3 gives
+   * i2c_addresses[1]. None when the address is set on the board (e.g. a solder jumper).
+   */
+  i2c_address_pin: string | null;
+  /**
    * First is the default; the rest are selectable on the module.
    */
   i2c_addresses: string[];
@@ -552,6 +553,9 @@ export interface PartDef {
    */
   supply_voltage: number[];
   vendor_url: string | null;
+  /**
+   * Static attributes; per-instance values (e.g. the I2C address) come from the spec.
+   */
   wokwi_attrs: {
     [k: string]: string;
   };
@@ -571,6 +575,11 @@ export interface PartDef {
  * via the `definition` "PartInstance".
  */
 export interface PartInstance {
+  /**
+   * For I2C parts: the address this instance uses, one of PartDef.i2c_addresses (None = the
+   * first). If the part has an i2c_address_pin, its wiring must select this address.
+   */
+  i2c_address: string | null;
   /**
    * Key into the parts library.
    */
@@ -618,9 +627,11 @@ export interface ProjectSpec {
   title: string;
   user: UserContext;
 }
+/**
+ * Openings come from the parts' library features (and a cable hole per external part).
+ */
 export interface EnclosureSpec1 {
   clearance_mm: number;
-  cutouts: Cutout[];
   /**
    * Free-form CAD requests, e.g. "belt clip".
    */
@@ -631,11 +642,13 @@ export interface EnclosureSpec1 {
 export interface UserContext {
   budget_usd: number | null;
   /**
-   * From the inventory memory.
+   * Part id -> quantity on hand, from the inventory memory. The BOM prices only what's missing.
    */
-  owned_part_ids: string[];
+  owned: {
+    [k: string]: number;
+  };
   /**
-   * Printer profile id, e.g. "generic".
+   * Printer profile id, e.g. "generic". When None, use HARDWARE.md's PRINTER_MODEL.
    */
   printer: string | null;
   /**
@@ -690,11 +703,13 @@ export interface RunRequest {
 export interface UserContext1 {
   budget_usd: number | null;
   /**
-   * From the inventory memory.
+   * Part id -> quantity on hand, from the inventory memory. The BOM prices only what's missing.
    */
-  owned_part_ids: string[];
+  owned: {
+    [k: string]: number;
+  };
   /**
-   * Printer profile id, e.g. "generic".
+   * Printer profile id, e.g. "generic". When None, use HARDWARE.md's PRINTER_MODEL.
    */
   printer: string | null;
   /**
@@ -716,7 +731,8 @@ export interface Todo {
  */
 export interface ToolResult {
   /**
-   * Artifact name -> path of a file the tool wrote inside its out_dir.
+   * Artifact name -> absolute path of a file the tool wrote inside its out_dir. (Events carry
+   * paths relative to the run directory; the StageRunner converts.)
    */
   artifacts: {
     [k: string]: string;
@@ -741,11 +757,13 @@ export interface ToolResult {
 export interface UserContext2 {
   budget_usd: number | null;
   /**
-   * From the inventory memory.
+   * Part id -> quantity on hand, from the inventory memory. The BOM prices only what's missing.
    */
-  owned_part_ids: string[];
+  owned: {
+    [k: string]: number;
+  };
   /**
-   * Printer profile id, e.g. "generic".
+   * Printer profile id, e.g. "generic". When None, use HARDWARE.md's PRINTER_MODEL.
    */
   printer: string | null;
   /**

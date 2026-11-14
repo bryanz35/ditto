@@ -76,6 +76,11 @@
       "stage": "simulate",
       "spec_rev": 2
     },
+    "screenshot": {
+      "path": "sim/screenshot.png",
+      "stage": "simulate",
+      "spec_rev": 2
+    },
     "bom_json": {
       "path": "bom.json",
       "stage": "bom",

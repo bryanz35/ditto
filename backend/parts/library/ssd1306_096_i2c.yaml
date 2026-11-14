@@ -12,6 +12,7 @@ logic_voltage: 3.3
 supply_voltage: [3.3, 5.0]
 max_current_ma: 20  # 10 mA typical; more with most pixels lit
 i2c_addresses: ["0x3C", "0x3D"]
+i2c_address_pin: null  # set by a resistor on the back of the module
 pins:
   - {name: GND, type: gnd}
   - {name: VCC, type: power}

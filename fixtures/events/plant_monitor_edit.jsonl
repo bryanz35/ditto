@@ -1,0 +1,14 @@
+{"run_id":"plant_monitor","seq":28,"ts":1794700079.0,"stage":"plan","status":"running","message":"Edit: make the walls 3 mm","spec_rev":2,"artifacts":{},"errors":[],"data":{}}
+{"run_id":"plant_monitor","seq":29,"ts":1794700080.0,"stage":"plan","status":"passed","message":"Spec rev 3: enclosure.wall_mm 2.0 -> 3.0","spec_rev":3,"artifacts":{"spec":"spec.json"},"errors":[],"data":{}}
+{"run_id":"plant_monitor","seq":30,"ts":1794700080.5,"stage":"layout","status":"stale","message":"enclosure.wall_mm changed","spec_rev":3,"artifacts":{},"errors":[],"data":{}}
+{"run_id":"plant_monitor","seq":31,"ts":1794700084.5,"stage":"enclosure","status":"stale","message":"enclosure.wall_mm changed","spec_rev":3,"artifacts":{},"errors":[],"data":{}}
+{"run_id":"plant_monitor","seq":32,"ts":1794700085.5,"stage":"assembly","status":"stale","message":"enclosure.wall_mm changed","spec_rev":3,"artifacts":{},"errors":[],"data":{}}
+{"run_id":"plant_monitor","seq":33,"ts":1794700086.0,"stage":"layout","status":"running","message":"Placing parts","spec_rev":3,"artifacts":{},"errors":[],"data":{}}
+{"run_id":"plant_monitor","seq":34,"ts":1794700086.5,"stage":"layout","status":"passed","message":"4 parts placed","spec_rev":3,"artifacts":{"layout_json":"cad/layout.json"},"errors":[],"data":{}}
+{"run_id":"plant_monitor","seq":35,"ts":1794700090.5,"stage":"enclosure","status":"running","message":"Building the enclosure","spec_rev":3,"artifacts":{},"errors":[],"data":{"attempt":1}}
+{"run_id":"plant_monitor","seq":36,"ts":1794700094.5,"stage":"enclosure","status":"passed","message":"Watertight, fits the generic printer","spec_rev":3,"artifacts":{"base_stl":"cad/base.stl","base_step":"cad/base.step","lid_stl":"cad/lid.stl","lid_step":"cad/lid.step","manifest":"cad/manifest.json"},"errors":[],"data":{"attempt":1}}
+{"run_id":"plant_monitor","seq":37,"ts":1794700095.5,"stage":"assembly","status":"running","message":"Building the assembly preview","spec_rev":3,"artifacts":{},"errors":[],"data":{}}
+{"run_id":"plant_monitor","seq":38,"ts":1794700096.5,"stage":"assembly","status":"passed","message":"Assembly preview ready","spec_rev":3,"artifacts":{"assembly_glb":"cad/assembly.glb"},"errors":[],"data":{}}
+{"run_id":"plant_monitor","seq":39,"ts":1794700097.5,"stage":"checks","status":"running","message":"Cross-checking pins, cutouts, BOM and revisions","spec_rev":3,"artifacts":{},"errors":[],"data":{}}
+{"run_id":"plant_monitor","seq":40,"ts":1794700098.5,"stage":"checks","status":"passed","message":"All cross-checks passed","spec_rev":3,"artifacts":{},"errors":[],"data":{}}
+{"run_id":"plant_monitor","seq":41,"ts":1794700099.5,"stage":"done","status":"passed","message":"Edit applied","spec_rev":3,"artifacts":{},"errors":[],"data":{}}

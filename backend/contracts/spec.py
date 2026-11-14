@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field
 
-from backend.contracts.base import Face, Model, Wall
+from backend.contracts.base import I2cAddress, Model, Wall
 
 Ref = Annotated[str, Field(pattern=r"^[a-z][a-z0-9]*$")]
 """Part reference such as "oled1": lowercase letters and digits only, because it becomes part of the
@@ -19,10 +19,10 @@ Bus = Literal["i2c", "spi", "i2s", "uart", "gpio", "analog", "power"]
 
 class UserContext(Model):
     budget_usd: float | None = None
-    owned_part_ids: list[str] = []
-    """From the inventory memory."""
+    owned: dict[str, int] = {}
+    """Part id -> quantity on hand, from the inventory memory. The BOM prices only what's missing."""
     printer: str | None = None
-    """Printer profile id, e.g. "generic"."""
+    """Printer profile id, e.g. "generic". When None, use HARDWARE.md's PRINTER_MODEL."""
     rejected: list[str] = []
     """Choices the user turned down before, e.g. "no buzzers", "smaller case"."""
 
@@ -38,6 +38,9 @@ class PartInstance(Model):
     """What it does in this device, e.g. "shows soil moisture"."""
     reason: str
     """Explain mode: why this part was chosen."""
+    i2c_address: I2cAddress | None = None
+    """For I2C parts: the address this instance uses, one of PartDef.i2c_addresses (None = the
+    first). If the part has an i2c_address_pin, its wiring must select this address."""
 
 
 class Connection(Model):
@@ -52,20 +55,12 @@ class Connection(Model):
     """Explain mode: why this pin."""
 
 
-class Cutout(Model):
-    """An extra opening the user asked for. Openings for part features come from the library."""
-
-    for_ref: str
-    feature: str
-    """e.g. "usb", "lens", "window", "button"."""
-    face: Face
-
-
 class EnclosureSpec(Model):
+    """Openings come from the parts' library features (and a cable hole per external part)."""
+
     template: Literal["box_lid"] = "box_lid"
     wall_mm: float = Field(2.0, ge=1.2, le=4.0)
     clearance_mm: float = Field(1.0, ge=0)
-    cutouts: list[Cutout] = []
     extras: list[str] = []
     """Free-form CAD requests, e.g. "belt clip"."""
 
@@ -112,6 +107,7 @@ class Placement(Model):
 
 class Layout(Model):
     placements: list[Placement]
-    """One per part mounted inside (`PartDef.mounting == "inside"`), sorted by ref."""
+    """One per part mounted inside (`PartDef.mounting == "inside"`), the mcu included, sorted by
+    ref."""
     cavity_mm: tuple[float, float, float]
     """Inside length (x), width (y) and height (z)."""

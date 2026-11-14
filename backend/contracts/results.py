@@ -1,4 +1,9 @@
-"""What every tool returns. Tools never raise for expected failures: they return a ToolResult."""
+"""What every tool returns. Tools never raise for expected failures: they return a ToolResult.
+
+Error codes are owned by each tool and listed in its module docstring (the seven validator codes are
+also fixture names in fixtures/specs/invalid/). Consumers never branch on a specific code: retry
+logic uses `ok`, `skipped` and `severity`, and the checks panel shows any code with its message.
+"""
 
 from typing import Any, Literal
 
@@ -25,7 +30,8 @@ class ToolResult(Model):
     errors: list[ToolError] = []
     """Warnings may appear even when ok is true."""
     artifacts: dict[str, str] = {}
-    """Artifact name -> path of a file the tool wrote inside its out_dir."""
+    """Artifact name -> absolute path of a file the tool wrote inside its out_dir. (Events carry
+    paths relative to the run directory; the StageRunner converts.)"""
     data: dict[str, Any] = {}
     """JSON-serialisable values (models as model_dump(mode="json"))."""
     log: str = ""

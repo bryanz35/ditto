@@ -10,6 +10,7 @@ logic_voltage: 3.3
 supply_voltage: [3.3]
 max_current_ma: 1  # the BME280 draws well under 1 mA, even while measuring
 i2c_addresses: ["0x76", "0x77"]
+i2c_address_pin: SDO
 pins:
   - {name: VCC, type: power, voltage: 3.3}
   - {name: GND, type: gnd}

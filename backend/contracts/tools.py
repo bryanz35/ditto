@@ -24,15 +24,17 @@ class ComputeLayout(Protocol):  # T11. artifacts: layout_json. data: layout (Lay
     ) -> ToolResult: ...
 
 
-class BuildEnclosure(
-    Protocol
-):  # T11. artifacts: base_stl, base_step, lid_stl, lid_step, manifest
+class BuildEnclosure(Protocol):
+    """T11. artifacts: base_stl, base_step, lid_stl, lid_step, manifest"""
+
     def __call__(
         self, spec: ProjectSpec, layout: Layout, lib: PartLibrary, out_dir: Path
     ) -> ToolResult: ...
 
 
-class CheckEnclosure(Protocol):  # T11. Reads the STLs build_enclosure wrote to out_dir
+class CheckEnclosure(Protocol):
+    """T11. Reads build_enclosure's STLs. data: watertight, fits_printer"""
+
     def __call__(
         self,
         spec: ProjectSpec,
@@ -49,9 +51,9 @@ class BuildAssembly(Protocol):  # T25. artifacts: assembly_glb
     ) -> ToolResult: ...
 
 
-class WriteFirmwareProject(
-    Protocol
-):  # T12. artifacts: platformio_ini, pins_h, main_cpp
+class WriteFirmwareProject(Protocol):
+    """T12. artifacts: platformio_ini, pins_h, main_cpp"""
+
     def __call__(
         self, spec: ProjectSpec, lib: PartLibrary, main_cpp: str, out_dir: Path
     ) -> ToolResult: ...
@@ -85,15 +87,10 @@ class RunSimulation(Protocol):  # T26. artifacts: serial_log, screenshot
 
 class PriceBom(Protocol):  # T16. artifacts: bom_json. data: Bom
     def __call__(
-        self,
-        spec: ProjectSpec,
-        lib: PartLibrary,
-        prices: Path | None,
-        owned: dict[str, int],
-        out_dir: Path,
+        self, spec: ProjectSpec, lib: PartLibrary, prices: Path | None, out_dir: Path
     ) -> ToolResult:
-        """prices: price cache file (None = backend/parts/prices.json).
-        owned: part_id -> quantity on hand, from the inventory memory."""
+        """prices: price cache file (None = backend/parts/prices.json). Owned quantities come
+        from spec.user.owned, so a rerun from the spec alone prices the same."""
         ...
 
 
@@ -103,9 +100,9 @@ class CrossChecks(Protocol):  # T21. Reads the run directory's artifacts
     ) -> ToolResult: ...
 
 
-class PreprocessInput(
-    Protocol
-):  # T17. data: images (list of paths), transcript (str | None)
+class PreprocessInput(Protocol):
+    """T17. data: images (list of paths), transcript (str | None)"""
+
     def __call__(self, paths: list[Path], out_dir: Path) -> ToolResult: ...
 
 

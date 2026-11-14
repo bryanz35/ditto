@@ -1,5 +1,9 @@
 """Run events, streamed to the UI over SSE and stored one per line in runs/<id>/events.jsonl.
 
+Work without a stage of its own is reported on "plan": reading the prompt, input preprocessing,
+clarifying questions and the agent's todo list. A question is asked on the stage that needs the
+answer: "plan" for clarifying questions, "bom" for approving an over-budget parts list.
+
 `data` conventions (keys are optional):
 - "todos": list[Todo], the agent's current plan (on "plan" events).
 - "question": Question, on events with status "waiting".

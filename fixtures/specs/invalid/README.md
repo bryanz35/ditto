@@ -12,4 +12,4 @@ shapes; only the hardware is wrong.
 | `voltage_mismatch.json` | `env1.VCC` on the 5V pin; the GY-BME280 3.3 V module accepts only 3.3 V |
 | `unconnected_pin.json` | `soil1.AOUT` not wired |
 | `unknown_part.json` | `buzzer1` uses part id `buzzer_active`, which isn't in the library |
-| `i2c_address_conflict.json` | three BME280s on one bus; the module has only two addresses (0x76, 0x77) |
+| `i2c_address_conflict.json` | three BME280s on one bus: env1 at 0x76, env2 at 0x77 (SDO wired to 3V3), env3 at 0x76 again |

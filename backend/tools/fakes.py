@@ -16,18 +16,26 @@ FIXTURE_RUN = (
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 
 
-def _copy(subdir: str, out_dir: Path, files: dict[str, str]) -> dict[str, str]:
+def _copy(
+    subdir: str, out_dir: Path, files: dict[str, str], rev: int | None = None
+) -> dict[str, str]:
+    """Copy fixture files into out_dir and return absolute paths. JSON files that record a
+    spec_rev get the caller's spec.rev, so fake runs after an edit don't look stale."""
     artifacts = {}
     for name, rel in files.items():
-        dest = Path(out_dir) / rel
+        src, dest = FIXTURE_RUN / subdir / rel, (Path(out_dir) / rel).resolve()
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(FIXTURE_RUN / subdir / rel, dest)
+        content = json.loads(src.read_text()) if src.suffix == ".json" else None
+        if rev is not None and isinstance(content, dict) and "spec_rev" in content:
+            dest.write_text(json.dumps({**content, "spec_rev": rev}, indent=2) + "\n")
+        else:
+            shutil.copyfile(src, dest)
         artifacts[name] = str(dest)
     return artifacts
 
 
-def _json(rel: str) -> dict:
-    return json.loads((FIXTURE_RUN / rel).read_text())
+def _json(path: str) -> dict:
+    return json.loads(Path(path).read_text())
 
 
 def validate_spec(spec: ProjectSpec, lib: PartLibrary) -> ToolResult:
@@ -37,7 +45,7 @@ def validate_spec(spec: ProjectSpec, lib: PartLibrary) -> ToolResult:
 def compute_layout(spec: ProjectSpec, lib: PartLibrary, out_dir: Path) -> ToolResult:
     artifacts = _copy("cad", out_dir, {"layout_json": "layout.json"})
     return ToolResult(
-        ok=True, artifacts=artifacts, data={"layout": _json("cad/layout.json")}
+        ok=True, artifacts=artifacts, data={"layout": _json(artifacts["layout_json"])}
     )
 
 
@@ -51,7 +59,7 @@ def build_enclosure(
         "lid_step": "lid.step",
         "manifest": "manifest.json",
     }
-    return ToolResult(ok=True, artifacts=_copy("cad", out_dir, files))
+    return ToolResult(ok=True, artifacts=_copy("cad", out_dir, files, spec.rev))
 
 
 def check_enclosure(
@@ -73,7 +81,7 @@ def write_firmware_project(
 ) -> ToolResult:
     files = {"platformio_ini": "platformio.ini", "pins_h": "include/pins.h"}
     artifacts = _copy("firmware", out_dir, files)
-    main = Path(out_dir) / "src" / "main.cpp"
+    main = (Path(out_dir) / "src" / "main.cpp").resolve()
     main.parent.mkdir(parents=True, exist_ok=True)
     main.write_text(main_cpp)
     return ToolResult(ok=True, artifacts={**artifacts, "main_cpp": str(main)})
@@ -88,8 +96,10 @@ def compile_firmware(project_dir: Path) -> ToolResult:
 
 
 def build_wiring(spec: ProjectSpec, lib: PartLibrary, out_dir: Path) -> ToolResult:
-    artifacts = _copy(".", out_dir, {"wiring_json": "wiring.json"})
-    return ToolResult(ok=True, artifacts=artifacts, data=_json("wiring.json"))
+    artifacts = _copy(".", out_dir, {"wiring_json": "wiring.json"}, spec.rev)
+    return ToolResult(
+        ok=True, artifacts=artifacts, data=_json(artifacts["wiring_json"])
+    )
 
 
 def build_simulation(
@@ -102,20 +112,15 @@ def build_simulation(
 def run_simulation(
     sim_dir: Path, timeout_ms: int, expect_text: str = "P2D_READY"
 ) -> ToolResult:
-    return ToolResult(
-        ok=True, artifacts=_copy("sim", sim_dir, {"serial_log": "serial.log"})
-    )
+    files = {"serial_log": "serial.log", "screenshot": "screenshot.png"}
+    return ToolResult(ok=True, artifacts=_copy("sim", sim_dir, files))
 
 
 def price_bom(
-    spec: ProjectSpec,
-    lib: PartLibrary,
-    prices: Path | None,
-    owned: dict[str, int],
-    out_dir: Path,
+    spec: ProjectSpec, lib: PartLibrary, prices: Path | None, out_dir: Path
 ) -> ToolResult:
-    artifacts = _copy(".", out_dir, {"bom_json": "bom.json"})
-    return ToolResult(ok=True, artifacts=artifacts, data=_json("bom.json"))
+    artifacts = _copy(".", out_dir, {"bom_json": "bom.json"}, spec.rev)
+    return ToolResult(ok=True, artifacts=artifacts, data=_json(artifacts["bom_json"]))
 
 
 def cross_checks(run_dir: Path, spec: ProjectSpec, lib: PartLibrary) -> ToolResult:

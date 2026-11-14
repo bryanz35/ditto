@@ -260,7 +260,7 @@ Every card lists the paths it owns. Anything not listed belongs to someone else.
      lint_firmware(project_dir)
      compile_firmware(project_dir)
      build_wiring(spec, lib, out_dir)                # artifacts: wiring_json (T14, backend/runtime/wiring.py)
-     price_bom(spec, lib, prices, owned, out_dir)    # artifacts: bom_json; data: Bom
+     price_bom(spec, lib, prices, out_dir)           # artifacts: bom_json; data: Bom (owned: spec.user.owned)
      preprocess_input(paths, out_dir)                # data: images, transcript
      cross_checks(run_dir, spec, lib)
      build_assembly(spec, layout, lib, out_dir)      # artifacts: assembly_glb
@@ -372,7 +372,10 @@ Every card lists the paths it owns. Anything not listed belongs to someone else.
 - **Build:** (read "Using deepagents" in `docs/PROJECT_PLAN.md` first)
   - First, check the installed `deepagents` version's API (argument names have changed between versions;
     planning became opt-in in v0.7) and note the version in your status file.
-  - Implement the `Runner` protocol: `AgentRunner(toolbox, model)` with `run()` and `edit()`.
+  - Implement the `Runner` protocol: `AgentRunner(toolbox, model, run_stages)` with `run()`, `edit()`
+    and `answer()`. The runner does **model work only** (spec.json, main.cpp; see the docstring of
+    `backend/contracts/runner.py`). Sub-agents check their work through the injected `StageRunner`;
+    the engine (T14/T22) runs the remaining stages and emits `done`. Don't import `backend/runtime/`.
   - Orchestrator via `create_deep_agent(...)` with three custom sub-agents (parts-and-pins, firmware,
     enclosure). Restrict or disable the default `general-purpose` sub-agent if the version allows, so the
     orchestrator can't route around the specialists. A per-sub-agent `model` lets the parts agent use a
@@ -401,8 +404,8 @@ Every card lists the paths it owns. Anything not listed belongs to someone else.
     parts and give a `reason` for each part and pin), firmware (must use `PIN_*` macros and print
     `P2D_READY`), enclosure (chooses parameters and extras; never edits geometry code from the template).
 - **Acceptance:**
-  - [ ] With `fake_toolbox()`, a run emits events for every stage in order (including `plan` events)
-        and returns a valid spec.
+  - [ ] With a fake model and a `StageRunner` built on `fake_toolbox()`, `run()` writes `spec.json` and
+        `firmware/src/main.cpp`, emits `plan` events (todos) and returns a valid spec.
   - [ ] An `edit()` on the same `run_id` sees the earlier conversation.
   - [ ] A tool that fails 4 times ends the stage as `failed` after exactly 3 retries.
   - [ ] `make test-live` smoke: the plant-monitor prompt with a real model and fake tools yields a spec that passes T10 (once T10 merges).
@@ -414,13 +417,17 @@ Every card lists the paths it owns. Anything not listed belongs to someone else.
 
 - **Agent:** B-api · **Depends on:** T01 · **Blocks:** T15 (live), T20, T22, T31
 - **Owns:** `backend/app/main.py`, `backend/app/routers/runs.py`, `backend/app/routers/files.py`,
-  `backend/runtime/` (`runs.py`, `deps.py`, `replay_runner.py`, `wiring.py`), `tests/unit/api/`
+  `backend/runtime/` (`runs.py`, `deps.py`, `replay_runner.py`, `wiring.py`, `stages.py`), `tests/unit/api/`
 - **Build:**
-  - `POST /runs` (multipart: prompt, files, `user_context` JSON) → `run_id`; runs the configured runner
-    in a background task.
+  - `POST /runs` (multipart: prompt, files, `user_context` JSON) → `run_id`; in a background task runs
+    `runner.run()`, then every stage that hasn't passed at the current spec rev, then `checks`, then
+    emits `done` (the engine owns the pipeline: see `backend/contracts/runner.py`).
+  - `backend/runtime/stages.py: run_stages` (stub exists): the `StageRunner`, the only code that executes
+    stages. Bind `toolbox` and `lib` and pass it to the runner.
   - `GET /runs/{id}/events`: server-sent events; supports `Last-Event-ID` to replay from a sequence number.
   - `GET /runs/{id}/spec`, `GET /runs/{id}/files/{path}` (reject path traversal).
   - `POST /runs/{id}/edit` → calls `runner.edit()` (full flow in T22).
+  - `POST /runs/{id}/answer` (`AnswerRequest`) → `runner.answer()`.
   - Run directory: `runs/<id>/{spec.json, events.jsonl, manifest.json, firmware/, cad/, bom.json, wiring.json}`.
     `manifest.json` records the `spec_rev` each artifact was built from.
   - `deps.py`: `DEPENDS_ON`, `ORDER`, `stages_to_rerun()` from `docs/PROJECT_PLAN.md`.
@@ -534,10 +541,12 @@ Every card lists the paths it owns. Anything not listed belongs to someone else.
 - **Agent:** B-api · **Depends on:** T13, T14, T20
 - **Owns:** `backend/runtime/` (edit path), `backend/app/routers/runs.py` (edit endpoint), `tests/unit/api/`
 - **Build:** `POST /runs/{id}/edit {instruction}` → `runner.edit()` patches the spec (rev + 1) →
-  `stages_to_rerun(changed_fields)` → emit `stale` for affected stages → rerun. Deterministic stages
+  `stages_to_rerun(changed_fields)` → emit `stale` for affected stages → rerun them through
+  `run_stages`. Deterministic stages
   (validate, layout, enclosure, assembly, wiring, simulate, BOM) rerun **without the model**. Firmware reruns without the
-  model when only pins changed (regenerate `pins.h`, recompile); otherwise the firmware sub-agent runs.
-  Then `cross_checks`.
+  model when only pins changed (regenerate `pins.h`, recompile); otherwise `runner.edit()` has already
+  rewritten `main.cpp` with the firmware sub-agent, so skip stages already passed at the new rev.
+  Then `checks` and `done`. `fixtures/events/plant_monitor_edit.jsonl` shows the expected stream.
 - **Acceptance:** Q's `test_edits.py` passes; a wall-thickness edit makes no model calls.
 - **Consumer sign-off:** B-web (stale → running → passed shows correctly), Q.
 

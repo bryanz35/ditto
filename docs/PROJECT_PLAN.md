@@ -197,13 +197,13 @@ model. After the freeze, change it only by adding optional fields. T01 adds `rev
 `Layout` (see `handoff/BUILD_PLAN.md`).
 
 ```python
-# backend/contracts/spec.py (starting point for T01)
+# Sketch of backend/contracts/spec.py. The code is authoritative (it adds rev, Placement, Layout).
 from typing import Literal
 from pydantic import BaseModel, Field
 
 class UserContext(BaseModel):
     budget_usd: float | None = None
-    owned_part_ids: list[str] = []          # from the inventory memory
+    owned: dict[str, int] = {}              # part id -> quantity, from the inventory memory
     printer: str | None = None              # e.g. "bambu-p1s"
     rejected: list[str] = []                # "no buzzers", "smaller case"
 
@@ -213,6 +213,7 @@ class PartInstance(BaseModel):
     qty: int = 1
     role: str                               # "shows soil moisture"
     reason: str                             # explain mode: why this part
+    i2c_address: str | None = None          # I2C parts: which of the part's addresses this one uses
 
 class Connection(BaseModel):
     part_ref: str                           # "oled1"
@@ -221,16 +222,10 @@ class Connection(BaseModel):
     bus: Literal["i2c", "spi", "i2s", "uart", "gpio", "analog", "power"]
     reason: str = ""
 
-class Cutout(BaseModel):
-    for_ref: str
-    feature: str                            # "usb", "lens", "window", "button"
-    face: Literal["top", "front", "back", "left", "right"]
-
-class EnclosureSpec(BaseModel):
+class EnclosureSpec(BaseModel):             # openings come from the parts' library features
     template: Literal["box_lid"] = "box_lid"
     wall_mm: float = Field(2.0, ge=1.2, le=4.0)
     clearance_mm: float = 1.0
-    cutouts: list[Cutout] = []
     extras: list[str] = []                  # free-form CAD requests, e.g. "belt clip"
 
 class FirmwareSpec(BaseModel):

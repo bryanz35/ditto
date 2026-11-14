@@ -8,10 +8,6 @@ from backend.contracts.spec import ProjectSpec
 
 
 def price_bom(
-    spec: ProjectSpec,
-    lib: PartLibrary,
-    prices: Path | None,
-    owned: dict[str, int],
-    out_dir: Path,
+    spec: ProjectSpec, lib: PartLibrary, prices: Path | None, out_dir: Path
 ) -> ToolResult:
     return not_implemented("price_bom", "T16")

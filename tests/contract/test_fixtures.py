@@ -42,9 +42,13 @@ def test_one_invalid_spec_per_validator_code():
         load_spec(path)  # shape-valid: only the hardware is wrong
 
 
+def load_events(name: str) -> list[Event]:
+    lines = (FIXTURES / "events" / name).read_text().splitlines()
+    return [Event.model_validate_json(line) for line in lines]
+
+
 def test_event_fixture_is_a_complete_run():
-    lines = (FIXTURES / "events" / "plant_monitor.jsonl").read_text().splitlines()
-    events = [Event.model_validate_json(line) for line in lines]
+    events = load_events("plant_monitor.jsonl")
     assert [e.seq for e in events] == list(range(1, len(events) + 1))
     assert all(a.ts <= b.ts for a, b in pairwise(events))
     assert set(STAGES) <= {e.stage for e in events}
@@ -53,6 +57,27 @@ def test_event_fixture_is_a_complete_run():
     assert validate.index("failed") < validate.index("passed")
     assert events[-1].stage == "done" and events[-1].status == "passed"
     for e in events:
+        for path in e.artifacts.values():
+            assert (RUN / path).is_file(), path
+
+
+def test_edit_fixture_marks_stages_stale_then_reruns_them():
+    run, edit = (
+        load_events("plant_monitor.jsonl"),
+        load_events("plant_monitor_edit.jsonl"),
+    )
+    assert [e.seq for e in edit] == list(
+        range(run[-1].seq + 1, run[-1].seq + 1 + len(edit))
+    )
+    assert run[-1].ts < edit[0].ts and all(a.ts <= b.ts for a, b in pairwise(edit))
+    # a wall-thickness edit: stages_to_rerun({"enclosure"})
+    stale = [e.stage for e in edit if e.status == "stale"]
+    assert stale == ["layout", "enclosure", "assembly"]
+    for stage in stale:
+        statuses = [e.status for e in edit if e.stage == stage]
+        assert statuses == ["stale", "running", "passed"], stage
+    assert edit[-1].stage == "done" and edit[-1].spec_rev == run[-1].spec_rev + 1
+    for e in edit:
         for path in e.artifacts.values():
             assert (RUN / path).is_file(), path
 

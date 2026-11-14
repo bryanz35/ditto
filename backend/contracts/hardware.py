@@ -14,7 +14,7 @@ class Hardware(Model):
     """None while unknown."""
     has_printer: bool | None
     printer_model: str
-    """Printer profile id in backend/parts/printers/."""
+    """Printer profile id in backend/parts/printers/. spec.user.printer wins when it is set."""
     mode: Literal["P", "E", "V"]
     """Unknown counts as V, the strictest mode."""
     simulate: bool

@@ -11,12 +11,14 @@ Coordinate frames (all lengths in mm):
 - Face-plane coordinates (u, v) on a face: top (x, y); front and back (x, z); left and right (y, z).
 """
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 Face = Literal["top", "front", "back", "left", "right"]
 Wall = Literal["front", "back", "left", "right"]
+I2cAddress = Annotated[str, Field(pattern=r"^0x[0-9A-F]{2}$")]
+"""7-bit address in uppercase hex, e.g. "0x3C"."""
 
 
 class Model(BaseModel):

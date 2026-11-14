@@ -14,7 +14,7 @@
   ],
   "user": {
     "budget_usd": 30.0,
-    "owned_part_ids": [],
+    "owned": {},
     "printer": null,
     "rejected": []
   },
@@ -23,7 +23,8 @@
     "part_id": "esp32_devkitc",
     "qty": 1,
     "role": "runs the firmware",
-    "reason": "Common, cheap, enough pins and ADC1 inputs; Wi-Fi available for later"
+    "reason": "Common, cheap, enough pins and ADC1 inputs; Wi-Fi available for later",
+    "i2c_address": null
   },
   "parts": [
     {
@@ -31,42 +32,48 @@
       "part_id": "bme280_breakout",
       "qty": 1,
       "role": "measures temperature and humidity",
-      "reason": "One I2C sensor gives temperature, humidity and pressure"
+      "reason": "One I2C sensor gives temperature, humidity and pressure",
+      "i2c_address": "0x76"
     },
     {
       "ref": "oled1",
       "part_id": "ssd1306_096_i2c",
       "qty": 1,
       "role": "shows the readings",
-      "reason": "Small and cheap; shares the I2C bus with the BME280"
+      "reason": "Small and cheap; shares the I2C bus with the BME280",
+      "i2c_address": "0x3C"
     },
     {
       "ref": "soil1",
       "part_id": "soil_moisture_capacitive",
       "qty": 1,
       "role": "measures soil moisture",
-      "reason": "Capacitive probes don't corrode like resistive ones"
+      "reason": "Capacitive probes don't corrode like resistive ones",
+      "i2c_address": null
     },
     {
       "ref": "buzzer1",
       "part_id": "buzzer_passive",
       "qty": 1,
       "role": "beeps when the soil is dry",
-      "reason": "Driven straight from a GPIO with tone()"
+      "reason": "Driven straight from a GPIO with tone()",
+      "i2c_address": null
     },
     {
       "ref": "env2",
       "part_id": "bme280_breakout",
       "qty": 1,
-      "role": "second sensor",
-      "reason": "test"
+      "role": "another sensor",
+      "reason": "test",
+      "i2c_address": "0x77"
     },
     {
       "ref": "env3",
       "part_id": "bme280_breakout",
       "qty": 1,
-      "role": "second sensor",
-      "reason": "test"
+      "role": "another sensor",
+      "reason": "test",
+      "i2c_address": "0x76"
     }
   ],
   "connections": [
@@ -238,7 +245,6 @@
     "template": "box_lid",
     "wall_mm": 2.0,
     "clearance_mm": 1.0,
-    "cutouts": [],
     "extras": []
   }
 }

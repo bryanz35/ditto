@@ -1,5 +1,6 @@
 import dataclasses
 import inspect
+import json
 import typing
 from pathlib import Path
 
@@ -7,8 +8,10 @@ import pytest
 
 from backend.contracts.parts import load_library
 from backend.contracts.results import ToolResult
+from backend.contracts.runner import StageRunner
 from backend.contracts.spec import Layout, ProjectSpec
 from backend.contracts.tools import ToolBox
+from backend.runtime.stages import run_stages
 from backend.tools.fakes import FIXTURE_RUN, fake_toolbox
 from backend.tools.toolbox import real_toolbox
 
@@ -27,9 +30,14 @@ def test_real_tool_matches_its_protocol(name):
     assert typing.get_type_hints(tool)["return"] is ToolResult, name
 
 
+def test_stage_runner_stub_matches_its_protocol():
+    assert params(run_stages)[:4] == params(StageRunner.__call__)
+
+
 def test_fake_toolbox_succeeds_and_writes_only_inside_out_dir(tmp_path):
     box = fake_toolbox()
-    spec = ProjectSpec.model_validate_json((FIXTURE_RUN / "spec.json").read_text())
+    fixture = ProjectSpec.model_validate_json((FIXTURE_RUN / "spec.json").read_text())
+    spec = fixture.model_copy(update={"rev": fixture.rev + 1})  # as after an edit
     lib = load_library()
     layout = Layout.model_validate_json(
         (FIXTURE_RUN / "cad" / "layout.json").read_text()
@@ -50,7 +58,7 @@ def test_fake_toolbox_succeeds_and_writes_only_inside_out_dir(tmp_path):
             spec, lib, tmp_path / "firmware", tmp_path / "sim"
         ),
         "run_simulation": lambda f: f(tmp_path / "sim", 5000, "P2D_READY"),
-        "price_bom": lambda f: f(spec, lib, None, {}, tmp_path),
+        "price_bom": lambda f: f(spec, lib, None, tmp_path),
         "cross_checks": lambda f: f(tmp_path, spec, lib),
         "preprocess_input": lambda f: f([Path("sketch.png")], tmp_path / "input"),
     }
@@ -59,7 +67,10 @@ def test_fake_toolbox_succeeds_and_writes_only_inside_out_dir(tmp_path):
         result = call(getattr(box, name))
         assert result.ok, name
         for path in result.artifacts.values():
-            assert Path(path).is_file() and tmp_path in Path(path).parents, (name, path)
+            assert Path(path).is_absolute() and Path(path).is_file(), (name, path)
+            assert Path(path).is_relative_to(tmp_path.resolve()), (name, path)
+    for rel in ("wiring.json", "bom.json", "cad/manifest.json"):
+        assert json.loads((tmp_path / rel).read_text())["spec_rev"] == spec.rev, rel
 
 
 def test_stubs_return_skipped_tool_results():
