@@ -101,3 +101,18 @@ def test_run_manifest_points_at_real_files():
     for info in manifest.artifacts.values():
         assert (RUN / info.path).is_file(), info.path
     assert load_spec(RUN / "spec.json").rev == manifest.spec_rev
+
+
+@pytest.mark.parametrize(
+    ("copy", "source"),
+    [
+        (RUN / "spec.json", FIXTURES / "specs" / "plant_monitor.json"),
+        (RUN / "events.jsonl", FIXTURES / "events" / "plant_monitor.jsonl"),
+    ],
+    ids=lambda p: p.name if isinstance(p, Path) else p,
+)
+def test_run_fixture_copies_match_their_sources(copy, source):
+    """The run fixture holds real copies (git symlinks break on Windows); keep them in sync."""
+    assert copy.read_text().splitlines() == source.read_text().splitlines(), (
+        f"{copy.relative_to(FIXTURES)} differs from {source.relative_to(FIXTURES)}: copy it over"
+    )
