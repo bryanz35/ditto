@@ -25,6 +25,10 @@ class UserContext(Model):
     """Printer profile id, e.g. "generic". When None, use HARDWARE.md's PRINTER_MODEL."""
     rejected: list[str] = []
     """Choices the user turned down before, e.g. "no buzzers", "smaller case"."""
+    level: Literal["beginner", "intermediate", "expert"] = "intermediate"
+    """How much the agent explains: wording of reasons, assumptions and questions, and part choices."""
+    name: str | None = None
+    """Display name: shown in the sidebar; the agent addresses the user by it."""
 
 
 class PartInstance(Model):

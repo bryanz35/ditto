@@ -1492,6 +1492,8 @@
           "$ref": "#/$defs/UserContext",
           "default": {
             "budget_usd": null,
+            "level": "intermediate",
+            "name": null,
             "owned": {},
             "printer": null,
             "rejected": []
@@ -1596,6 +1598,8 @@
           "$ref": "#/$defs/UserContext",
           "default": {
             "budget_usd": null,
+            "level": "intermediate",
+            "name": null,
             "owned": {},
             "printer": null,
             "rejected": []
@@ -1743,6 +1747,28 @@
           ],
           "default": null
         },
+        "level": {
+          "default": "intermediate",
+          "description": "How much the agent explains: wording of reasons, assumptions and questions, and part choices.",
+          "enum": [
+            "beginner",
+            "intermediate",
+            "expert"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Display name: shown in the sidebar; the agent addresses the user by it."
+        },
         "owned": {
           "additionalProperties": {
             "type": "integer"
@@ -1776,7 +1802,9 @@
         "budget_usd",
         "owned",
         "printer",
-        "rejected"
+        "rejected",
+        "level",
+        "name"
       ],
       "title": "UserContext",
       "type": "object"

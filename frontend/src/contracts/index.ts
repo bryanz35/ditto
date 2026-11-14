@@ -642,6 +642,14 @@ export interface EnclosureSpec1 {
 export interface UserContext {
   budget_usd: number | null;
   /**
+   * How much the agent explains: wording of reasons, assumptions and questions, and part choices.
+   */
+  level: "beginner" | "intermediate" | "expert";
+  /**
+   * Display name: shown in the sidebar; the agent addresses the user by it.
+   */
+  name: string | null;
+  /**
    * Part id -> quantity on hand, from the inventory memory. The BOM prices only what's missing.
    */
   owned: {
@@ -703,6 +711,14 @@ export interface RunRequest {
 export interface UserContext1 {
   budget_usd: number | null;
   /**
+   * How much the agent explains: wording of reasons, assumptions and questions, and part choices.
+   */
+  level: "beginner" | "intermediate" | "expert";
+  /**
+   * Display name: shown in the sidebar; the agent addresses the user by it.
+   */
+  name: string | null;
+  /**
    * Part id -> quantity on hand, from the inventory memory. The BOM prices only what's missing.
    */
   owned: {
@@ -756,6 +772,14 @@ export interface ToolResult {
  */
 export interface UserContext2 {
   budget_usd: number | null;
+  /**
+   * How much the agent explains: wording of reasons, assumptions and questions, and part choices.
+   */
+  level: "beginner" | "intermediate" | "expert";
+  /**
+   * Display name: shown in the sidebar; the agent addresses the user by it.
+   */
+  name: string | null;
   /**
    * Part id -> quantity on hand, from the inventory memory. The BOM prices only what's missing.
    */

@@ -1,4 +1,4 @@
-"""SQLite memory (T16): inventory (part id -> quantity), preferences (budget, printer) and rejected
+"""SQLite memory (T16): inventory (part id -> quantity), preferences (budget, printer, level, name) and rejected
 choices. It round-trips UserContext, which is what a run's spec.user is filled from."""
 
 import json
@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS inventory (part_id TEXT PRIMARY KEY, qty INTEGER NOT 
 CREATE TABLE IF NOT EXISTS preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS rejections (pos INTEGER PRIMARY KEY, text TEXT NOT NULL);
 """
-PREFERENCES = ("budget_usd", "printer")
+PREFERENCES = ("budget_usd", "printer", "level", "name")
 
 
 def default_path() -> Path:

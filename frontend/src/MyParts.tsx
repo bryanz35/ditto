@@ -5,7 +5,14 @@ import { useSend } from './api'
 import type { UserContext } from './contracts'
 import { Icon } from './Icon'
 
-const EMPTY: UserContext = { budget_usd: null, owned: {}, printer: null, rejected: [] }
+const EMPTY: UserContext = {
+  budget_usd: null,
+  level: 'intermediate',
+  name: null,
+  owned: {},
+  printer: null,
+  rejected: [],
+}
 
 export function MyParts({
   memory,

@@ -16,12 +16,16 @@ def client(tmp_path):
 def test_get_put_round_trip(client):
     assert client.get("/memory").json() == {
         "budget_usd": None,
+        "level": "intermediate",
+        "name": None,
         "owned": {},
         "printer": None,
         "rejected": [],
     }
     body = {
         "budget_usd": 25.0,
+        "level": "beginner",
+        "name": "Sam",
         "owned": {"esp32_devkitc": 1},
         "printer": "generic",
         "rejected": ["no buzzers"],
