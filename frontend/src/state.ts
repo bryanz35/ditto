@@ -39,6 +39,8 @@ export interface Artifact {
   path: string
   stage: Stage
   spec_rev: number
+  /** Seq of the event that produced it: changes whenever the file is rewritten. */
+  seq: number
 }
 
 export interface RunState {
@@ -86,7 +88,7 @@ export function reduce(state: RunState, event: Event): RunState {
   }
   const artifacts = { ...state.artifacts }
   for (const [name, path] of Object.entries(event.artifacts)) {
-    artifacts[name] = { path, stage: event.stage, spec_rev: event.spec_rev }
+    artifacts[name] = { path, stage: event.stage, spec_rev: event.spec_rev, seq: event.seq }
   }
   let stale = state.stale
   if (event.status === 'stale' && !stale.includes(event.stage)) stale = [...stale, event.stage]
