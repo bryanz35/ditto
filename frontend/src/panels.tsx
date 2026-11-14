@@ -183,7 +183,7 @@ export function ChecksPanel({ state }: { state: RunState }) {
         {STAGES.map((stage) => {
           const s = state.stages[stage]
           return (
-            <li key={stage} data-stage={stage}>
+            <li key={stage} data-stage={stage} data-status={s?.status ?? 'queued'}>
               <b>{stage}</b> <Badge status={state.stale.includes(stage) ? 'stale' : (s?.status ?? 'queued')} />{' '}
               {s?.status === 'running' && s.attempt !== null && s.attempt > 1 && <>attempt {s.attempt}: </>}
               {s?.message}

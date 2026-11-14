@@ -49,6 +49,8 @@ body { margin: 0; background: var(--bg); }
 .attempts, .errors { margin: 2px 0 4px; }
 .errors .error { color: var(--bad); }
 .errors .warning { color: var(--warn); }
+/* a skipped stage's errors only say why it didn't run (no token, not implemented): not failures */
+[data-status='skipped'] .errors li { color: var(--muted); }
 .hint { color: var(--muted); }
 .badge { display: inline-block; font-size: 0.72rem; padding: 0 6px; border-radius: 8px; border: 1px solid currentColor; margin: 0 4px; }
 .badge.passed { color: var(--ok); }
