@@ -32,7 +32,7 @@ pytestmark = [
     pytest.mark.slow,
     pytest.mark.live,
     pytest.mark.xfail(
-        reason="needs T14 (API and run engine) and T20 (integration)", strict=False
+        reason="needs T20 (integration: real tools behind the API)", strict=False
     ),
 ]
 

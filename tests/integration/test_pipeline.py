@@ -183,7 +183,6 @@ def test_compile_firmware(tools, lib, spec, tmp_path):
 # --- wiring (T14), simulation (T26), BOM (T16) -----------------------------------------------------
 
 
-@xfail("T14 (wiring)")
 def test_build_wiring(tools, lib, spec, tmp_path):
     result = tools.build_wiring(spec, lib, tmp_path)
     path = assert_artifacts(result, {"wiring_json"}, tmp_path)["wiring_json"]
@@ -261,7 +260,7 @@ def test_cross_checks_accept_fixture_run(tools, lib, spec, tmp_path):
 
 
 @pytest.mark.slow
-@xfail("T14 (run_stages) and every tool: T10, T11, T12, T16, T25, T26")
+@xfail("every tool behind run_stages: T10, T11, T12, T16, T21, T25, T26")
 def test_full_chain_through_run_stages(
     tools, lib, spec, tmp_path, monkeypatch, no_network
 ):
