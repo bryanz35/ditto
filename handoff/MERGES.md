@@ -10,3 +10,4 @@ you depend on appears here.
 | 2 | baaed0c | T13 | AgentRunner (run/edit/answer), orchestrator + 3 sub-agents, tool wrappers with code-enforced 3-retry limit; deepagents 0.7.38. Live smoke pending T10 + keys |
 | 6 | 1cbf4b6 | T14 | API (FastAPI runs/files), run engine with `run_stages`, deps, replay runner. Contract tests on Windows still fail only on symlinked fixtures (pre-existing) |
 | 6 | dc91bcf | T11 | Layout, build123d enclosure (base/lid STEP+STL, cad/manifest.json), check_enclosure (watertight, fits printer). First slow run after uv sync failed once in _build (cold build123d import?); 3 reruns green - QA watch for flakiness |
+| 6 | 351542d | T10 | validate_spec: ref/pin/type checks, input-only, strapping, ADC2-vs-WiFi, I2C address clashes, power budget; invalid fixtures each fail with their code |
