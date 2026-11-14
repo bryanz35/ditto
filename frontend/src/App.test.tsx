@@ -70,6 +70,8 @@ class FakeEventSource {
   }
 }
 
+/** What GET /runs returns; null: the API has no run list (404). */
+let serverRuns: Record<string, unknown>[] | null = null
 let editStatus = 202
 let putStatus = 200
 /** What GET /memory returns; null: the memory API isn't there (404). */
@@ -82,6 +84,10 @@ const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
   if (url.endsWith('/edit')) {
     return { ok: editStatus < 300, status: editStatus, text: async () => '{"detail":"The run is still working"}' }
   }
+  if (url === '/api/runs') {
+    return serverRuns ? { ok: true, json: async () => serverRuns } : { ok: false, status: 404, text: async () => 'not found' }
+  }
+  if (url.endsWith('/cancel')) return { ok: true, status: 202, text: async () => '{}' }
   if (url.endsWith('/answer')) return { ok: true, status: 200, text: async () => '{"ok":true}' }
   if (url === '/api/memory' && init?.method === 'PUT') {
     if (putStatus >= 300) return { ok: false, status: putStatus, text: async () => '{"detail":"unknown part id: nope"}' }
@@ -129,6 +135,7 @@ beforeEach(() => {
   putStatus = 200
   memory = null
   fileOverrides = {}
+  serverRuns = null
   localStorage.clear()
   vi.stubGlobal('EventSource', FakeEventSource)
   vi.stubGlobal('fetch', fetchMock)
@@ -188,6 +195,15 @@ describe('Start', () => {
     const user = JSON.parse((lastCall('/api/runs', 'POST')![1]!.body as FormData).get('user_context') as string)
     expect(user).toEqual({ level: 'beginner' })
     screen.getByText('Your kit')
+  })
+
+  it("lists the server's runs under Recent, next to the ones started here (T39)", async () => {
+    serverRuns = [{ run_id: 'elsewhere', title: 'Night light', stage: 'done', status: 'passed', ts: Date.now() / 1000, spec_rev: 1 }]
+    render(<App />)
+    const row = await within(screen.getByRole('navigation', { name: 'Projects' })).findByRole('button', { name: /Night light/ })
+    expect(row.textContent).toMatch(/Plan ready/)
+    fireEvent.click(row)
+    expect(openStream().url).toBe('/api/runs/elsewhere/events')
   })
 
   it('sends with Enter, while Shift+Enter starts a new line', async () => {
@@ -250,11 +266,14 @@ describe('Planning', () => {
     expect(stage('validate').textContent).toMatch(/running.*attempt 2: Checking the revised spec/)
   })
 
-  it('draws the controls the backend cannot serve yet as placeholders that name their task', () => {
-    openRun().emit(lines.slice(0, 1))
+  it('stops the run with Stop (T39)', async () => {
+    const stream = openRun()
+    stream.emit(lines.slice(0, 1))
     const stop = screen.getByRole('button', { name: 'Stop' })
-    expect(stop.getAttribute('aria-disabled')).toBe('true')
-    expect(stop.title).toBe('Not connected yet (T39)')
+    expect(stop.getAttribute('data-placeholder')).toBeNull()
+    await act(async () => fireEvent.click(stop))
+    expect(lastCall('/api/runs/plant_monitor/cancel', 'POST')).toBeDefined()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })
 

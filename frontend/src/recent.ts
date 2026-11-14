@@ -1,5 +1,6 @@
-// Recent projects for the sidebar, kept in this browser.
-// shortcut: browser storage only, so another browser sees no history; upgrade to T39's GET /runs.
+// Recent projects for the sidebar: the ones started in this browser (with their prompt and files),
+// merged with every run on the server (GET /runs), so another browser's projects show too.
+import type { RunSummary } from './contracts'
 
 export const LEVELS = ['Beginner', 'Intermediate', 'Expert'] as const
 export type Level = (typeof LEVELS)[number]
@@ -39,6 +40,23 @@ export function remember(list: Recent[], change: Partial<Recent> & { id: string 
     // storage off: the list lives until the tab closes
   }
   return next
+}
+
+/** Adds the server's runs this browser doesn't know, newest first; entries started here keep their details. */
+export function mergeRuns(list: Recent[], runs: RunSummary[]): Recent[] {
+  const known = new Set(list.map((r) => r.id))
+  const more: Recent[] = runs
+    .filter((r) => !known.has(r.run_id))
+    .map((r) => ({
+      id: r.run_id,
+      title: r.title || 'New project',
+      prompt: '',
+      files: [],
+      level: null,
+      status: r.stage !== 'done' ? 'Planning…' : r.status === 'passed' ? 'Plan ready' : 'Needs a look',
+      at: r.ts * 1000,
+    }))
+  return [...list, ...more].sort((a, b) => b.at - a.at).slice(0, MAX)
 }
 
 /** "just now", "5m ago", "2h ago", then a date like "Nov 9". */

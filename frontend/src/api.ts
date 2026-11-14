@@ -1,6 +1,6 @@
 // The API calls the UI makes (backend/app/routers/runs.py and files.py, behind the /api proxy).
 import { useEffect, useMemo, useReducer, useState } from 'react'
-import type { AnswerRequest, EditRequest, Event as RunEvent, UserContext } from './contracts'
+import type { AnswerRequest, EditRequest, Event as RunEvent, RunSummary, UserContext } from './contracts'
 import { initialState, reduce, type RunState } from './state'
 
 /** ?v busts the browser cache when a stage rewrites the same file. */
@@ -32,6 +32,16 @@ export const editRun = (runId: string, request: EditRequest) =>
 
 export const answerQuestion = (runId: string, request: AnswerRequest) =>
   postJson(`/api/runs/${encodeURIComponent(runId)}/answer`, request)
+
+/** The API answers 409 when the run isn't working; the stream then ends with a failed `done`. */
+export const cancelRun = (runId: string) => postJson(`/api/runs/${encodeURIComponent(runId)}/cancel`, {})
+
+/** Every run on the server, newest first. */
+export async function listRuns(): Promise<RunSummary[]> {
+  const res = await fetch('/api/runs')
+  if (!res.ok) throw new Error(`Loading your projects failed (${res.status})`)
+  return (await res.json()) as RunSummary[]
+}
 
 export async function getMemory(): Promise<UserContext> {
   const res = await fetch('/api/memory')
