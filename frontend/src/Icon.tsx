@@ -13,7 +13,7 @@ export function Icon({ name, className = '' }: { name: IconName; className?: str
     <span
       aria-hidden="true"
       className={`icon ${className}`}
-      style={{ maskImage: `url(${URLS[`./assets/icons/${name}.svg`]})` }}
+      style={{ maskImage: `url("${URLS[`./assets/icons/${name}.svg`]}")` }}
     />
   )
 }

@@ -4,8 +4,8 @@
 // are named by ref and carry the part_id in their extras (backend/cad/assembly.py).
 import { Bounds, GizmoHelper, GizmoViewport, Grid, Html, OrbitControls } from '@react-three/drei'
 import { Canvas, useLoader, type ThreeEvent } from '@react-three/fiber'
-import { Suspense, useMemo } from 'react'
-import { Box3, Vector3 } from 'three'
+import { Suspense, useEffect, useMemo } from 'react'
+import { Box3, Mesh, MeshStandardMaterial, Vector3 } from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { STLLoader } from 'three/addons/loaders/STLLoader.js'
 
@@ -14,12 +14,13 @@ const BG = '#1e1e1e'
 const GRID_MINOR = '#303030'
 const GRID_MAJOR = '#3c3c3c'
 const AXES: [string, string, string] = ['#f14c4c', '#73c991', '#3794ff']
+const SHELL = '#4a4a50'
 
 function Part({ url, lid }: { url: string; lid: boolean }) {
   const geometry = useLoader(STLLoader, url)
   return (
     <mesh geometry={geometry}>
-      <meshStandardMaterial color={lid ? '#8b8b8b' : '#4a4a50'} transparent={lid} opacity={lid ? 0.3 : 1} />
+      <meshStandardMaterial color={lid ? '#8b8b8b' : SHELL} transparent={lid} opacity={lid ? 0.3 : 1} />
     </mesh>
   )
 }
@@ -34,6 +35,12 @@ function Assembly({
   onSelect?: (ref: string) => void
 }) {
   const gltf = useLoader(GLTFLoader, url)
+  // the GLB paints base and lid light grey; the design's case is dark (parts keep their category colours)
+  useEffect(() => {
+    gltf.scene.traverse((o) => {
+      if (o instanceof Mesh && !o.userData.part_id) o.material = new MeshStandardMaterial({ color: SHELL })
+    })
+  }, [gltf])
   // the label sits on top of the selected part
   const anchor = useMemo(() => {
     const node = selected && gltf.scene.getObjectByName(selected.ref)

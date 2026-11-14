@@ -118,7 +118,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   border: none; border-radius: var(--radius-sm); background: none; cursor: pointer; text-align: left;
 }
 .nav-item { height: 32px; font-weight: 500; color: var(--color-text-primary); }
-.nav-item span:first-of-type { flex: 1; }
+.nav-item .label { flex: 1; }
 .nav-item .count { font: 11px/16px var(--font-mono); color: var(--color-text-secondary); }
 .nav-item:hover, .project-row:hover { background: var(--color-surface-hover); }
 .nav-item[aria-current='page'], .project-row[aria-current='page'] { background: var(--color-surface-selected); color: var(--color-text-bright); }

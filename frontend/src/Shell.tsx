@@ -48,7 +48,7 @@ export function Shell({
           onClick={() => onOpen(null)}
         >
           <Icon name="house" />
-          <span>Home</span>
+          <span className="label">Home</span>
         </button>
         <button
           type="button"
@@ -57,13 +57,13 @@ export function Shell({
           onClick={() => onPage('parts')}
         >
           <Icon name="box" />
-          <span>My parts</span>
+          <span className="label">My parts</span>
           {kit !== null && <span className="count">{kit}</span>}
         </button>
         {/* shortcut: Examples has no screen in the design yet */}
         <button type="button" className="nav-item" {...soon(null)}>
           <Icon name="book-open" />
-          <span>Examples</span>
+          <span className="label">Examples</span>
         </button>
         {recent.length > 0 && <h2 className="section-title">Recent</h2>}
         {recent.map((r) => (
