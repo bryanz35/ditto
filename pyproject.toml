@@ -1,0 +1,39 @@
+[project]
+name = "prompt-to-device"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "build123d>=0.13.0",
+    "deepagents>=0.7.38",
+    "fastapi>=0.162.7",
+    "httpx>=0.28.1",
+    "jinja2>=3.1.6",
+    "langchain-anthropic>=1.7.10",
+    "pydantic>=2",
+    "python-multipart>=0.0.33",
+    "pyyaml>=6.0.3",
+    "sse-starlette>=3.7.0",
+    "trimesh>=5.2.1",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.5.0",
+    "respx>=0.23.1",
+    "ruff>=0.17.5",
+]
+
+[tool.ruff.format]
+exclude = ["*.md"]  # don't reflow code samples in the plan docs
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "--strict-markers"
+asyncio_mode = "auto"
+markers = [
+    "slow: PlatformIO compiles, CAD builds, ffmpeg (run by make test-slow)",
+    "live: calls real APIs and costs money (run by make test-live)",
+]

@@ -26,7 +26,7 @@ of truth: every other output is generated from it.
    Never import another area's private helpers.
 5. **No network in unit tests.** Use fixtures and mocks. Mark slow tests `@pytest.mark.slow`
    (PlatformIO compiles, build123d builds) and tests that call real APIs `@pytest.mark.live`.
-6. **Never commit secrets.** Keys live in `.env` (symlinked into every worktree, gitignored).
+6. **Never commit secrets.** Keys live in `.env` (copied from `.env.example`, symlinked into every worktree, gitignored).
 7. **Keep your status file current** (`handoff/status/<TASK>.md`), at least at every commit you'd
    want a teammate to know about. It's how the Integrator and humans see progress without interrupting you.
 8. **Don't merge to `main`.** Open a PR (or tell your human it's ready). Only the Integrator merges.
@@ -83,16 +83,17 @@ Files are created as stubs in T00/T01 so that no two tasks ever create the same 
 
 | Command | What it does |
 | --- | --- |
-| `make setup` | `uv sync` + `npm ci` in `frontend/` |
+| `make setup` | `uv sync` + `npm ci` in `frontend/` + PlatformIO (`uv tool install platformio`, if `pio` is missing) |
 | `make test` | Fast unit + contract tests (must pass before every PR) |
 | `make test-slow` | Adds PlatformIO compiles and CAD builds |
 | `make test-live` | Calls real APIs (needs `.env`; costs money: run sparingly) |
-| `make lint` | `ruff check`, `ruff format --check`, `tsc --noEmit`, `eslint` |
+| `make lint` | `ruff check`, `ruff format --check`, `tsc -b` (type check), `oxlint` |
 | `make types` | Regenerates `frontend/src/contracts/` from the Pydantic models (Integrator only) |
 | `make dev` | API on `$API_PORT` and web on `$WEB_PORT` from `.env.worktree` |
 | `P2D_RUNNER=fake make dev` | API replays a recorded run (no model calls): for frontend work |
 
-Ports differ per worktree so several dev servers can run at once.
+Ports differ per worktree so several dev servers can run at once. The web dev server proxies `/api/*` to the
+API with the prefix stripped: the UI fetches `/api/runs/...`, the API serves `/runs/...`.
 
 ## Code conventions
 

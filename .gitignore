@@ -1,0 +1,23 @@
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Runs and build output (fixture meshes are kept)
+runs/
+.pio/
+*.stl
+!fixtures/**/*.stl
+
+# Secrets and per-worktree config
+.env
+.env.worktree
+
+# Local tooling, not part of the project
+CLAUDE.local.md
+graft/
