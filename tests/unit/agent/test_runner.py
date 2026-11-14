@@ -225,3 +225,15 @@ async def test_edit_keeps_the_runs_level(events):
 
     assert edited.user.level == "expert"
     assert "The user is an expert" in orchestrator.seen[edit_starts][0].text
+
+
+async def test_firmware_agent_sees_the_saved_specs_pin_macros(events):
+    """The G1 live run guessed PIN_BZ1_POSITIVE; the prompt must list what pins.h defines."""
+    r = runner(run_script())
+    await r.run(RunRequest(run_id="r1", prompt=PROMPT), events.append)
+
+    system = r.models["firmware"].seen[0][0]
+    assert system.type == "system"
+    assert "pins.h for the saved spec defines exactly these macros" in system.content
+    assert "- PIN_BUZZER1_SIG (GPIO" in system.content
+    assert "PIN_ENV1_VCC" not in system.content  # power pins get no macro

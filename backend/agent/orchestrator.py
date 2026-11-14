@@ -6,6 +6,7 @@ orchestrator can't route around the specialists.
 """
 
 import os
+from collections.abc import Callable
 from pathlib import Path
 
 from deepagents import (
@@ -14,7 +15,7 @@ from deepagents import (
     create_deep_agent,
     register_harness_profile,
 )
-from langchain.agents.middleware import TodoListMiddleware
+from langchain.agents.middleware import ModelRequest, TodoListMiddleware, dynamic_prompt
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -94,11 +95,23 @@ def build_agent(
     checkpointer: BaseCheckpointSaver,
     models: dict[str, ModelLike] | None = None,
     user: UserContext | None = None,
+    pin_macros: Callable[[], str] | None = None,
 ):
     """models: per-sub-agent overrides by name (e.g. a stronger model for parts-and-pins).
-    user: whose level and name every prompt adapts to."""
+    user: whose level and name every prompt adapts to.
+    pin_macros: read on every firmware model call, so the firmware agent sees the macros of the
+    spec saved at that moment instead of guessing their names."""
     models = models or {}
     about = profile(user)
+    firmware_middleware = []
+    if pin_macros:
+
+        @dynamic_prompt
+        def with_pin_macros(request: ModelRequest) -> str:
+            return f"{request.system_prompt}\n\n{pin_macros()}"
+
+        firmware_middleware = [with_pin_macros]
+
     if isinstance(model, str):
         # The profile is looked up by the main model's spec string; instances (fakes) keep the default.
         register_harness_profile(
@@ -115,6 +128,7 @@ def build_agent(
             "system_prompt": f"{prompt(prompt_name)}\n\n{house_rules()}{about}",
             "tools": [tools[t] for t in tool_names],
             "model": model_spec(models.get(name, model)),
+            "middleware": firmware_middleware if name == "firmware" else [],
         }
         for name, (prompt_name, description, tool_names) in SUBAGENTS.items()
     ]

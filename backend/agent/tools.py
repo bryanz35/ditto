@@ -53,6 +53,23 @@ class RunContext:
         self.spec_path.parent.mkdir(parents=True, exist_ok=True)
         self.spec_path.write_text(spec.model_dump_json(indent=2) + "\n")
 
+    def pin_macros(self) -> str:
+        """The PIN_* macros pins.h defines for the saved spec (T12's rule: GPIO connections only)."""
+        spec = self.load_spec()
+        if spec is None:
+            return "No spec is saved yet, so pins.h has no macros."
+        macros = sorted(
+            {
+                f"- PIN_{c.part_ref.upper()}_{c.part_pin.upper()} ({c.mcu_pin})"
+                for c in spec.connections
+                if c.mcu_pin.startswith("GPIO")
+            }
+        )
+        return (
+            "pins.h for the saved spec defines exactly these macros; use no others:\n"
+            + ("\n".join(macros) or "(none)")
+        )
+
     def next_rev(self) -> int:
         saved = self.load_spec()
         return saved.rev + 1 if saved else 1
