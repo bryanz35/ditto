@@ -1,0 +1,37 @@
+# KY-040 rotary encoder module with push switch, 5-pin header CLK DT SW + GND (pin order: components101,
+# https://components101.com/modules/KY-04-rotary-encoder-pinout-features-datasheet-working-application-alternative).
+# Pull-ups on CLK and DT to the + pin, low = switch closed, 20 pulses/rev, 30 x 18 x 30 mm: source (Handsontec).
+# Supply 3.3 or 5 V, "10 k onboard on CLK, DT, SW", < 10 mA: Shillehtek manual,
+# https://shillehtek.com/blogs/shillehtek-product-manuals/ky-040-rotary-encoder-module-for-arduino-with-demo-code-manual
+# The pull-ups go to +, so power it from 3V3 on an ESP32 (5 V would put 5 V on CLK and DT).
+# Vendors differ on whether SW has a pull-up fitted, and Wokwi's SW has none: always use INPUT_PULLUP on SW.
+# Shaft position, button opening and mount holes are estimates/unknown. Measure at H1.
+id: ky040_encoder
+name: Rotary encoder with push button (KY-040)
+category: input
+logic_voltage: 3.3
+supply_voltage: [3.3, 5.0]
+max_current_ma: 10
+pins:
+  - {name: CLK, type: gpio_in}  # encoder A
+  - {name: DT, type: gpio_in}  # encoder B
+  - {name: SW, type: gpio_in}  # push switch, shorts to GND when pressed
+  - {name: VCC, type: power}  # silkscreen "+"
+  - {name: GND, type: gnd}
+board_mm: {l: 30.0, w: 18.0, h: 30.0}  # h includes the shaft
+provisional: true
+dims_source: datasheet
+mount_holes: []  # not documented: measure at H1
+features:
+  # The shaft (push to press) comes out of the lid; position and opening size are estimates.
+  - {kind: button, face: top, offset_mm: [13.0, 9.0], size_mm: [8.0, 8.0]}
+pio_lib_deps: []
+snippet: snippets/ky040_encoder.cpp
+mpn: null
+vendor_url: https://shillehtek.com/products/ky-040-rotary-encoder-module-for-arduino-with-demo-code
+manual_price_usd: 6.99
+owned_alternatives: []
+wokwi_type: wokwi-ky-040
+wokwi_pins: {}  # Wokwi uses the same names: CLK, DT, SW, VCC, GND
+wokwi_attrs: {}
+source: https://www.handsontec.com/dataspecs/module/Rotary%20Encoder.pdf

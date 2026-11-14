@@ -1,0 +1,32 @@
+# Waterproof DS18B20 probe: stainless tube 6 mm dia x 30 mm on a 91 cm, 4 mm cable. 3 wires: red VDD (3-5 V),
+# black (or blue) GND, yellow (or white) DATA. Wires, supply, probe size and price: source (Adafruit 381).
+# Chip: 3.0-5.5 V, 1.5 mA max while converting; the 1-Wire DQ line needs a 4.7k pull-up to VDD
+# (Maxim/Dallas DS18B20 datasheet, https://cdn.sparkfun.com/datasheets/Sensors/Temp/DS18B20.pdf).
+# Wire the 4.7k from DATA to 3V3 (Adafruit includes one). Several probes can share DATA (64-bit IDs).
+# The probe sits in the medium being measured: the part is outside the case, the enclosure gets a cable hole.
+id: ds18b20_probe
+name: Waterproof DS18B20 temperature probe (1-Wire)
+category: sensor
+logic_voltage: 3.3
+supply_voltage: [3.3, 5.0]
+max_current_ma: 1.5
+pins:
+  - {name: VDD, type: power}  # red wire
+  - {name: GND, type: gnd}  # black or blue wire
+  - {name: DATA, type: gpio}  # yellow or white wire; 1-Wire is bidirectional; needs the 4.7k pull-up
+board_mm: {l: 30.0, w: 6.0, h: 6.0}  # the steel tube; the cable leaves from one end
+mounting: external
+provisional: true
+dims_source: listing
+mount_holes: []
+features: []
+pio_lib_deps: ["paulstoffregen/OneWire", "milesburton/DallasTemperature"]
+snippet: snippets/ds18b20_probe.cpp
+mpn: "381"  # Adafruit product ID
+vendor_url: https://www.adafruit.com/product/381
+manual_price_usd: 9.95
+owned_alternatives: []
+wokwi_type: wokwi-ds18b20
+wokwi_pins: {VDD: VCC, DATA: DQ}
+wokwi_attrs: {}
+source: https://www.adafruit.com/product/381

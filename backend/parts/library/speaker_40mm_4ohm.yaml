@@ -1,0 +1,28 @@
+# Adafruit 3968 "Speaker - 40mm Diameter - 4 Ohm 5 Watt" (sold as 3 W before 2024-01), ~90 mm wire leads.
+# Price and leads: https://www.adafruit.com/product/3968. Drawing (source): frame dia 40.0, rim 36.5,
+#   magnet dia 23, height 21; 4 ohm, 5 W rated.
+# No MCU pins: the leads go to the amplifier's speaker terminal (max98357a), red = +.
+# Grille size is an estimate inside the 36.5 mm rim so the frame can seal against the lid. Measure at H1.
+id: speaker_40mm_4ohm
+name: Speaker, 40 mm, 4 ohm, 5 W (Adafruit 3968)
+category: output
+logic_voltage: 3.3  # required field; unused: no logic pins
+supply_voltage: []
+max_current_ma: 0  # powered by the amplifier, which carries this current in its own budget
+pins: []
+board_mm: {l: 40.0, w: 40.0, h: 21.0}
+provisional: true
+dims_source: datasheet
+mount_holes: []  # no flange holes: glue or clamp the rim
+features:
+  - {kind: sound, face: top, offset_mm: [20.0, 20.0], size_mm: [32.0, 32.0]}  # cone faces the lid
+pio_lib_deps: []
+snippet: null
+mpn: "3968"
+vendor_url: https://www.adafruit.com/product/3968
+manual_price_usd: 4.95
+owned_alternatives: []
+wokwi_type: null  # Wokwi has no speaker (https://docs.wokwi.com/getting-started/supported-hardware)
+wokwi_pins: {}
+wokwi_attrs: {}
+source: https://cdn-shop.adafruit.com/product-files/3968/H-23071740-02.pdf

@@ -1,0 +1,37 @@
+# Adafruit NeoPixel Ring - 12 x 5050 RGB LED (product 1643): 5 V, 36.8 mm OD, 23.3 mm ID, 6.7 mm thick: source.
+# Pads "Power 5V DC", "Power Signal Ground", "Data Input", "Data Output" (same pads on the 16-LED ring:
+# https://www.pololu.com/product/2537).
+# Up to 60 mA per pixel at full white, so 12 x 60 = 720 mA: keep brightness low or use a separate 5 V supply.
+# https://learn.adafruit.com/adafruit-neopixel-uberguide/powering-neopixels
+# 3.3 V data: Adafruit says "If using a 3.3v microcontroller you must use a logic level shifter"
+# (74AHCT125 / 74HCT245), a 300-500 ohm resistor in the data line and a 500-1000 uF capacitor across 5V/GND;
+# a 3.3 V signal is OK when the ring runs from ~3.7 V. https://learn.adafruit.com/adafruit-neopixel-uberguide/best-practices
+# Wires solder to the back; feature size and h are estimates. Measure at H1.
+id: ws2812b_ring_12
+name: NeoPixel ring, 12 RGB LEDs (Adafruit 1643, WS2812B)
+category: light
+logic_voltage: 3.3  # needs a level shifter to 5 V for reliable data (see above)
+supply_voltage: [5.0]
+max_current_ma: 720
+pins:
+  - {name: VCC, type: power, voltage: 5.0}  # silkscreen "Power 5V DC"
+  - {name: GND, type: gnd}  # silkscreen "Power Signal Ground"
+  - {name: DIN, type: gpio_out}  # silkscreen "Data Input"
+  - {name: DOUT, type: gpio_in, optional: true}  # silkscreen "Data Output": chains to the next ring's DIN
+board_mm: {l: 36.8, w: 36.8, h: 6.7}
+provisional: true
+dims_source: datasheet
+mount_holes: []  # not documented
+features:
+  # The LEDs face up; the opening covers the whole ring.
+  - {kind: led, face: top, offset_mm: [18.4, 18.4], size_mm: [36.0, 36.0]}
+pio_lib_deps: ["adafruit/Adafruit NeoPixel"]
+snippet: snippets/ws2812b_ring_12.cpp
+mpn: "1643"
+vendor_url: https://www.adafruit.com/product/1643
+manual_price_usd: 8.95
+owned_alternatives: []
+wokwi_type: wokwi-led-ring
+wokwi_pins: {}  # Wokwi uses the same names: GND, VCC, DIN, DOUT
+wokwi_attrs: {pixels: "12"}
+source: https://www.adafruit.com/product/1643

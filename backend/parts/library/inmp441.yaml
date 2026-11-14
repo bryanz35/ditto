@@ -1,0 +1,36 @@
+# INMP441 I2S MEMS microphone breakout: round PCB, 6 pins VDD GND SD WS SCK L/R. L/R to GND = left channel.
+# Chip facts (source, TDK/InvenSense datasheet): VDD 1.62-3.63 V; 2.2 mA typ / 2.5 mA max at 3.3 V (normal mode);
+#   24-bit I2S, 64 SCK cycles per WS frame; L/R low = left, high = right; bottom-port package.
+# Breakout pin labels, ~15 mm round PCB, price: https://shillehtek.com/blogs/shillehtek-product-manuals/inmp441-i2s-omnidirectional-microphone-module-with-soldering-manual
+# Sound port: the chip is bottom-ported, so its sound hole goes through the PCB under the chip. Which face of the
+#   module that hole opens on was not documented: mount the hole side toward the case wall, check on the bench.
+# h and the port position (assumed centred) are estimates. Measure at H1.
+id: inmp441
+name: INMP441 I2S MEMS microphone module
+category: sensor
+logic_voltage: 3.3
+supply_voltage: [3.3]
+max_current_ma: 2.5
+pins:
+  - {name: VDD, type: power, voltage: 3.3}
+  - {name: GND, type: gnd}
+  - {name: SD, type: i2s_din}  # serial data out of the mic, into the MCU
+  - {name: WS, type: i2s_ws}
+  - {name: SCK, type: i2s_bclk}
+  - {name: LR, type: config}  # silkscreen "L/R": GND = left channel (what the snippet reads), 3V3 = right
+board_mm: {l: 15.0, w: 15.0, h: 10.0}
+provisional: true
+dims_source: listing
+mount_holes: []  # not documented
+features:
+  - {kind: sound, face: top, offset_mm: [7.5, 7.5], size_mm: [3.0, 3.0]}  # estimate: port assumed centred
+pio_lib_deps: []
+snippet: snippets/inmp441.cpp
+mpn: null
+vendor_url: https://shillehtek.com/blogs/shillehtek-product-manuals/inmp441-i2s-omnidirectional-microphone-module-with-soldering-manual
+manual_price_usd: 9.99
+owned_alternatives: []
+wokwi_type: null  # Wokwi has no I2S microphone (https://docs.wokwi.com/getting-started/supported-hardware)
+wokwi_pins: {}
+wokwi_attrs: {}
+source: https://microcontroller-course.web.cern.ch/Project_Material/resources/INMP441.pdf

@@ -1,0 +1,32 @@
+# 6 x 6 mm through-hole tactile switch, e.g. C&K PTS645SL43-2LFS (straight leads, 130 g, 4.3 mm tall).
+# SPST-NO, 50 mA @ 12 V DC. Four legs: 1-2 and 3-4 are joined inside (datasheet schematic); pressing
+# joins the two pairs. So only two pins matter: leg 1 to a GPIO (INPUT_PULLUP), leg 3 to GND.
+# Body 6.0 mm square, legs 6.5 x 4.5 mm apart, 7.9 mm across the bent legs, 4.3 mm above the PCB,
+# legs 3.5 mm below it, actuator 3.5 mm dia: source (C&K datasheet).
+# MPN check: https://lcsc.com/product-detail/Others_C-K-PTS645SL43-2LFS_C221874.html
+# A 4.3 mm switch doesn't reach a lid; pick the 9.5 mm actuator (PTS645SL95-2LFS) to poke through one.
+id: button_tactile_6mm
+name: Tactile push button, 6 x 6 mm, through-hole
+category: input
+logic_voltage: 3.3
+supply_voltage: []  # no supply: a passive switch
+max_current_ma: 0.1  # only the internal pull-up current (~3.3 V / 45k)
+pins:
+  - {name: "1", type: gpio_in}  # leg 1 (joined to leg 2); read with INPUT_PULLUP, LOW = pressed
+  - {name: "3", type: gnd}  # leg 3 (joined to leg 4)
+board_mm: {l: 7.9, w: 6.0, h: 7.8}  # h: 4.3 above the PCB + 3.5 of legs below
+provisional: true
+dims_source: datasheet
+mount_holes: []  # soldered by its legs
+features:
+  - {kind: button, face: top, offset_mm: [3.95, 3.0], size_mm: [3.5, 3.5]}  # round actuator, 3.5 mm dia
+pio_lib_deps: []
+snippet: snippets/button_tactile_6mm.cpp
+mpn: PTS645SL43-2LFS
+vendor_url: https://lcsc.com/product-detail/Others_C-K-PTS645SL43-2LFS_C221874.html
+manual_price_usd: null  # priced by MPN
+owned_alternatives: []
+wokwi_type: wokwi-pushbutton-6mm
+wokwi_pins: {"1": "1.l", "3": "2.l"}  # Wokwi: 1.l/1.r are one contact, 2.l/2.r the other
+wokwi_attrs: {}
+source: https://static.datasheets.com/doc/4932902-itt-pts645sl43-2lfs-ds.pdf

@@ -1,0 +1,36 @@
+# Adafruit I2S 3W Class D Amplifier Breakout - MAX98357A (product 3006), 1x7 header LRC BCLK DIN GAIN SD GND Vin.
+# Pins, Vin 2.5-5.5 V (product page says 2.7-5.5), 3.3-5 V logic, up to 650 mA at 5 V, GAIN and SD behaviour:
+#   source (Adafruit guide). GAIN unconnected = 9 dB. SD has 1M to Vin on the board: unconnected gives the
+#   stereo average at 5 V; under 0.16 V shuts the amp down.
+# The speaker +/- screw terminal is not an MCU pin: wire it to speaker_40mm_4ohm (4 ohm minimum).
+# PCB 19.4 x 17.8 x 3.0 mm and price: https://www.adafruit.com/product/3006
+# h is an estimate: ~8.5 headers + 1.6 PCB + ~8 terminal block. Measure at H1.
+id: max98357a
+name: Adafruit MAX98357A I2S 3 W class D mono amplifier
+category: output
+logic_voltage: 3.3
+supply_voltage: [3.3, 5.0]  # 3.2 W into 4 ohm needs 5 V
+max_current_ma: 650
+pins:
+  - {name: LRC, type: i2s_ws}
+  - {name: BCLK, type: i2s_bclk}
+  - {name: DIN, type: i2s_dout}  # audio data from the MCU
+  - {name: GAIN, type: config, optional: true}  # unconnected = 9 dB; GND = 12 dB; Vin = 6 dB
+  - {name: SD, type: config, optional: true}  # shutdown/channel select; unconnected = (L+R)/2
+  - {name: GND, type: gnd}
+  - {name: Vin, type: power}
+board_mm: {l: 19.4, w: 17.8, h: 18.0}
+provisional: true
+dims_source: listing
+mount_holes: []  # not documented
+features: []
+pio_lib_deps: []
+snippet: snippets/max98357a.cpp
+mpn: "3006"
+vendor_url: https://www.adafruit.com/product/3006
+manual_price_usd: 5.95
+owned_alternatives: []
+wokwi_type: null  # Wokwi has no I2S amplifier (https://docs.wokwi.com/getting-started/supported-hardware)
+wokwi_pins: {}
+wokwi_attrs: {}
+source: https://learn.adafruit.com/adafruit-max98357-i2s-class-d-mono-amp/pinouts

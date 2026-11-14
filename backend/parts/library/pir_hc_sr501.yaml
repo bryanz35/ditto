@@ -1,0 +1,35 @@
+# HC-SR501 PIR motion sensor (BISS0001 + LHI778), 1x3 header Power, Output, Ground. Supply 4.5-20 V,
+# OUT is 3.3 V high when motion is seen, 0 V idle, so it reads directly on an ESP32 pin.
+# Pins, supply, output level, 32 x 24 mm PCB, M2 holes 28 mm apart, 23 mm Fresnel lens: source
+# (vendor page, quoting the module datasheet). Same figures and the header order (Power, Output, GND):
+# https://static.rapidonline.com/pdf/74-1108_v2.pdf and
+# https://handsontec.com/dataspecs/sensor/PIR%20SR501%20Motion%20Sensor.pdf (65 mA "power consumption").
+# Height with lens 24.66 mm, from the same-size Adafruit PIR (32.34 x 24.03 mm): https://www.adafruit.com/product/189
+# Needs ~30-60 s after power-up before OUT is trustworthy. Pins are unmarked on many boards (under the lens).
+# Lens centre assumed at the PCB centre; mount hole positions (only the 28 mm pitch is known) not sourced.
+id: pir_hc_sr501
+name: PIR motion sensor (HC-SR501)
+category: sensor
+logic_voltage: 3.3
+supply_voltage: [5.0]  # 4.5-20 V: 3.3 V is too low for its regulator
+max_current_ma: 65  # datasheet "power consumption"; idle is ~60 uA
+pins:
+  - {name: VCC, type: power, voltage: 5.0}
+  - {name: OUT, type: gpio_in}
+  - {name: GND, type: gnd}
+board_mm: {l: 32.0, w: 24.0, h: 24.7}
+provisional: true
+dims_source: datasheet
+mount_holes: []  # M2, 28 mm pitch; positions not documented: measure at H1
+features:
+  - {kind: lens, face: top, offset_mm: [16.0, 12.0], size_mm: [23.0, 23.0]}  # Fresnel dome
+pio_lib_deps: []
+snippet: snippets/pir_hc_sr501.cpp
+mpn: null
+vendor_url: https://x2robotics.ca/hc-sr501-pir-motion-sensor
+manual_price_usd: 3.6  # listed at CAD 4.99
+owned_alternatives: []
+wokwi_type: wokwi-pir-motion-sensor
+wokwi_pins: {}  # Wokwi uses the same names: VCC, OUT, GND
+wokwi_attrs: {}
+source: https://x2robotics.ca/hc-sr501-pir-motion-sensor

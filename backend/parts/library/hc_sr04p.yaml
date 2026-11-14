@@ -1,0 +1,37 @@
+# HC-SR04P ultrasonic ranger: the 3.0-5.5 V variant (RCW datasheet, source), 1x4 header Vcc Trig Echo Gnd.
+# 2.2 mA typical at 3.3 V, 2-400 cm at 3.3 V; "size and software compatible with the old HC-SR04".
+# The datasheet says the 3 V minimum lets it connect directly to a 3.3 V MCU: power it from 3V3 so ECHO
+# stays 3.3 V. The classic HC-SR04 is a different part: 5 V only, 5 V ECHO (needs a divider on an ESP32).
+# Trigger with a >= 10 us HIGH on TRIG; ECHO high time / 58 = cm. Wait >= 60 ms between pings.
+# Dims (45 x 20 x 15 mm, HC-SR04 outline): https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf
+# Transducers 16 mm dia x 12 mm (HC-SR04+ listing): https://protosupplies.com/product/hc-sr04-ultrasonic-range-finder-module-2/
+# Transducer centres are on no drawing we found, so no lens features yet: add them after measuring at H1.
+# Mount holes: a forum caliper measurement gives ~42 x 17 mm centres, 2.2 mm dia, M2
+# (https://community.sparkfun.com/t/attaching-a-ultrasound-hc-sr04-unit/32443); positions unmeasured: [].
+# board_mm leaves out the header pins sticking past the 20 mm edge (length not sourced). Measure at H1.
+id: hc_sr04p
+name: Ultrasonic distance sensor, 3.3-5 V (HC-SR04P)
+category: sensor
+logic_voltage: 3.3
+supply_voltage: [3.3]  # accepts 3.0-5.5 V, but at 5 V ECHO would swing to 5 V
+max_current_ma: 15  # estimate: 2.2 mA typ at 3.3 V; 15 mA is the classic HC-SR04 rating, used as a ceiling
+pins:
+  - {name: VCC, type: power, voltage: 3.3}
+  - {name: TRIG, type: gpio_out}
+  - {name: ECHO, type: gpio_in}
+  - {name: GND, type: gnd}
+board_mm: {l: 45.0, w: 20.0, h: 15.0}
+provisional: true
+dims_source: datasheet
+mount_holes: []
+features: []  # two 16 mm transducers face up (top); centres unsourced, see header
+pio_lib_deps: []
+snippet: snippets/hc_sr04p.cpp
+mpn: null
+vendor_url: https://x2robotics.ca/hc-sr04p-ultrasonic-ranging-sensor-3-3v-5v
+manual_price_usd: 3.6  # listed at CAD 4.99
+owned_alternatives: []
+wokwi_type: wokwi-hc-sr04
+wokwi_pins: {}  # Wokwi uses the same names: VCC, TRIG, ECHO, GND
+wokwi_attrs: {}
+source: https://docs.baud-dance.com/assets/files/%E8%B6%85%E5%A3%B0%E6%B3%A2%E6%A8%A1%E5%9D%97%E6%89%8B%E5%86%8CHC-SR04-P-0e1ddd87b1300664aa168db49c43d8bf.pdf
