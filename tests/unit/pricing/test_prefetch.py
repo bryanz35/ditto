@@ -4,6 +4,7 @@ from pathlib import Path
 
 import respx
 
+from backend.contracts.parts import PartLibrary, load_library
 from backend.tools.pricing import GRAPHQL_URL, TOKEN_URL
 
 SCRIPT = Path(__file__).resolve().parents[3] / "scripts/prefetch_prices.py"
@@ -13,7 +14,13 @@ _spec.loader.exec_module(prefetch_prices)
 
 
 @respx.mock
-def test_prefetch_writes_cache_with_fetched_at(tmp_path):
+def test_prefetch_writes_cache_with_fetched_at(tmp_path, monkeypatch):
+    # Pin the library to one part so the single mocked offer maps to a known MPN,
+    # however many parts the real library grows to.
+    board = load_library().get("esp32_devkitc")
+    monkeypatch.setattr(
+        prefetch_prices, "load_library", lambda: PartLibrary({board.id: board})
+    )
     respx.post(TOKEN_URL).respond(200, json={"access_token": "jwt"})
     seller = {
         "company": {"name": "Dist"},
