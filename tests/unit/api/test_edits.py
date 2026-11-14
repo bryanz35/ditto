@@ -124,8 +124,10 @@ async def test_stage_the_runner_already_passed_at_the_new_rev_is_skipped(runs_di
     runner = CountingRunner(change_behaviour, firmware_passed=True)
     events, _ = await run_then_edit(runner, runs_dir)
 
-    assert stale(events) == {"simulate"}
+    assert stale(events) == {"firmware", "simulate"}
     assert stages_run(events) == {"simulate", "checks"}
+    firmware = [e.status for e in events if e.stage == "firmware"]
+    assert firmware == ["passed", "stale", "passed"]  # the UI never ends on stale
     assert events[-1].status == "passed"
 
 

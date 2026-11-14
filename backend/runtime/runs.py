@@ -105,7 +105,8 @@ class RunEngine:
     def _stale_stages(
         self, run_id: str, old: dict | None, spec: ProjectSpec, emit: Emit
     ) -> list[str]:
-        """The stages to run now. After an edit, emits `stale` for the affected ones and carries the
+        """The stages to run now. After an edit, emits `stale` for the affected ones (then their
+        passed event again if runner.edit() already passed them at the new rev) and carries the
         unaffected settled ones forward to the new rev."""
         last = {e.stage: e for e in read_events(run_id) if e.stage in ORDER}
         passed = {s: e.spec_rev for s, e in last.items() if e.status == "passed"}
@@ -127,7 +128,7 @@ class RunEngine:
             )
         affected = stages_to_rerun(changed)
         message = f"{', '.join(sorted(changed))} changed"
-        for stage in (s for s in rerun if s in affected):
+        for stage in affected:
             emit(
                 Event(
                     run_id=run_id,
@@ -137,6 +138,14 @@ class RunEngine:
                     spec_rev=spec.rev,
                 )
             )
+            if (
+                stage not in rerun
+            ):  # a sub-agent already passed it at this rev during the edit
+                emit(
+                    last[stage].model_copy(
+                        update={"message": "Checked during the edit"}
+                    )
+                )
         return rerun
 
     def _emit(self, run_id: str, event: Event) -> None:
