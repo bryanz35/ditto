@@ -1,26 +1,92 @@
-"""Runs API (T14). Until T14 merges, this stub streams the fixture run for any run id so the frontend
-has a live event stream to develop against."""
+"""Runs API: start a run, stream its events (SSE), edit it, answer its questions."""
 
 import asyncio
+import uuid
+from functools import cache
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
+from pydantic import ValidationError
 from sse_starlette import EventSourceResponse
 
-from backend.contracts.events import Event
+from backend.app.routers.files import existing_run_dir
+from backend.contracts.runner import AnswerRequest, EditRequest, RunRequest, run_dir_for
+from backend.contracts.spec import UserContext
+from backend.runtime.runs import RunEngine, engine_from_env, read_events
 
 router = APIRouter()
-FIXTURE_EVENTS = (
-    Path(__file__).resolve().parents[3] / "fixtures" / "events" / "plant_monitor.jsonl"
-)
+
+
+@cache
+def get_engine() -> RunEngine:
+    return engine_from_env()
+
+
+Engine = Annotated[RunEngine, Depends(get_engine)]
+
+
+@router.post("/runs")
+async def create_run(
+    engine: Engine,
+    prompt: Annotated[str, Form()],
+    files: Annotated[list[UploadFile] | None, File()] = None,
+    user_context: Annotated[str | None, Form()] = None,
+) -> dict[str, str]:
+    """Multipart: prompt, optional files, optional user_context (UserContext as JSON)."""
+    try:
+        user = UserContext.model_validate_json(user_context or "{}")
+    except ValidationError as exc:
+        raise HTTPException(422, f"user_context: {exc}") from exc
+    run_id = uuid.uuid4().hex[:12]
+    input_dir = run_dir_for(run_id) / "input"
+    input_dir.mkdir(parents=True)
+    saved = []
+    for i, upload in enumerate(files or []):
+        name = Path(upload.filename or "").name
+        name = name if name not in ("", ".", "..") else f"upload{i}"
+        (input_dir / name).write_bytes(await upload.read())
+        saved.append(f"input/{name}")
+    engine.start(RunRequest(run_id=run_id, prompt=prompt, files=saved, user=user))
+    return {"run_id": run_id}
 
 
 @router.get("/runs/{run_id}/events")
-async def run_events(run_id: str) -> EventSourceResponse:
+async def run_events(
+    run_id: str,
+    last_event_id: Annotated[int, Header(alias="Last-Event-ID")] = 0,
+) -> EventSourceResponse:
+    """SSE (id = seq). Resumes after Last-Event-ID and ends right after a `done` event; a client
+    that reconnects after `done` waits for the next events (an edit)."""
+    existing_run_dir(run_id)
+
     async def stream():
-        for line in FIXTURE_EVENTS.read_text().splitlines():
-            event = Event.model_validate_json(line)
-            yield {"id": str(event.seq), "data": line}
-            await asyncio.sleep(0.3)
+        after = last_event_id
+        while True:
+            # shortcut: polls events.jsonl every 0.2 s; use a per-run asyncio.Condition if latency matters
+            for event in read_events(run_id, after):
+                after = event.seq
+                yield {"id": str(event.seq), "data": event.model_dump_json()}
+                if event.stage == "done":
+                    return
+            await asyncio.sleep(0.2)
 
     return EventSourceResponse(stream())
+
+
+@router.post("/runs/{run_id}/edit", status_code=202)
+async def edit_run(run_id: str, request: EditRequest, engine: Engine) -> dict[str, str]:
+    existing_run_dir(run_id)
+    if engine.busy(run_id):
+        raise HTTPException(409, "The run is still working; edit after its done event")
+    engine.edit(run_id, request)
+    return {"run_id": run_id}
+
+
+@router.post("/runs/{run_id}/answer")
+async def answer_question(
+    run_id: str, request: AnswerRequest, engine: Engine
+) -> dict[str, bool]:
+    existing_run_dir(run_id)
+    await engine.runner.answer(run_id, request)
+    return {"ok": True}
