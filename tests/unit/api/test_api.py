@@ -88,14 +88,19 @@ async def test_edit_while_running_is_refused(client, engine):
 
 
 async def test_answer_and_uploads(client, runs_dir):
-    files = {"files": ("../sketch.png", b"png", "image/png")}
+    files = [
+        ("files", ("../sketch.png", b"png", "image/png")),
+        ("files", ("image.png", b"a", "image/png")),
+        ("files", ("image.png", b"b", "image/png")),
+    ]
     response = await client.post(
         "/runs",
         data={"prompt": "p", "user_context": '{"budget_usd": 20}'},
         files=files,
     )
     run_id = response.json()["run_id"]
-    assert (runs_dir / run_id / "input" / "sketch.png").read_bytes() == b"png"
+    saved = {p.name: p.read_bytes() for p in (runs_dir / run_id / "input").iterdir()}
+    assert saved == {"0-sketch.png": b"png", "1-image.png": b"a", "2-image.png": b"b"}
     answer = {"question_id": "q1", "answer": "USB power"}
     assert (await client.post(f"/runs/{run_id}/answer", json=answer)).json() == {
         "ok": True

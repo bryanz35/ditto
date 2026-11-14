@@ -14,7 +14,7 @@ from pathlib import Path
 from backend.contracts.events import Event, Stage
 from backend.contracts.hardware import Hardware, load_hardware
 from backend.contracts.parts import PartLibrary
-from backend.contracts.results import ToolError, ToolResult
+from backend.contracts.results import SKIP_CODES, ToolError, ToolResult
 from backend.contracts.runner import Emit, run_dir_for
 from backend.contracts.spec import Layout, ProjectSpec
 from backend.contracts.tools import ToolBox
@@ -143,7 +143,8 @@ def _finished(
             artifacts[name] = p.relative_to(run_dir.resolve()).as_posix()
     errors = [e for e in result.errors if e.severity == "error"]
     if result.skipped:
-        status, message = "skipped", errors[0].message
+        status = "skipped"
+        message = next(e.message for e in result.errors if e.code in SKIP_CODES)
     elif result.ok:
         status, message = "passed", f"{stage} passed"
         if stage == "validate":

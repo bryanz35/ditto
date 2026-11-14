@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from backend.contracts.parts import load_library
-from backend.contracts.results import not_implemented
+from backend.contracts.results import ToolError, ToolResult, not_implemented
 from backend.contracts.spec import ProjectSpec
 from backend.runtime.stages import PIPELINE, run_stages
 from backend.tools.fakes import fake_toolbox
@@ -67,6 +67,15 @@ def test_not_implemented_tools_and_their_dependents_are_skipped(run):
     for stage in ("layout", "enclosure", "assembly", "firmware", "simulate"):
         assert final[stage].status == "skipped", stage
     assert final["wiring"].status == final["bom"].status == "passed"
+
+
+def test_a_skip_reported_as_a_warning_is_still_skipped(run):
+    skip = ToolError(code="skipped", message="no prices", severity="warning")
+    final = run(
+        replace(fake_toolbox(), price_bom=lambda *a: ToolResult(ok=True, errors=[skip]))
+    )
+    assert final["bom"].status == "skipped" and final["bom"].message == "no prices"
+    assert final["checks"].status == "passed"
 
 
 def test_a_crashing_tool_fails_its_stage_only(run):

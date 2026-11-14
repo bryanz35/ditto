@@ -44,7 +44,8 @@ async def create_run(
     saved = []
     for i, upload in enumerate(files or []):
         name = Path(upload.filename or "").name
-        name = name if name not in ("", ".", "..") else f"upload{i}"
+        # index prefix: pasted images all arrive as image.png
+        name = f"{i}-{name if name not in ('', '.', '..') else 'upload'}"
         (input_dir / name).write_bytes(await upload.read())
         saved.append(f"input/{name}")
     engine.start(RunRequest(run_id=run_id, prompt=prompt, files=saved, user=user))
