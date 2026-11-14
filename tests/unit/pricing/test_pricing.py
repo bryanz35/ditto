@@ -8,7 +8,13 @@ import respx
 from backend.contracts.artifacts import Bom
 from backend.contracts.parts import load_library
 from backend.contracts.spec import ProjectSpec
-from backend.tools.pricing import GRAPHQL_URL, TOKEN_URL, price_bom
+from backend.tools.pricing import (
+    GRAPHQL_URL,
+    TOKEN_URL,
+    fetch_offers,
+    line_offers,
+    price_bom,
+)
 
 FIXTURE_SPEC = Path(__file__).resolve().parents[3] / "fixtures/specs/plant_monitor.json"
 MPN = "ESP32-DEVKITC-32E"  # the only fixture part with an MPN; the rest have manual prices
@@ -128,7 +134,9 @@ def test_nexar_failure_falls_back_to_cache_and_manual(
     assert result.errors[0].severity == "warning"
     esp = line(result, "esp32_devkitc")
     assert (esp.price_source, esp.unit_price_usd) == ("cache", 8.0)
-    assert line(result, "buzzer_passive").price_source == "manual"
+    assert [(o.seller, o.in_stock) for o in esp.offers] == [("cachedist", None)]
+    buzzer = line(result, "buzzer_passive")
+    assert (buzzer.price_source, buzzer.offers) == ("manual", [])
     assert result.data["prices_fetched_at"] == "2026-11-13T09:00:00Z"
 
 
@@ -235,3 +243,76 @@ def test_unknown_part_is_an_error(tmp_path):
     )
     result = price_bom(s, LIB, None, tmp_path)
     assert not result.ok and result.errors[0].code == "unknown_part"
+
+
+def seller(name: str, price: float, **offer) -> dict:
+    return {
+        "company": {"name": name},
+        "offers": [
+            {
+                "clickUrl": f"https://{name.lower()}.example",
+                "prices": [{"quantity": 1, "price": price, "currency": "USD"}],
+                **offer,
+            }
+        ],
+    }
+
+
+def reply(*sellers) -> httpx.Response:
+    parts = [{"mpn": MPN, "sellers": list(sellers)}]
+    return httpx.Response(200, json={"data": {"supMultiMatch": [{"parts": parts}]}})
+
+
+@pytest.mark.parametrize(
+    ("level", "in_stock"),
+    [
+        (50, True),
+        (-2, True),
+        (0, False),
+        (-1, False),
+        (-3, None),
+        (-4, None),
+        (None, None),
+    ],
+)
+def test_inventory_level_maps_to_in_stock(level, in_stock, no_network):
+    stock = {} if level is None else {"inventoryLevel": level}
+    graphql = mock_nexar(no_network, reply(seller("Dist", 9.0, **stock)))
+    with httpx.Client() as http:
+        offers = fetch_offers([MPN], "id", "secret", http)
+    assert offers[MPN][0]["in_stock"] is in_stock
+    assert "inventoryLevel" in json.loads(graphql.calls[0].request.content)["query"]
+
+
+def test_line_offers_one_per_seller_cheapest_first():
+    offers = [
+        offer("b", [[1, 9.0]]),
+        offer("a", [[1, 9.0]]),
+        offer("c", [[1, 12.0], [10, 5.0]]),
+        offer("a", [[1, 11.0]]),  # a second, dearer listing from seller a
+    ]
+    assert [(o["seller"], o["unit_price_usd"]) for o in line_offers(offers, 1)] == [
+        ("a", 9.0),
+        ("b", 9.0),
+        ("c", 12.0),
+    ]
+    assert [o["seller"] for o in line_offers(offers, 10)] == ["c", "a", "b"]
+    assert line_offers(offers, 1)[0]["in_stock"] is None  # cache entry from before T38
+
+
+def test_three_sellers_give_three_offers_cheapest_first(no_network, creds, tmp_path):
+    mock_nexar(
+        no_network,
+        reply(
+            seller("Pricey", 12.0, inventoryLevel=5),
+            seller("Cheap", 9.0, inventoryLevel=0),
+            seller("Middle", 10.5),
+        ),
+    )
+    esp = line(price_bom(spec(), LIB, None, tmp_path), "esp32_devkitc")
+    assert [(o.seller, o.unit_price_usd, o.in_stock) for o in esp.offers] == [
+        ("Cheap", 9.0, False),
+        ("Middle", 10.5, None),
+        ("Pricey", 12.0, True),
+    ]
+    assert (esp.unit_price_usd, esp.vendor_url) == (9.0, "https://cheap.example")
