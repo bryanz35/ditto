@@ -182,12 +182,6 @@ async def test_failed_edit_raises_instead_of_passing(runs_dir, events):
     assert saved == first  # the failed draft never reached spec.json
 
 
-class Profiled(UserContext):
-    # shortcut: stand-in for contract request T37-user-level; use UserContext once it lands.
-    level: str = "intermediate"
-    name: str | None = None
-
-
 def system_prompt(model) -> str:
     return model.seen[0][0].text
 
@@ -195,7 +189,7 @@ def system_prompt(model) -> str:
 async def test_prompts_adapt_to_level_and_name(events):
     orchestrator = run_script()
     agent = runner(orchestrator)
-    user = Profiled(level="beginner", name="Ada")
+    user = UserContext(level="beginner", name="Ada")
 
     await agent.run(RunRequest(run_id="r1", prompt=PROMPT, user=user), events.append)
 
@@ -213,3 +207,21 @@ async def test_intermediate_adds_nothing(events):
 
     assert "The user is" not in system_prompt(orchestrator)
     assert "The user's name" not in system_prompt(orchestrator)
+
+
+async def test_edit_keeps_the_runs_level(events):
+    orchestrator = run_script(
+        AIMessage("", tool_calls=[task("enclosure", "o5")]),
+        AIMessage("Walls are 3 mm now."),
+    )
+    agent = runner(orchestrator, enclosure_calls=2)
+    user = UserContext(level="expert")
+    await agent.run(RunRequest(run_id="r1", prompt=PROMPT, user=user), events.append)
+    edit_starts = len(orchestrator.seen)
+
+    edited = await agent.edit(
+        "r1", EditRequest(instruction="make the walls 3 mm"), events.append
+    )
+
+    assert edited.user.level == "expert"
+    assert "The user is an expert" in orchestrator.seen[edit_starts][0].text

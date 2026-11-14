@@ -78,13 +78,12 @@ def house_rules() -> str:
 
 def profile(user: UserContext | None) -> str:
     """The user's level rules and name, added to every system prompt; empty for intermediate."""
-    # shortcut: getattr until contract request T37-user-level lands; then read the fields.
-    level = getattr(user, "level", "intermediate")
-    name = getattr(user, "name", None)
-    notes = [] if level == "intermediate" else [prompt(f"level_{level}")]
-    if name:
+    if user is None:
+        return ""
+    notes = [] if user.level == "intermediate" else [prompt(f"level_{user.level}")]
+    if user.name:
         notes.append(
-            f"The user's name is {name}. Use it when you ask them a question or sum up."
+            f"The user's name is {user.name}. Use it when you ask them a question or sum up."
         )
     return "".join(f"\n\n{n}" for n in notes)
 
