@@ -1,0 +1,2167 @@
+diff --git a/frontend/src/App.test.tsx b/frontend/src/App.test.tsx
+index a6d1e4d..62bbc5d 100644
+--- a/frontend/src/App.test.tsx
++++ b/frontend/src/App.test.tsx
+@@ -10,17 +10,22 @@ vi.mock('./Viewer3D', () => ({
+     base,
+     lid,
+     assembly,
++    exploded,
++    build,
+     selected,
+     onSelect,
+   }: {
+     base: string | null
+     lid: string | null
+     assembly: string | null
++    exploded?: boolean
++    build?: { steps: { kind: string; ref: string | null }[]; index: number } | null
+     selected: { ref: string; label: string } | null
+     onSelect?: (ref: string) => void
+   }) => (
+     <div data-testid="viewer">
+-      {base} {lid} {assembly} {selected && `label:${selected.ref}`}
++      {base} {lid} {assembly} {exploded && 'exploded'} {build && `step:${build.steps[build.index].kind}`}{' '}
++      {selected && `label:${selected.ref}`}
+       <button type="button" onClick={() => onSelect?.('oled1')}>
+         click oled1
+       </button>
+@@ -365,17 +370,18 @@ describe('Overview', () => {
+     expect(within(all).queryByText(/BME280/)).toBeNull()
+   })
+ 
+-  it('switches between the exploded assembly and the closed case, and finds a clicked part in the list', async () => {
++  it('draws the assembly, explodes it on request, and finds a clicked part in the list', async () => {
+     openRun().emit(lines)
+     const viewer = await screen.findByTestId('viewer')
+     expect(viewer.textContent).toContain('/api/runs/plant_monitor/files/cad/assembly.glb')
++    expect(viewer.textContent).not.toContain('exploded')
+     fireEvent.click(screen.getByRole('button', { name: 'click oled1' }))
+     const row = screen.getByRole('button', { name: /OLED/ }).closest('li')!
+     expect(row.getAttribute('aria-expanded')).toBe('true')
+     expect(viewer.textContent).toContain('label:oled1')
+-    fireEvent.click(screen.getByRole('button', { name: 'Assembled' }))
+-    expect(screen.getByTestId('viewer').textContent).not.toContain('assembly.glb')
+-    expect(screen.getByTestId('viewer').textContent).toContain('/api/runs/plant_monitor/files/cad/lid.stl')
++    fireEvent.click(screen.getByRole('button', { name: 'Exploded' }))
++    expect(screen.getByTestId('viewer').textContent).toContain('assembly.glb')
++    expect(screen.getByTestId('viewer').textContent).toContain('exploded')
+   })
+ 
+   it('shows only the case when there is no assembly preview', async () => {
+diff --git a/frontend/src/Build.tsx b/frontend/src/Build.tsx
+index e6c7cc3..1aba846 100644
+--- a/frontend/src/Build.tsx
++++ b/frontend/src/Build.tsx
+@@ -76,13 +76,15 @@ export function Build({
+       </main>
+     )
+   }
+-  return <Guide key={steps.map((s) => s.id).join()} {...{ runId, steps, prints, urlOf, topbar, onBack }} />
++  return <Guide key={steps.map((s) => s.id).join()} {...{ runId, steps, prints, spec, wiring, urlOf, topbar, onBack }} />
+ }
+ 
+ function Guide({
+   runId,
+   steps,
+   prints,
++  spec,
++  wiring,
+   urlOf,
+   topbar,
+   onBack,
+@@ -91,6 +93,8 @@ function Guide({
+   steps: Step[]
+   /** A print-only project's parts, shown instead of the case. */
+   prints: Print[]
++  spec: ProjectSpec | null
++  wiring: Wiring | null
+   urlOf: UrlOf
+   topbar: (status: string) => ReactNode
+   onBack: () => void
+@@ -110,8 +114,8 @@ function Guide({
+   const tick = (id: string) =>
+     setProgress((p) => ({ ...p, wires: p.wires.includes(id) ? p.wires.filter((w) => w !== id) : [...p.wires, id] }))
+ 
+-  // place and wire steps show the parts in place, the last step the closed box, the rest the bare case
+-  const assembly = step.ref && step.kind !== 'Code' ? urlOf('assembly_glb') : null
++  // the device as it is during this step, playing the step's animation (scene/device.ts)
++  const assembly = urlOf('assembly_glb')
+ 
+   return (
+     <main className="overview build">
+@@ -123,7 +127,11 @@ function Guide({
+               lid={step.kind === 'Close' ? urlOf('lid_stl') : null}
+               prints={prints}
+               assembly={assembly}
+-              selected={assembly && step.ref ? { ref: step.ref, label: step.noun ?? step.ref } : null}
++              spec={spec}
++              wiring={wiring}
++                            build={{ steps, index }}
++              leftInset={392}
++              selected={assembly && step.ref && step.kind !== 'Code' ? { ref: step.ref, label: step.noun ?? step.ref } : null}
+             />
+           </Suspense>
+         ) : (
+diff --git a/frontend/src/Overview.tsx b/frontend/src/Overview.tsx
+index e6865fa..da597ed 100644
+--- a/frontend/src/Overview.tsx
++++ b/frontend/src/Overview.tsx
+@@ -50,13 +50,13 @@ export function Overview({
+   const manifest = useJson<EnclosureManifest>(urlOf('manifest'))
+   const prints = printsOf(spec, manifest, urlOf)
+   const assembly = urlOf('assembly_glb')
+-  const [view, setView] = useState<View>('Exploded')
++  const [view, setView] = useState<View>('Assembled')
+   const [reset, setReset] = useState(0)
+   const [open, setOpen] = useState<string | null>(null) // part_id of the expanded row
+   // one part's stores, or 'all': the cheapest store for every part still to buy
+   const [buying, setBuying] = useState<BomLine | 'all' | null>(null)
+   const exploded = assembly !== null && view === 'Exploded'
+-  const shown = exploded ? 'assembly_glb' : prints.length ? 'manifest' : 'base_stl'
++  const shown = assembly ? 'assembly_glb' : prints.length ? 'manifest' : 'base_stl'
+   const openLine = bom?.lines.find((l) => l.part_id === open) ?? null
+ 
+   const checks = state.stages.checks
+@@ -76,8 +76,13 @@ export function Overview({
+               base={prints.length ? null : urlOf('base_stl')}
+               lid={prints.length ? null : urlOf('lid_stl')}
+               prints={prints}
+-              assembly={exploded ? assembly : null}
+-              selected={exploded && openLine ? { ref: openLine.refs[0], label: openLine.name } : null}
++              assembly={assembly}
++              spec={spec}
++              wiring={wiring}
++              exploded={exploded}
++              selected={assembly && openLine ? { ref: openLine.refs[0], label: openLine.name } : null}
++                                          leftInset={392}
++              bottomInset={112}
+               onSelect={(ref) => setOpen(bom?.lines.find((l) => l.refs.includes(ref))?.part_id ?? null)}
+             />
+           </Suspense>
+@@ -92,7 +97,7 @@ export function Overview({
+           </button>
+         </div>
+         <p className="viewport-hint mono">
+-          Drag to turn · Scroll to zoom{exploded && ' · Click a part to find it in the list'}
++          Drag to turn · Scroll to zoom{assembly && ' · Hover to pull it apart · Click a part to find it in the list'}
+         </p>
+         {staleOf(shown) && (
+           <p className="stale-note viewport-stale">
+diff --git a/frontend/src/Viewer3D.tsx b/frontend/src/Viewer3D.tsx
+index 45cb71b..ff04c55 100644
+--- a/frontend/src/Viewer3D.tsx
++++ b/frontend/src/Viewer3D.tsx
+@@ -1,15 +1,17 @@
+-// The enclosure STLs (enclosure frame, mm, Z up: see backend/contracts/base.py). The lid is
+-// exported in its closed position, so it is drawn see-through to show the base inside.
+-// assembly.glb (T25) is in the same frame, with the lid raised and every part placed; its part nodes
+-// are named by ref and carry the part_id in their extras (backend/cad/assembly.py).
++// The 3D view. With assembly.glb (T25) it draws the device: each part's box becomes a part model,
++// wiring.json's rows become jumper wires, and the overview explodes / the build guide animates each
++// step (scene/device.ts). Without it, the enclosure STLs (enclosure frame, mm, Z up: see
++// backend/contracts/base.py); the lid is exported closed, so it is drawn see-through.
+ // A print-only project has no case: its printed parts (each in print orientation at the origin) are
+ // laid out side by side along x.
+ import { Bounds, GizmoHelper, GizmoViewport, Grid, Html, OrbitControls } from '@react-three/drei'
+-import { Canvas, useLoader, type ThreeEvent } from '@react-three/fiber'
+-import { Suspense, useEffect, useMemo } from 'react'
+-import { Box3, Mesh, MeshStandardMaterial, Vector3 } from 'three'
++import { Canvas, useFrame, useLoader, useThree, type ThreeEvent } from '@react-three/fiber'
++import { Suspense, useEffect, useMemo, useRef } from 'react'
++import type { Group, PerspectiveCamera } from 'three'
+ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+ import { STLLoader } from 'three/addons/loaders/STLLoader.js'
++import type { ProjectSpec, Wiring } from './contracts'
++import { Device, type SceneStep } from './scene/device'
+ import type { Print } from './ui'
+ 
+ // Figma viewport variables (index.css has the same values for the page).
+@@ -21,6 +23,20 @@ const SHELL = '#4a4a50'
+ 
+ const PRINT_GAP_MM = 10
+ 
++/** The floor: drei's grid lies in XZ, our frame is Z up. Just under `z`, so it doesn't show through a floor at z. */
++const Floor = ({ z = 0 }: { z?: number }) => (
++  <Grid
++    position={[0, 0, z - 0.05]}
++    rotation={[Math.PI / 2, 0, 0]}
++    cellSize={4}
++    sectionSize={20}
++    cellColor={GRID_MINOR}
++    sectionColor={GRID_MAJOR}
++    fadeDistance={600}
++    infiniteGrid
++  />
++)
++
+ function Part({ url, lid, x = 0 }: { url: string; lid: boolean; x?: number }) {
+   const geometry = useLoader(STLLoader, url)
+   return (
+@@ -30,42 +46,99 @@ function Part({ url, lid, x = 0 }: { url: string; lid: boolean; x?: number }) {
+   )
+ }
+ 
+-function Assembly({
++/** Centres the picture in the part of the view right of a card (`left` px), like the spike: the
++ * card covers the left of the canvas. Off on narrow screens, where the card spans the width. */
++function ViewOffset({ left, bottom }: { left: number; bottom: number }) {
++  const camera = useThree((s) => s.camera) as PerspectiveCamera
++  const size = useThree((s) => s.size)
++  useEffect(() => {
++    const wide = size.width > 760
++    const [dx, dy] = [wide ? left / 2 : 0, wide ? bottom / 2 : 0]
++    if (dx || dy) camera.setViewOffset(size.width, size.height, -dx, dy, size.width, size.height)
++    else camera.clearViewOffset()
++    camera.updateProjectionMatrix()
++  }, [camera, size, left, bottom])
++  return null
++}
++
++function DeviceView({
+   url,
++  spec,
++  wiring,
++  exploded,
++  build,
+   selected,
+   onSelect,
+ }: {
+   url: string
++  spec: ProjectSpec | null
++  wiring: Wiring | null
++  exploded: boolean
++  build: { steps: SceneStep[]; index: number } | null
+   selected: { ref: string; label: string } | null
+   onSelect?: (ref: string) => void
+ }) {
+   const gltf = useLoader(GLTFLoader, url)
+-  // the GLB paints base and lid light grey; the design's case is dark (parts keep their category colours)
++  const device = useMemo(() => new Device(gltf.scene, spec, wiring), [gltf, spec, wiring])
++  useEffect(() => {
++    // dev builds: window.__device in the console, to poke at the scene (parts, wires, setBuild, ...)
++    if (import.meta.env.DEV) (window as unknown as { __device?: Device }).__device = device
++    return () => device.dispose()
++  }, [device])
++
++  // steps are rebuilt on every render of the guide: restart the animation only when they change
++  const buildKey = build ? `${build.index}:${build.steps.map((s) => `${s.kind}.${s.ref}`).join()}` : null
+   useEffect(() => {
+-    gltf.scene.traverse((o) => {
+-      if (o instanceof Mesh && !o.userData.part_id) o.material = new MeshStandardMaterial({ color: SHELL })
+-    })
+-  }, [gltf])
+-  // the label sits on top of the selected part
+-  const anchor = useMemo(() => {
+-    const node = selected && gltf.scene.getObjectByName(selected.ref)
+-    if (!node) return null
+-    const box = new Box3().setFromObject(node)
+-    return box.getCenter(new Vector3()).setZ(box.max.z)
+-  }, [gltf, selected])
++    if (build) device.setBuild(build.steps, build.index)
++    else device.setOverview(exploded)
++    // eslint-disable-next-line react-hooks/exhaustive-deps -- buildKey stands for build
++  }, [device, buildKey, exploded])
++  useEffect(() => device.setSelected(selected?.ref ?? null), [device, selected?.ref])
++
++  const label = useRef<Group>(null)
++  useFrame((_, dt) => {
++    device.update(Math.min(dt, 0.1))
++    const at = selected ? device.anchorOf(selected.ref) : null
++    if (label.current) {
++      label.current.visible = at !== null
++      if (at) label.current.position.copy(at)
++    }
++  })
++
+   return (
+     <>
+-      <primitive
+-        object={gltf.scene}
+-        onClick={(e: ThreeEvent<MouseEvent>) => {
+-          e.stopPropagation()
+-          if (e.object.userData.part_id) onSelect?.(e.object.name)
+-        }}
+-      />
+-      {anchor && selected && (
+-        <Html position={anchor} center className="part-label" zIndexRange={[5, 0]}>
+-          {selected.label}
+-        </Html>
++      <Floor z={device.groundZ} />
++      {/* the overview frames the exploded parts too (device.frame), the guide just the device */}
++      <Bounds key={build ? 'build' : 'overview'} fit clip observe margin={build ? 1.2 : 1.05}>
++        <primitive
++          object={device.root}
++          onClick={(e: ThreeEvent<MouseEvent>) => {
++            e.stopPropagation()
++            const ref = device.refOf(e.object)
++            if (ref) onSelect?.(ref)
++          }}
++          onPointerMove={(e: ThreeEvent<PointerEvent>) => {
++            e.stopPropagation()
++            if (!build) device.setHoverPart(device.refOf(e.object))
++          }}
++          onPointerOut={() => device.setHoverPart(null)}
++        />
++        {!build && <primitive object={device.frame} />}
++      </Bounds>
++      {!build && (
++        <primitive
++          object={device.proxy}
++          onPointerEnter={() => device.setHover(true)}
++          onPointerLeave={() => device.setHover(false)}
++        />
++      )}
++      <primitive object={device.extras} />
++      {selected && (
++        <group ref={label}>
++          <Html center className="part-label" zIndexRange={[5, 0]}>
++            {selected.label}
++          </Html>
++        </group>
+       )}
+     </>
+   )
+@@ -76,54 +149,74 @@ export default function Viewer3D({
+   lid,
+   prints = [],
+   assembly,
++  spec = null,
++  wiring = null,
++  exploded = false,
++  build = null,
+   selected = null,
+   onSelect,
++  leftInset = 0,
++  bottomInset = 0,
+ }: {
+   base: string | null
+   lid: string | null
+   /** Printed parts besides base and lid (a print-only project's parts). */
+   prints?: Print[]
+-  /** When set, show the assembly instead of the STLs. */
++  /** When set, draw the device from the assembly instead of the bare STLs. */
+   assembly: string | null
+-  /** The part to label in the assembly. */
++  /** For the device: part ids of refs the assembly doesn't tag, and the parts outside the case. */
++  spec?: ProjectSpec | null
++  /** For the device: one jumper wire per row. */
++  wiring?: Wiring | null
++  /** Overview: hold the parts apart (hovering the device also pulls them apart). */
++  exploded?: boolean
++  /** Build guide: show the device as it is during steps[index] and play that step. */
++  build?: { steps: SceneStep[]; index: number } | null
++  /** The part to label (and outline) in the device. */
+   selected?: { ref: string; label: string } | null
+-  /** Called with a part's ref when it is clicked in the assembly. */
++  /** Called with a part's ref when it is clicked in the device. */
+   onSelect?: (ref: string) => void
++  /** Width (px) of the card over the view's left side: the model centres in the space right of it. */
++  leftInset?: number
++  /** Height (px) of what covers the view's bottom (the overview's dock): the model centres above it. */
++  bottomInset?: number
+ }) {
+   // each part's centre: past the ones before it, plus half its own width
+-  const xs = prints.map((_, i) =>
+-    prints.slice(0, i).reduce((x, p) => x + p.width + PRINT_GAP_MM, prints[i].width / 2),
+-  )
++  const xs = prints.map((_, i) => prints.slice(0, i).reduce((x, p) => x + p.width + PRINT_GAP_MM, prints[i].width / 2))
+   return (
+-    <Canvas camera={{ position: [120, -160, 140], up: [0, 0, 1], far: 5000 }}>
++    <Canvas
++      camera={{ position: [120, -160, 140], up: [0, 0, 1], far: 5000 }}
++      onCreated={({ gl }) => {
++        // the print step grows the case with a clipping plane
++        gl.localClippingEnabled = true
++      }}
++    >
+       <color attach="background" args={[BG]} />
+       <ambientLight intensity={0.7} />
+       <directionalLight position={[100, -100, 200]} intensity={1.5} />
+-      {/* the floor: drei's grid lies in XZ, our frame is Z up */}
+-      <Grid
+-        rotation={[Math.PI / 2, 0, 0]}
+-        cellSize={4}
+-        sectionSize={20}
+-        cellColor={GRID_MINOR}
+-        sectionColor={GRID_MAJOR}
+-        fadeDistance={600}
+-        infiniteGrid
+-      />
++      <directionalLight position={[-120, 90, 80]} intensity={0.5} />
++      {!assembly && <Floor />}
++      <ViewOffset left={leftInset} bottom={bottomInset} />
+       <Suspense fallback={null}>
+-        {/* key: refit the camera when switching views */}
+-        <Bounds key={assembly ? 'assembly' : 'enclosure'} fit clip observe margin={1.3}>
+-          {assembly ? (
+-            <Assembly url={assembly} selected={selected} onSelect={onSelect} />
+-          ) : (
+-            <>
+-              {base && <Part url={base} lid={false} />}
+-              {lid && <Part url={lid} lid />}
+-              {prints.map((p, i) => (
+-                <Part key={p.url} url={p.url} lid={false} x={xs[i]} />
+-              ))}
+-            </>
+-          )}
+-        </Bounds>
++        {assembly ? (
++          <DeviceView
++            url={assembly}
++            spec={spec}
++            wiring={wiring}
++            exploded={exploded}
++            build={build}
++            selected={selected}
++            onSelect={onSelect}
++          />
++        ) : (
++          <Bounds key="enclosure" fit clip observe margin={1.3}>
++            {base && <Part url={base} lid={false} />}
++            {lid && <Part url={lid} lid />}
++            {prints.map((p, i) => (
++              <Part key={p.url} url={p.url} lid={false} x={xs[i]} />
++            ))}
++          </Bounds>
++        )}
+       </Suspense>
+       <OrbitControls makeDefault />
+       <GizmoHelper alignment="bottom-right" margin={[56, 56]}>
+diff --git a/frontend/src/dev/viewer.tsx b/frontend/src/dev/viewer.tsx
+new file mode 100644
+index 0000000..b149120
+--- /dev/null
++++ b/frontend/src/dev/viewer.tsx
+@@ -0,0 +1,74 @@
++// Dev-only 3D playground (`npm run dev`, then /viewer.html): the device and every build step's
++// animation without running a plan. Not part of the app build (vite only builds index.html).
++//   /viewer.html                the plant_monitor fixture
++//   /viewer.html?run=<run_id>   a real run's files, through the API (backend running)
++// In the console, window.__device is the scene (scene/device.ts).
++import { StrictMode, useState } from 'react'
++import { createRoot } from 'react-dom/client'
++import fixtureGlb from '../../../fixtures/runs/plant_monitor/cad/assembly.glb?url'
++import fixtureLayout from '../../../fixtures/runs/plant_monitor/cad/layout.json?raw'
++import fixtureManifest from '../../../fixtures/runs/plant_monitor/cad/manifest.json?raw'
++import fixtureSpec from '../../../fixtures/runs/plant_monitor/spec.json?raw'
++import fixtureWiring from '../../../fixtures/runs/plant_monitor/wiring.json?raw'
++import type { EnclosureManifest, Layout, ProjectSpec, Wiring } from '../contracts'
++import { buildSteps } from '../guide'
++import '../index.css'
++import Viewer3D from '../Viewer3D'
++
++const run = new URLSearchParams(location.search).get('run')
++const file = (path: string) => `/api/runs/${run}/files/${path}`
++const load = async <T,>(path: string, fixture: string): Promise<T> =>
++  JSON.parse(run ? await (await fetch(file(path))).text() : fixture) as T
++
++const [spec, layout, wiring, manifest] = await Promise.all([
++  load<ProjectSpec>('spec.json', fixtureSpec),
++  load<Layout>('cad/layout.json', fixtureLayout),
++  load<Wiring>('wiring.json', fixtureWiring),
++  load<EnclosureManifest>('cad/manifest.json', fixtureManifest),
++])
++const glb = run ? file('cad/assembly.glb') : fixtureGlb
++const steps = buildSteps({ spec, layout, wiring, bom: null, enclosure: manifest, urlOf: () => null })
++
++export function Playground() {
++  const [at, setAt] = useState(-1) // -1: the overview
++  const [exploded, setExploded] = useState(false)
++  const step = steps[at]
++  return (
++    <main style={{ position: 'fixed', inset: 0 }}>
++      <Viewer3D
++        base={null}
++        lid={null}
++        assembly={glb}
++        spec={spec}
++        wiring={wiring}
++        exploded={exploded}
++        build={at >= 0 ? { steps, index: at } : null}
++        selected={step?.ref && step.kind !== 'Code' ? { ref: step.ref, label: step.noun ?? step.ref } : null}
++      />
++      <nav
++        className="view-toolbar"
++        style={{ left: 16, right: 'auto', flexWrap: 'wrap', maxWidth: 'calc(100% - 32px)' }}
++      >
++        <button type="button" className={`btn ${at < 0 ? 'primary' : ''}`} onClick={() => setAt(-1)}>
++          Overview
++        </button>
++        {at < 0 && (
++          <button type="button" className="btn" onClick={() => setExploded((x) => !x)}>
++            {exploded ? 'Assemble' : 'Explode'}
++          </button>
++        )}
++        {steps.map((s, i) => (
++          <button key={s.id} type="button" className={`btn ${i === at ? 'primary' : ''}`} onClick={() => setAt(i)}>
++            {i + 1} {s.label}
++          </button>
++        ))}
++      </nav>
++    </main>
++  )
++}
++
++createRoot(document.getElementById('root')!).render(
++  <StrictMode>
++    <Playground />
++  </StrictMode>,
++)
+diff --git a/frontend/src/scene/README.md b/frontend/src/scene/README.md
+new file mode 100644
+index 0000000..fb81482
+--- /dev/null
++++ b/frontend/src/scene/README.md
+@@ -0,0 +1,23 @@
++# 3D scene (`scene/`)
++
++The device in the overview and the build guide, ported from the 3D instruction spike.
++
++- `parts.ts`: one procedural model per library part (`LOOKS`, keyed by part id), with a fallback per
++  category for anything else. Header pins sit on the edge facing the board; a board's USB faces its
++  nearest wall. `LIBRARY` copies the bits of `backend/parts/library/*.yaml` the view needs (category,
++  size, pin order, external): add a row when you add a library part.
++- `device.ts`: builds the scene from what the app already loads: `assembly.glb` (case, lid, one box per
++  inside part, named by ref), the spec (part ids, outside parts) and `wiring.json` (one jumper per row).
++  `setOverview(exploded)` / `setBuild(steps, index)` pick what is shown; `update(dt)` animates:
++  - Overview: lid see-through, wires in; hovering or "Exploded" pulls the parts apart.
++  - Print: the base grows under the nozzle. Place: the part drops in under an arrow. Wiring: that
++    part's wires go on one by one. Code: the USB plug goes in, the board uploads, screens light.
++    Close: the lid drops on and its screws turn. Each step loops.
++- `Viewer3D.tsx` mounts it (react-three-fiber) and keeps the old STL view for runs with no assembly.
++
++Debugging: `npm run dev`, open `/viewer.html` (the plant_monitor fixture) or `/viewer.html?run=<id>`
++(a real run through the API) and click through the steps. In dev builds `window.__device` is the scene.
++
++Known shortcuts: pins are drawn pointing up so the wires read clearly (a DevKitC's point down);
++wires don't avoid each other beyond a small spread; outside parts lie behind the case, not at their
++cable hole; the explode offsets are a simple rule (board lowest, the rest stacked and spread).
+diff --git a/frontend/src/scene/device.ts b/frontend/src/scene/device.ts
+new file mode 100644
+index 0000000..cdec31e
+--- /dev/null
++++ b/frontend/src/scene/device.ts
+@@ -0,0 +1,743 @@
++// The device in the 3D view: case, parts, wires, and their animations (overview explode, build steps).
++// Built from assembly.glb (case, lid, and one box per inside part, named by ref) plus the spec and
++// wiring.json: each box becomes a part model (parts.ts), each wiring row a jumper wire.
++// Frame: the enclosure's (mm, Z up); z = 0 is the cavity floor.
++import {
++  Box3,
++  BoxGeometry,
++  CatmullRomCurve3,
++  ConeGeometry,
++  CylinderGeometry,
++  DoubleSide,
++  EdgesGeometry,
++  Group,
++  LineBasicMaterial,
++  LineSegments,
++  Mesh,
++  MeshBasicMaterial,
++  MeshStandardMaterial,
++  Plane,
++  TubeGeometry,
++  Vector2,
++  Vector3,
++  type Material,
++  type Object3D,
++} from 'three'
++import type { ProjectSpec, Wiring, WiringRow } from '../contracts'
++import { buildPart, categoryOf, LIBRARY, pinsOf, type Category, type PartModel } from './parts'
++
++/** The bits of a build step the scene animates (guide.ts's Step has them). */
++export interface SceneStep {
++  kind: 'Print' | 'Place' | 'Wiring' | 'Code' | 'Close'
++  ref: string | null
++}
++
++// index.css --color-wire-*, by guide.ts's WIRE_COLOURS (black is lifted a little to read on the dark view)
++const WIRE_HEX: Record<WiringRow['pin_type'], string> = {
++  power: '#e5534b',
++  gnd: '#2a2b30',
++  i2c_scl: '#eab308',
++  i2c_sda: '#3b82f6',
++  analog: '#22c55e',
++  gpio: '#f97316',
++  gpio_in: '#f97316',
++  gpio_out: '#f97316',
++  spi_sck: '#a855f7',
++  spi_mosi: '#a855f7',
++  spi_miso: '#a855f7',
++  spi_cs: '#a855f7',
++  uart_tx: '#f5f5f5',
++  uart_rx: '#f5f5f5',
++  i2s_bclk: '#14b8a6',
++  i2s_ws: '#14b8a6',
++  i2s_din: '#14b8a6',
++  i2s_dout: '#14b8a6',
++  config: '#8b8b8b',
++}
++const ACCENT = '#b78ad0'
++const CASE = '#55555d'
++const CASE_EDGE = '#8d8d96'
++const LID_DROP = 45
++
++interface PartEntry {
++  ref: string
++  partId: string
++  inside: boolean
++  model: PartModel
++  holder: Group
++  home: Vector3
++  explode: Vector3
++  size: Vector3
++  outline: LineSegments<EdgesGeometry, LineBasicMaterial>
++}
++
++interface WireEntry {
++  row: WiringRow
++  group: Group
++  tube: Mesh<TubeGeometry>
++  count: number
++  ends: [Mesh, Mesh]
++}
++
++const ease = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3)
++const clamp01 = (t: number) => Math.min(1, Math.max(0, t))
++
++export class Device {
++  /** The device: case, lid, parts and wires (the camera frames this). */
++  readonly root = new Group()
++  /** Step props that come and go (USB cable, printer nozzle, arrow): not clickable, not framed. */
++  readonly extras = new Group()
++  /** Invisible box around the assembled and exploded device: hovering it explodes the overview. */
++  readonly proxy: Mesh
++  /** Invisible box the overview's camera frames: the device, and its parts exploded (not the lid). */
++  readonly frame: Mesh
++  readonly parts = new Map<string, PartEntry>()
++  private wires: WireEntry[] = []
++  private base: Mesh
++  private baseMat: MeshStandardMaterial
++  private lid: Group | null = null
++  private lidMat: MeshStandardMaterial | null = null
++  private lidHome = new Vector3()
++  private lidExplode = new Vector3()
++  private lidScrews: Group[] = []
++  private usb: Group | null = null
++  private usbDir = new Vector3()
++  private usbHome = new Vector3()
++  private lidTopZ = 0
++  private nozzle: Group
++  private arrow: Group
++  private arrowMat: MeshBasicMaterial
++  private clip = new Plane(new Vector3(0, 0, -1), 1e4)
++  private caseBox = new Box3()
++  private mcuRef: string | null = null
++  /** Underside of the case: where the floor grid goes (the cavity floor is z = 0). */
++  readonly groundZ: number
++  private owned: (Material | { dispose: () => void })[] = []
++
++  // state
++  private mode: 'overview' | 'build' = 'overview'
++  private explodeTarget = 0
++  private explode = 0
++  private hovering = false
++  private hoverRef: string | null = null
++  private selectedRef: string | null = null
++  private step: SceneStep | null = null
++  private placed = new Set<string>()
++  private wired = new Set<string>()
++  private stepClock = 0
++
++  constructor(glb: Object3D, spec: ProjectSpec | null, wiring: Wiring | null) {
++    glb.updateMatrixWorld(true)
++    const rows = wiring?.rows ?? []
++    const instances = spec ? [...(spec.mcu ? [spec.mcu] : []), ...spec.parts] : []
++    const partIdOf = new Map(instances.map((p) => [p.ref, p.part_id]))
++    const custom = new Map((spec?.custom_parts ?? []).map((p) => [p.id, p]))
++    const catOf = (id: string): Category => (LIBRARY[id] ? categoryOf(id) : (custom.get(id)?.category ?? 'sensor'))
++    this.mcuRef = spec?.mcu?.ref ?? null
++
++    // case
++    const meshIn = (name: string) => {
++      let found: Mesh | undefined
++      glb.getObjectByName(name)?.traverse((o) => {
++        if (!found && o instanceof Mesh) found = o
++      })
++      return found
++    }
++    const baseNode = meshIn('base')
++    const lidNode = meshIn('lid')
++    this.baseMat = new MeshStandardMaterial({
++      color: CASE,
++      roughness: 0.8,
++      side: DoubleSide,
++      clippingPlanes: [this.clip],
++    })
++    this.base = new Mesh(baseNode ? baseNode.geometry.clone() : new BoxGeometry(1, 1, 1), this.baseMat)
++    if (baseNode) this.base.applyMatrix4(baseNode.matrixWorld)
++    this.base.add(
++      new LineSegments(
++        new EdgesGeometry(this.base.geometry, 30),
++        new LineBasicMaterial({
++          color: CASE_EDGE,
++          transparent: true,
++          opacity: 0.5,
++          clippingPlanes: [this.clip],
++        }),
++      ),
++    )
++    this.root.add(this.base)
++    this.caseBox.setFromObject(this.base)
++    this.groundZ = this.caseBox.min.z
++    const caseTop = this.caseBox.max.z
++    if (lidNode) {
++      // the lid STL is in its closed position; assembly.glb only lifts its node
++      this.lidMat = new MeshStandardMaterial({
++        color: CASE,
++        roughness: 0.8,
++        side: DoubleSide,
++        transparent: true,
++        opacity: 0.3,
++        depthWrite: false,
++      })
++      const lid = new Mesh(lidNode.geometry.clone(), this.lidMat)
++      lid.add(
++        new LineSegments(
++          new EdgesGeometry(lid.geometry, 30),
++          new LineBasicMaterial({
++            color: CASE_EDGE,
++            transparent: true,
++            opacity: 0.45,
++          }),
++        ),
++      )
++      this.lid = new Group()
++      this.lid.add(lid)
++      this.root.add(this.lid)
++      const lb = new Box3().setFromObject(lid)
++      this.lidTopZ = lb.max.z
++      for (const [sx, sy] of [
++        [1, 1],
++        [-1, 1],
++        [1, -1],
++        [-1, -1],
++      ]) {
++        const s = screw(this.std('#b9bec6', 0.75))
++        s.position.set(sx > 0 ? lb.max.x - 4 : lb.min.x + 4, sy > 0 ? lb.max.y - 4 : lb.min.y + 4, lb.max.z)
++        this.lid.add(s)
++        this.lidScrews.push(s)
++      }
++    }
++
++    // inside parts: one box per ref in assembly.glb
++    const boxes: {
++      ref: string
++      partId: string
++      center: Vector3
++      size: Vector3
++    }[] = []
++    glb.traverse((o) => {
++      if (!(o instanceof Mesh) || o === baseNode || o === lidNode || boxes.some((b) => b.ref === o.name)) return
++      const geo = o.geometry
++      geo.computeBoundingBox()
++      const bb = geo.boundingBox as Box3
++      const partId = (o.userData.part_id as string | undefined) ?? partIdOf.get(o.name)
++      if (!partId) return
++      boxes.push({
++        ref: o.name,
++        partId,
++        center: o.localToWorld(bb.getCenter(new Vector3())),
++        size: bb.getSize(new Vector3()),
++      })
++    })
++    if (!this.mcuRef) this.mcuRef = boxes.find((b) => catOf(b.partId) === 'mcu')?.ref ?? null
++    const mcuBox = boxes.find((b) => b.ref === this.mcuRef)
++    const caseCenter = this.caseBox.getCenter(new Vector3())
++
++    const add = (ref: string, partId: string, center: Vector3, size: Vector3, inside: boolean, toward: Vector2) => {
++      const used = rows.filter((r) => r.part_ref === ref).map((r) => r.part_pin)
++      const mcuUsed = ref === this.mcuRef ? rows.map((r) => r.mcu_pin) : []
++      const lib = LIBRARY[partId]
++      const pins =
++        custom.has(partId) && !lib
++          ? [...(custom.get(partId)?.pins.map((p) => p.name) ?? []), ...used]
++          : pinsOf(partId, [...used, ...mcuUsed])
++      const model = buildPart(partId, catOf(partId), size, toward, [...new Set(pins)])
++      const holder = new Group()
++      holder.position.copy(center)
++      holder.add(model.root)
++      holder.userData.ref = ref
++      const outline = new LineSegments(
++        new EdgesGeometry(new BoxGeometry(size.x + 2, size.y + 2, size.z + 2)),
++        new LineBasicMaterial({
++          color: ACCENT,
++          transparent: true,
++          opacity: 1,
++          depthTest: false,
++        }),
++      )
++      outline.renderOrder = 10
++      outline.visible = false
++      outline.raycast = () => {}
++      holder.add(outline)
++      this.root.add(holder)
++      this.parts.set(ref, {
++        ref,
++        partId,
++        inside,
++        model,
++        holder,
++        home: center.clone(),
++        explode: new Vector3(),
++        size,
++        outline,
++      })
++    }
++
++    const towardMcu = (c: Vector3) =>
++      mcuBox ? new Vector2(mcuBox.center.x - c.x, mcuBox.center.y - c.y).normalize() : new Vector2(0, -1)
++    const towardWall = (c: Vector3) => {
++      const d = [
++        [c.x - this.caseBox.min.x, -1, 0],
++        [this.caseBox.max.x - c.x, 1, 0],
++        [c.y - this.caseBox.min.y, 0, -1],
++        [this.caseBox.max.y - c.y, 0, 1],
++      ].sort((a, b) => a[0] - b[0])[0]
++      return new Vector2(d[1], d[2])
++    }
++    for (const b of boxes)
++      add(b.ref, b.partId, b.center, b.size, true, b.ref === this.mcuRef ? towardWall(b.center) : towardMcu(b.center))
++
++    // parts outside the case (mounting: external) have no box: lay them on the floor behind it, pins
++    // towards the case (behind, they don't hide the inside from the default camera)
++    let y = this.caseBox.max.y + 12
++    for (const p of spec?.parts ?? []) {
++      if (this.parts.has(p.ref)) continue
++      const def = custom.get(p.part_id)
++      const mm = LIBRARY[p.part_id]?.mm ?? (def ? [def.board_mm.l, def.board_mm.w, def.board_mm.h] : [25, 20, 8])
++      const size = new Vector3(Math.max(mm[0], mm[1]), Math.min(mm[0], mm[1]), mm[2])
++      const center = new Vector3(caseCenter.x, y + size.y / 2, this.caseBox.min.z + size.z / 2)
++      y += size.y + 10
++      add(p.ref, p.part_id, center, size, false, new Vector2(0, -1))
++    }
++
++    // exploded view: each part lifts (in order, the board lowest) and spreads out from the middle
++    let rank = 0
++    let top = 0
++    for (const e of [...this.parts.values()].sort((a, b) =>
++      a.ref === this.mcuRef ? -1 : b.ref === this.mcuRef ? 1 : 0,
++    )) {
++      if (!e.inside) {
++        e.explode.set(18, 0, 8)
++        continue
++      }
++      const spread = new Vector3(e.home.x - caseCenter.x, e.home.y - caseCenter.y, 0).multiplyScalar(0.45)
++      e.explode.set(spread.x, spread.y, 26 + 11 * rank++)
++      top = Math.max(top, e.explode.z + e.size.z)
++    }
++    this.lidExplode.set(0, 0, top + 18)
++
++    // wires: a jumper per wiring row, from the board's pin to the part's pin
++    const mcu = this.mcuRef ? this.parts.get(this.mcuRef) : undefined
++    const taken = new Set<string>()
++    const worldPin = (e: PartEntry, at: Vector3) => at.clone().add(e.home)
++    const byPart = new Map<string, number>()
++    for (const row of rows) {
++      const part = this.parts.get(row.part_ref)
++      if (!part || !mcu) continue
++      const pp = part.model.pins.find((p) => p.name === row.part_pin)
++      if (!pp) continue
++      const to = worldPin(part, pp.at)
++      // "GND" may be any of several header pins: take the nearest one still free
++      const cands = mcu.model.pins
++        .map((p, i) => ({ p, i, w: worldPin(mcu, p.at) }))
++        .filter((c) => c.p.name === row.mcu_pin)
++        .sort(
++          (a, b) =>
++            Number(taken.has(`${a.i}`)) - Number(taken.has(`${b.i}`)) || a.w.distanceTo(to) - b.w.distanceTo(to),
++        )
++      const from = cands[0]?.w ?? mcu.home.clone().setZ(mcu.home.z + mcu.size.z / 2)
++      if (cands[0]) taken.add(`${cands[0].i}`)
++      const k = byPart.get(row.part_ref) ?? 0
++      byPart.set(row.part_ref, k + 1)
++      this.wires.push(this.buildWire(row, from, to, k, part.inside ? caseTop - 1.2 : null))
++    }
++
++    // USB cable for the code step: plug from the board's socket out through the nearest wall
++    if (mcu?.model.usb) {
++      const at = mcu.model.usb.at.clone().add(mcu.home)
++      const dir = mcu.model.usb.dir.clone()
++      this.usbDir.copy(dir)
++      const wall =
++        dir.x > 0.5
++          ? this.caseBox.max.x - at.x
++          : dir.x < -0.5
++            ? at.x - this.caseBox.min.x
++            : dir.y > 0.5
++              ? this.caseBox.max.y - at.y
++              : at.y - this.caseBox.min.y
++      const g = new Group()
++      const metal = new Mesh(new BoxGeometry(wall + 2, 7, 2.4), this.std('#c9ccd2', 0.6))
++      metal.position.set((wall + 2) / 2, 0, 0)
++      const boot = new Mesh(new BoxGeometry(13, 11, 7), this.std('#2b2d31'))
++      boot.position.set(wall + 2 + 6.5, 0, 0)
++      const groundZ = this.caseBox.min.z - at.z + 1.6
++      const pts = [
++        [wall + 13, 0, 0],
++        [wall + 22, 0, 0],
++        [wall + 34, 4, groundZ * 0.5],
++        [wall + 50, 10, groundZ],
++        [wall + 70, 14, groundZ],
++      ].map(([x, y, z]) => new Vector3(x, y, z))
++      const cable = new Mesh(new TubeGeometry(new CatmullRomCurve3(pts), 60, 1.6, 10), this.std('#2b2d31'))
++      g.add(metal, boot, cable)
++      g.position.copy(at)
++      this.usbHome.copy(at)
++      g.rotation.z = Math.atan2(dir.y, dir.x)
++      g.visible = false
++      this.usb = g
++      this.extras.add(g)
++    }
++
++    // helpers: the printer nozzle (print step) and the arrow over a part being placed
++    this.nozzle = new Group()
++    const tip = new Mesh(new ConeGeometry(2.2, 4, 18).rotateX(-Math.PI / 2), this.std('#d4a640', 0.6))
++    tip.position.z = 2
++    const head = new Mesh(new BoxGeometry(12, 12, 9), this.std('#c9ccd2', 0.5))
++    head.position.z = 8.5
++    this.nozzle.add(tip, head)
++    this.nozzle.visible = false
++    this.arrowMat = new MeshBasicMaterial({
++      color: ACCENT,
++      transparent: true,
++      depthTest: false,
++    })
++    this.owned.push(this.arrowMat)
++    this.arrow = new Group()
++    const cone = new Mesh(new ConeGeometry(4, 7, 24).rotateX(-Math.PI / 2), this.arrowMat)
++    cone.position.z = 3.5
++    const shaft = new Mesh(new CylinderGeometry(1.5, 1.5, 11, 16).rotateX(Math.PI / 2), this.arrowMat)
++    shaft.position.z = 12.5
++    this.arrow.add(cone, shaft)
++    this.arrow.renderOrder = 11
++    this.arrow.visible = false
++    this.extras.add(this.nozzle, this.arrow)
++    this.extras.traverse((c) => (c.raycast = () => {}))
++
++    // camera frame: assembled and exploded extents together; the hover target adds the raised lid
++    const all = new Box3().setFromObject(this.root)
++    for (const e of this.parts.values())
++      all.union(new Box3().setFromCenterAndSize(e.home.clone().add(e.explode), e.size))
++    this.frame = new Mesh(
++      new BoxGeometry(...all.getSize(new Vector3()).toArray()),
++      new MeshBasicMaterial({ visible: false }),
++    )
++    this.frame.position.copy(all.getCenter(new Vector3()))
++    this.frame.raycast = () => {}
++    this.owned.push(this.frame.material as Material, this.frame.geometry)
++    if (this.lid) all.expandByPoint(this.caseBox.max.clone().add(this.lidExplode))
++    this.proxy = new Mesh(
++      new BoxGeometry(...all.getSize(new Vector3()).toArray()),
++      new MeshBasicMaterial({ visible: false }),
++    )
++    this.proxy.position.copy(all.getCenter(new Vector3()))
++    this.owned.push(this.proxy.material as Material)
++
++    this.setOverview(false)
++  }
++
++  private std(color: string, metal = 0) {
++    const m = new MeshStandardMaterial({
++      color,
++      roughness: metal ? 0.35 : 0.6,
++      metalness: metal,
++    })
++    this.owned.push(m)
++    return m
++  }
++
++  private buildWire(row: WiringRow, from: Vector3, to: Vector3, k: number, cap: number | null): WireEntry {
++    const g = new Group()
++    const up = (p: Vector3, dz: number) => p.clone().add(new Vector3(0, 0, dz))
++    const p0 = up(from, 2)
++    const p4 = up(to, 2)
++    const spread = (k - 1.5) * 1.6
++    const side = new Vector3(-(p4.y - p0.y), p4.x - p0.x, 0).normalize().multiplyScalar(spread)
++    const lim = (z: number) => (cap === null ? z : Math.min(cap, z))
++    let pts: Vector3[]
++    if (cap !== null) {
++      const p1 = up(p0, 3)
++      p1.z = lim(p1.z)
++      const p3 = up(p4, 3)
++      p3.z = lim(p3.z)
++      const p2 = p0.clone().lerp(p4, 0.5).add(side)
++      p2.z = lim(Math.max(p1.z, p3.z) + 3 + Math.abs(spread))
++      pts = [p0, p1, p2, p3, p4]
++    } else {
++      // outside part: out through the cable hole in the wall between them (the guide's "feed the cable in")
++      const hole = this.wallCrossing(p0, p4)
++      const inside = hole.clone().lerp(p0, 0.25)
++      pts = [p0, up(p0, 3), inside.add(side), hole.add(side), up(p4, 6), p4]
++    }
++    const curve = new CatmullRomCurve3(pts, false, 'centripetal')
++    const tube = new Mesh(new TubeGeometry(curve, 90, 0.6, 8, false), this.std(WIRE_HEX[row.pin_type] ?? '#8b8b8b'))
++    const housing = (p: Vector3) => {
++      const m = new Mesh(new BoxGeometry(2.5, 2.5, 6), this.std('#151618'))
++      m.position.copy(p).setZ(p.z - 1)
++      return m
++    }
++    const ends: [Mesh, Mesh] = [housing(from), housing(to)]
++    g.add(tube, ...ends)
++    g.userData.wire = `${row.part_ref}.${row.part_pin}`
++    this.root.add(g)
++    return {
++      row,
++      group: g,
++      tube,
++      count: tube.geometry.index?.count ?? 0,
++      ends,
++    }
++  }
++
++  private wallCrossing(a: Vector3, b: Vector3) {
++    // where the straight line from the pin inside to the part outside leaves the case, at mid-wall height
++    const m = this.caseBox
++    let t = 1
++    for (const [p0, p1, lo, hi] of [
++      [a.x, b.x, m.min.x, m.max.x],
++      [a.y, b.y, m.min.y, m.max.y],
++    ]) {
++      if (p1 > hi) t = Math.min(t, (hi - p0) / (p1 - p0))
++      if (p1 < lo) t = Math.min(t, (lo - p0) / (p1 - p0))
++    }
++    return a
++      .clone()
++      .lerp(b, t)
++      .setZ(m.min.z + 0.6 * (m.max.z - m.min.z))
++  }
++
++  /** Overview: everything in place, lid see-through; `exploded` holds the parts apart. */
++  setOverview(exploded: boolean) {
++    this.mode = 'overview'
++    this.step = null
++    this.explodeTarget = exploded ? 1 : 0
++    this.lockExploded = exploded
++  }
++
++  private lockExploded = false
++
++  setHover(on: boolean) {
++    this.hovering = on
++  }
++
++  setHoverPart(ref: string | null) {
++    this.hoverRef = ref
++  }
++
++  setSelected(ref: string | null) {
++    this.selectedRef = ref
++  }
++
++  /** Build guide: the scene as it is during `steps[index]`, with that step's animation looping. */
++  setBuild(steps: SceneStep[], index: number) {
++    this.mode = 'build'
++    this.step = steps[index] ?? null
++    const before = steps.slice(0, index)
++    this.placed = new Set(before.filter((s) => s.kind === 'Place' && s.ref).map((s) => s.ref as string))
++    this.wired = new Set(before.filter((s) => s.kind === 'Wiring' && s.ref).map((s) => s.ref as string))
++    // a part no step places is just there
++    const mentioned = new Set(steps.filter((s) => s.kind === 'Place').map((s) => s.ref))
++    for (const ref of this.parts.keys()) if (!mentioned.has(ref)) this.placed.add(ref)
++    if (this.step && (this.step.kind === 'Code' || this.step.kind === 'Close')) {
++      for (const ref of this.parts.keys()) this.placed.add(ref)
++      for (const w of this.wires) this.wired.add(w.row.part_ref)
++    }
++    this.stepClock = 0
++    this.explode = 0
++    this.explodeTarget = 0
++  }
++
++  /** Restart the current step's animation. */
++  replay() {
++    this.stepClock = 0
++  }
++
++  /** Where a part's label goes: just over its top, wherever it is right now. */
++  anchorOf(ref: string): Vector3 | null {
++    const e = this.parts.get(ref)
++    if (!e || !e.holder.visible) return null
++    return e.holder.position.clone().setZ(e.holder.position.z + e.size.z / 2 + 3)
++  }
++
++  /** The part ref an object in the scene belongs to, if any. */
++  refOf(o: Object3D | null): string | null {
++    for (let n = o; n; n = n.parent) if (typeof n.userData.ref === 'string') return n.userData.ref
++    return null
++  }
++
++  update(dt: number) {
++    if (this.mode === 'overview') this.updateOverview(dt)
++    else this.updateBuild(dt)
++  }
++
++  private ghost(on: boolean) {
++    this.baseMat.transparent = on
++    this.baseMat.opacity = on ? 0.4 : 1
++    this.baseMat.depthWrite = !on
++  }
++
++  private drawWire(w: WireEntry, t: number) {
++    const n = Math.floor((w.count * clamp01(t)) / 3) * 3
++    w.tube.geometry.setDrawRange(0, n)
++    w.ends[0].visible = t > 0
++    w.ends[1].visible = t >= 0.98
++  }
++
++  private power(state: 'off' | 'upload' | 'on', p = 0) {
++    // screens show the upload's progress, like the spike (a real one stays dark until the code runs)
++    for (const e of this.parts.values()) e.model.setPower(state, p)
++  }
++
++  private updateOverview(dt: number) {
++    const target = this.lockExploded || this.hovering ? 1 : 0
++    this.explodeTarget = target
++    this.explode += (this.explodeTarget - this.explode) * (1 - Math.exp(-dt * 6))
++    const x = ease(this.explode)
++    this.clip.constant = 1e4
++    this.ghost(false)
++    this.nozzle.visible = false
++    this.arrow.visible = false
++    if (this.usb) this.usb.visible = false
++    for (const e of this.parts.values()) {
++      e.holder.visible = true
++      e.holder.rotation.z = 0
++      e.holder.position.copy(e.home).addScaledVector(e.explode, x)
++      e.outline.visible = e.ref === this.selectedRef || e.ref === this.hoverRef
++      e.outline.material.opacity = e.ref === this.selectedRef ? 1 : 0.5
++    }
++    for (const w of this.wires) {
++      w.group.visible = this.explode < 0.04
++      this.drawWire(w, 1)
++    }
++    if (this.lid && this.lidMat) {
++      this.lid.visible = true
++      this.lid.position.copy(this.lidHome).addScaledVector(this.lidExplode, x)
++      this.lidMat.opacity = 0.3
++      this.lidMat.transparent = true
++      this.lidMat.depthWrite = false
++      for (const s of this.lidScrews) {
++        s.visible = this.explode < 0.04
++        s.position.z = this.lidTopZ
++        s.rotation.z = 0
++      }
++    }
++    this.power('on')
++  }
++
++  private updateBuild(dt: number) {
++    const step = this.step
++    if (!step) return
++    this.stepClock += dt
++    const DUR: Record<SceneStep['kind'], number> = {
++      Print: 4,
++      Place: 1.2,
++      Wiring: Math.max(1, this.wires.filter((w) => w.row.part_ref === step.ref).length * 0.75),
++      Code: 3.2,
++      Close: 2.2,
++    }
++    const period = DUR[step.kind] + (step.kind === 'Code' ? 2.6 : 1.8)
++    const t = this.stepClock % period
++    const now = this.stepClock
++
++    this.clip.constant = 1e4
++    this.nozzle.visible = false
++    this.arrow.visible = false
++    this.ghost(step.kind === 'Place' || step.kind === 'Wiring' || step.kind === 'Code')
++
++    // parts: placed ones sit at home; the step's part drops in
++    for (const e of this.parts.values()) {
++      const current = step.kind === 'Place' && step.ref === e.ref
++      e.holder.visible = step.kind !== 'Print' && (this.placed.has(e.ref) || current)
++      e.holder.position.copy(e.home)
++      e.holder.rotation.z = 0
++      const focus = step.ref === e.ref && step.kind !== 'Code'
++      e.outline.visible = focus
++      e.outline.material.opacity = 0.55 + 0.45 * Math.abs(Math.sin(now * 2.4))
++      if (current) {
++        const k = ease(t / DUR.Place)
++        const lift = 40 * (1 - k)
++        if (e.inside) e.holder.position.z += lift
++        else e.holder.position.x += lift
++        e.holder.rotation.z = 0.4 * (1 - k)
++        this.arrow.visible = t < DUR.Place
++        this.arrowMat.opacity = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.5
++        this.arrow.position.set(
++          e.holder.position.x,
++          e.holder.position.y,
++          e.holder.position.z + e.size.z / 2 + 6 + 2 * Math.sin(now * 8),
++        )
++      }
++    }
++
++    // wires: earlier steps' are in; the step's own are pushed on one after another
++    const mine = this.wires.filter((w) => step.kind === 'Wiring' && w.row.part_ref === step.ref)
++    for (const w of this.wires) {
++      const i = mine.indexOf(w)
++      if (i >= 0) {
++        w.group.visible = true
++        this.drawWire(w, (t - i * 0.75) / 0.7)
++      } else {
++        w.group.visible = this.wired.has(w.row.part_ref)
++        this.drawWire(w, 1)
++      }
++    }
++
++    // USB and power
++    if (this.usb) {
++      this.usb.visible = step.kind === 'Code' || step.kind === 'Close'
++      const k = step.kind === 'Code' ? ease(t / 0.9) : 1
++      this.usb.position.copy(this.usbHome).addScaledVector(this.usbDir, 30 * (1 - k))
++    }
++    if (step.kind === 'Code') {
++      const p = clamp01((t - 1) / (DUR.Code - 1))
++      if (t < 1) this.power('off')
++      else if (p < 1) this.power('upload', p)
++      else this.power('on')
++    } else this.power(step.kind === 'Close' ? 'on' : 'off')
++
++    // lid
++    if (this.lid && this.lidMat) {
++      this.lid.visible = step.kind === 'Close'
++      this.lidMat.transparent = false
++      this.lidMat.opacity = 1
++      this.lidMat.depthWrite = true
++      const k = ease(t / 1.1)
++      this.lid.position.copy(this.lidHome).setZ(this.lidHome.z + LID_DROP * (1 - k))
++      this.lidScrews.forEach((s, i) => {
++        const ks = ease((t - 1.1 - i * 0.12) / 0.8)
++        s.visible = t > 1.1 + i * 0.12
++        s.position.z = this.lidTopZ + 8 * (1 - ks)
++        s.rotation.z = -ks * Math.PI * 6
++      })
++    }
++
++    // printing: the base grows layer by layer under the nozzle
++    if (step.kind === 'Print') {
++      const k = clamp01(t / DUR.Print)
++      const z0 = this.caseBox.min.z
++      const z1 = this.caseBox.max.z
++      this.clip.constant = z0 + (z1 - z0 + 0.5) * k
++      this.nozzle.visible = k < 1
++      const c = this.caseBox.getCenter(new Vector3())
++      const sx = (this.caseBox.max.x - this.caseBox.min.x) / 2
++      const sy = (this.caseBox.max.y - this.caseBox.min.y) / 2
++      this.nozzle.position.set(c.x + sx * Math.sin(now * 6.1), c.y + sy * Math.sin(now * 1.7), this.clip.constant + 0.2)
++    }
++  }
++
++  dispose() {
++    const geos = new Set<{ dispose: () => void }>()
++    for (const o of [this.root, this.extras, this.proxy]) {
++      o.traverse((c) => {
++        if (c instanceof Mesh || c instanceof LineSegments) {
++          geos.add(c.geometry)
++          const mats = Array.isArray(c.material) ? c.material : [c.material]
++          for (const m of mats) geos.add(m)
++        }
++      })
++    }
++    for (const e of this.parts.values()) for (const m of e.model.mats) geos.add(m)
++    for (const m of this.owned) geos.add(m)
++    for (const g of geos) g.dispose()
++  }
++}
++
++function screw(m: MeshStandardMaterial) {
++  const g = new Group()
++  const head = new Mesh(new CylinderGeometry(2.2, 2.2, 1.6, 20).rotateX(Math.PI / 2), m)
++  head.position.z = 0.8
++  const slot = new Mesh(new BoxGeometry(3.2, 0.55, 0.5), new MeshStandardMaterial({ color: '#3b3f45' }))
++  slot.position.z = 1.62
++  const slot2 = slot.clone()
++  slot2.rotation.z = Math.PI / 2
++  g.add(head, slot, slot2)
++  return g
++}
+diff --git a/frontend/src/scene/parts.ts b/frontend/src/scene/parts.ts
+new file mode 100644
+index 0000000..feff818
+--- /dev/null
++++ b/frontend/src/scene/parts.ts
+@@ -0,0 +1,855 @@
++// Procedural part models for the 3D view (ported from the instruction spike).
++// Frame: mm, Z up, like the enclosure (backend/contracts/base.py). A model's origin is the centre of
++// its layout box, the box assembly.glb draws for the part, so it spans z = -h/2 (floor) to +h/2.
++// Looks are approximate: enough to tell the parts apart and to see where each wire goes.
++import {
++  BoxGeometry,
++  CanvasTexture,
++  CylinderGeometry,
++  EdgesGeometry,
++  Group,
++  LineBasicMaterial,
++  LineSegments,
++  Mesh,
++  MeshBasicMaterial,
++  MeshStandardMaterial,
++  PlaneGeometry,
++  SphereGeometry,
++  SRGBColorSpace,
++  Vector2,
++  Vector3,
++  type BufferGeometry,
++} from 'three'
++
++export type Category = 'mcu' | 'sensor' | 'display' | 'light' | 'input' | 'output' | 'power'
++
++/** The fields of backend/parts/library/*.yaml the 3D view needs: category, board_mm (l, w, h),
++ * pins in header order, and whether the part sits outside the case. Keep in step with the YAML. */
++export const LIBRARY: Record<
++  string,
++  {
++    cat: Category
++    mm: [number, number, number]
++    pins: string[]
++    external?: true
++  }
++> = {
++  arduino_nano: {
++    cat: 'mcu',
++    mm: [45, 18, 14],
++    pins: [
++      'D13',
++      '3V3',
++      'REF',
++      'A0',
++      'A1',
++      'A2',
++      'A3',
++      'A4',
++      'A5',
++      'A6',
++      'A7',
++      '5V',
++      'RST',
++      'GND',
++      'VIN',
++      'D12',
++      'D11',
++      'D10',
++      'D9',
++      'D8',
++      'D7',
++      'D6',
++      'D5',
++      'D4',
++      'D3',
++      'D2',
++      'GND',
++      'RST',
++      'D0',
++      'D1',
++    ],
++  },
++  arduino_uno_r3: {
++    cat: 'mcu',
++    mm: [68.6, 53.4, 14],
++    pins: [
++      'IOREF',
++      'RST',
++      '3V3',
++      '5V',
++      'GND',
++      'GND',
++      'VIN',
++      'A0',
++      'A1',
++      'A2',
++      'A3',
++      'A4',
++      'A5',
++      'D13',
++      'D12',
++      'D11',
++      'D10',
++      'D9',
++      'D8',
++      'D7',
++      'D6',
++      'D5',
++      'D4',
++      'D3',
++      'D2',
++      'D1',
++      'D0',
++      'GND',
++      'AREF',
++      'SDA',
++      'SCL',
++    ],
++  },
++  bme280_breakout: {
++    cat: 'sensor',
++    mm: [15.5, 11.5, 11],
++    pins: ['VCC', 'GND', 'SCL', 'SDA', 'CSB', 'SDO'],
++  },
++  button_arcade_30mm: { cat: 'input', mm: [33, 33, 40], pins: ['NO', 'COM'] },
++  button_tactile_6mm: { cat: 'input', mm: [7.9, 6, 7.8], pins: ['1', '3'] },
++  buzzer_passive: {
++    cat: 'output',
++    mm: [18.5, 15, 12],
++    pins: ['SIG', 'MID', 'GND'],
++  },
++  ds18b20_probe: {
++    cat: 'sensor',
++    mm: [30, 6, 6],
++    pins: ['VDD', 'GND', 'DATA'],
++    external: true,
++  },
++  esp32_devkitc: { cat: 'mcu', mm: [54.3, 27.94, 13.5], pins: [] }, // rows: ESP32_ROWS
++  hc_sr04p: {
++    cat: 'sensor',
++    mm: [45, 20, 15],
++    pins: ['VCC', 'TRIG', 'ECHO', 'GND'],
++  },
++  inmp441: {
++    cat: 'sensor',
++    mm: [15, 15, 10],
++    pins: ['VDD', 'GND', 'SD', 'WS', 'SCK', 'LR'],
++  },
++  ky040_encoder: {
++    cat: 'input',
++    mm: [30, 18, 30],
++    pins: ['CLK', 'DT', 'SW', 'VCC', 'GND'],
++  },
++  max98357a: {
++    cat: 'output',
++    mm: [19.4, 17.8, 18],
++    pins: ['LRC', 'BCLK', 'DIN', 'GAIN', 'SD', 'GND', 'Vin'],
++  },
++  pir_hc_sr501: {
++    cat: 'sensor',
++    mm: [32, 24, 24.7],
++    pins: ['VCC', 'OUT', 'GND'],
++  },
++  relay_module_1ch: {
++    cat: 'output',
++    mm: [42, 24, 18.5],
++    pins: ['SIG', 'VCC', 'GND'],
++  },
++  rpi_pico: {
++    cat: 'mcu',
++    mm: [51, 21, 12.5],
++    pins: [
++      'GP0',
++      'GP1',
++      'GND',
++      'GP2',
++      'GP3',
++      'GP4',
++      'GP5',
++      'GND',
++      'GP6',
++      'GP7',
++      'GP8',
++      'GP9',
++      'GND',
++      'GP10',
++      'GP11',
++      'GP12',
++      'GP13',
++      'GND',
++      'GP14',
++      'GP15',
++      'VBUS',
++      'VSYS',
++      'GND',
++      '3V3_EN',
++      '3V3',
++      'ADC_VREF',
++      'GP28',
++      'GND',
++      'GP27',
++      'GP26',
++      'RUN',
++      'GP22',
++      'GND',
++      'GP21',
++      'GP20',
++      'GP19',
++      'GP18',
++      'GND',
++      'GP17',
++      'GP16',
++    ],
++  },
++  servo_sg90: {
++    cat: 'output',
++    mm: [23, 12.2, 29],
++    pins: ['GND', 'VCC', 'PWM'],
++    external: true,
++  },
++  soil_moisture_capacitive: {
++    cat: 'sensor',
++    mm: [98, 23, 7],
++    pins: ['GND', 'VCC', 'AOUT'],
++    external: true,
++  },
++  speaker_40mm_4ohm: { cat: 'output', mm: [40, 40, 21], pins: ['+', '-'] },
++  ssd1306_096_i2c: {
++    cat: 'display',
++    mm: [28, 28, 12],
++    pins: ['GND', 'VCC', 'SCL', 'SDA'],
++  },
++  vibration_motor_module: {
++    cat: 'output',
++    mm: [30, 22, 8],
++    pins: ['SIG', 'VCC', 'GND'],
++  },
++  ws2812b_ring_12: {
++    cat: 'light',
++    mm: [36.8, 36.8, 6.7],
++    pins: ['VCC', 'GND', 'DIN', 'DOUT'],
++  },
++  xiao_esp32s3_sense: {
++    cat: 'mcu',
++    mm: [21, 17.8, 21],
++    pins: [
++      'GPIO1',
++      'GPIO2',
++      'GPIO3',
++      'GPIO4',
++      'GPIO5',
++      'GPIO6',
++      'GPIO43',
++      '5V',
++      'GND',
++      '3V3',
++      'GPIO9',
++      'GPIO8',
++      'GPIO7',
++      'GPIO44',
++    ],
++  },
++}
++
++// ESP32-DevKitC V4, the two 19-pin rows from the antenna end (Espressif pin layout).
++const ESP32_ROWS = [
++  [
++    '3V3',
++    'EN',
++    'GPIO36',
++    'GPIO39',
++    'GPIO34',
++    'GPIO35',
++    'GPIO32',
++    'GPIO33',
++    'GPIO25',
++    'GPIO26',
++    'GPIO27',
++    'GPIO14',
++    'GPIO12',
++    'GND',
++    'GPIO13',
++    'SD2',
++    'SD3',
++    'CMD',
++    '5V',
++  ],
++  [
++    'GND',
++    'GPIO23',
++    'GPIO22',
++    'TX',
++    'RX',
++    'GPIO21',
++    'GND',
++    'GPIO19',
++    'GPIO18',
++    'GPIO5',
++    'GPIO17',
++    'GPIO16',
++    'GPIO4',
++    'GPIO0',
++    'GPIO2',
++    'GPIO15',
++    'SD1',
++    'SD0',
++    'CLK',
++  ],
++]
++
++/** Shapes on top of the PCB. `at` is a fraction of the footprint (-0.5..0.5 along x and y); sizes
++ * are mm, clamped to the footprint. The model's header sits on its +y edge (boards: rows on ±y). */
++type Shape =
++  | {
++      box: [number, number, number]
++      at: [number, number]
++      color: string
++      metal?: number
++      on?: number
++    }
++  | {
++      cyl: [number, number]
++      at: [number, number]
++      color: string
++      metal?: number
++      on?: number
++    }
++  | { screen: [number, number]; at: [number, number] }
++  | { led: [number, number, number]; at: [number, number]; color: string }
++  | { dome: number; at: [number, number]; color: string }
++  | { ring: [number, number]; leds: number }
++
++interface Look {
++  pcb: string | null
++  /** Height of the PCB's underside above the floor (posts or headers below it). */
++  lift?: number
++  shapes: Shape[]
++}
++
++const SILVER = '#c9ccd2'
++const LOOKS: Record<string, Look> = {
++  esp32_devkitc: {
++    pcb: '#23262d',
++    lift: 5,
++    shapes: [
++      { box: [23, 18, 0.8], at: [0.27, 0], color: '#2f323a' },
++      {
++        box: [17.6, 15.8, 3.1],
++        at: [0.22, 0],
++        color: SILVER,
++        metal: 0.6,
++        on: 0.8,
++      },
++      { box: [6, 7.5, 3], at: [-0.45, 0], color: SILVER, metal: 0.6 },
++      { box: [3.5, 3, 1.6], at: [-0.37, 0.31], color: '#f2f2f2' },
++      { box: [3.5, 3, 1.6], at: [-0.37, -0.31], color: '#f2f2f2' },
++      { box: [5, 5, 1.4], at: [-0.25, -0.1], color: '#141414' },
++      { led: [1.6, 1, 0.8], at: [-0.31, 0.15], color: '#ff4d4d' },
++    ],
++  },
++  arduino_uno_r3: {
++    pcb: '#0f6f93',
++    lift: 3,
++    shapes: [
++      { box: [35, 7.5, 3.5], at: [0.05, -0.18], color: '#141414' },
++      { box: [16, 12, 11], at: [-0.42, 0.2], color: SILVER, metal: 0.6 },
++      { box: [13, 9, 11], at: [-0.42, -0.3], color: '#141414' },
++      { led: [1.6, 1, 0.8], at: [-0.2, 0.3], color: '#55ff55' },
++    ],
++  },
++  arduino_nano: {
++    pcb: '#1d5fa8',
++    lift: 4,
++    shapes: [
++      { box: [7, 7, 1.2], at: [0.05, 0], color: '#141414' },
++      { box: [8, 7.5, 4], at: [-0.42, 0], color: SILVER, metal: 0.6 },
++      { led: [1.6, 1, 0.8], at: [0.25, 0.1], color: '#55ff55' },
++    ],
++  },
++  rpi_pico: {
++    pcb: '#2c7a3f',
++    lift: 4,
++    shapes: [
++      { box: [7, 7, 1], at: [0.05, 0], color: '#141414' },
++      { box: [8, 7.5, 3], at: [-0.45, 0], color: SILVER, metal: 0.6 },
++      { box: [3.5, 3, 1.4], at: [-0.25, 0.25], color: '#f2f2f2' },
++      { led: [1.6, 1, 0.8], at: [-0.32, -0.2], color: '#55ff55' },
++    ],
++  },
++  xiao_esp32s3_sense: {
++    pcb: '#202227',
++    lift: 4,
++    shapes: [
++      { box: [15, 12, 2.5], at: [0.1, 0], color: SILVER, metal: 0.6 },
++      { box: [9, 7, 3.2], at: [-0.4, 0], color: SILVER, metal: 0.6 },
++      { box: [8, 8, 7], at: [0.1, 0], color: '#141414', on: 2.5 },
++      { cyl: [2, 1.5], at: [0.1, 0], color: '#3b3440', on: 9.5 },
++    ],
++  },
++  ssd1306_096_i2c: {
++    pcb: '#1f4e9c',
++    lift: 2,
++    shapes: [
++      { box: [26, 16, 1.4], at: [0, -0.07], color: '#0b0e13' },
++      { screen: [22, 11], at: [0, -0.07] },
++      { box: [9, 2.6, 0.3], at: [0, -0.4], color: '#c8a35a' },
++    ],
++  },
++  bme280_breakout: {
++    pcb: '#6a3fa0',
++    lift: 2,
++    shapes: [
++      { box: [2.6, 2.6, 0.9], at: [0, -0.2], color: SILVER, metal: 0.7 },
++      { box: [1.8, 1, 0.6], at: [-0.3, -0.3], color: '#c9a35a' },
++    ],
++  },
++  buzzer_passive: {
++    pcb: '#1f5e3a',
++    lift: 2,
++    shapes: [
++      { cyl: [5.5, 8], at: [0, -0.12], color: '#1a1a1a' },
++      { cyl: [1, 8.1], at: [0, -0.12], color: '#5a5a5a' },
++    ],
++  },
++  soil_moisture_capacitive: {
++    pcb: '#26272c',
++    shapes: [
++      { box: [9, 9, 1.4], at: [0, 0.36], color: '#2a2a2e' },
++      { box: [23, 2.5, 0.1], at: [0, -0.05], color: '#e8e8e8' },
++      { box: [5, 5, 1.2], at: [0.2, 0.3], color: '#111' },
++    ],
++  },
++  ds18b20_probe: {
++    pcb: null,
++    shapes: [
++      { cyl: [3, 6], at: [0, -0.2], color: '#b9bec6', metal: 0.8 },
++      { box: [4, 14, 4], at: [0, 0.2], color: '#141414' },
++    ],
++  },
++  hc_sr04p: {
++    pcb: '#1d5fa8',
++    lift: 2,
++    shapes: [
++      { cyl: [8, 12], at: [-0.28, -0.08], color: SILVER, metal: 0.6 },
++      { cyl: [8, 12], at: [0.28, -0.08], color: SILVER, metal: 0.6 },
++      { cyl: [6, 12.2], at: [-0.28, -0.08], color: '#202020' },
++      { cyl: [6, 12.2], at: [0.28, -0.08], color: '#202020' },
++    ],
++  },
++  pir_hc_sr501: {
++    pcb: '#1f6b3a',
++    lift: 2,
++    shapes: [
++      { box: [23, 23, 3], at: [0, -0.05], color: '#e8e8e8' },
++      { dome: 11, at: [0, -0.05], color: '#f4f4f4' },
++    ],
++  },
++  inmp441: {
++    pcb: '#5b3c8c',
++    lift: 2,
++    shapes: [{ cyl: [3.5, 1.2], at: [0, -0.1], color: SILVER, metal: 0.7 }],
++  },
++  ky040_encoder: {
++    pcb: '#1d5fa8',
++    lift: 2,
++    shapes: [
++      { box: [12, 13, 6], at: [-0.1, -0.05], color: SILVER, metal: 0.6 },
++      { cyl: [3, 15], at: [-0.1, -0.05], color: '#b0b4ba', metal: 0.6, on: 6 },
++    ],
++  },
++  button_arcade_30mm: {
++    pcb: null,
++    shapes: [
++      { cyl: [15, 10], at: [0, 0], color: '#141414' },
++      { cyl: [12, 8], at: [0, 0], color: '#e5484d', on: 10 },
++    ],
++  },
++  button_tactile_6mm: {
++    pcb: null,
++    shapes: [
++      { box: [6, 6, 3.5], at: [0, 0], color: '#141414' },
++      { cyl: [1.8, 2], at: [0, 0], color: '#2a2a2a', on: 3.5 },
++    ],
++  },
++  max98357a: {
++    pcb: '#5b3c8c',
++    lift: 2,
++    shapes: [
++      { box: [4, 4, 1], at: [0, -0.15], color: '#141414' },
++      { box: [7, 6, 5], at: [0, -0.35], color: '#18c08b' },
++    ],
++  },
++  speaker_40mm_4ohm: {
++    pcb: null,
++    shapes: [
++      { cyl: [20, 6], at: [0, 0], color: '#18181b' },
++      { cyl: [15, 6.3], at: [0, 0], color: '#3f3f46' },
++      { cyl: [5, 6.6], at: [0, 0], color: SILVER, metal: 0.6 },
++    ],
++  },
++  servo_sg90: {
++    pcb: null,
++    shapes: [
++      { box: [23, 12.2, 22], at: [0, 0], color: '#2563eb' },
++      { box: [32, 12.2, 2.5], at: [0, 0], color: '#2563eb', on: 15 },
++      { cyl: [2.5, 5], at: [-0.25, 0], color: '#f2f2f2', on: 22 },
++      { box: [16, 4, 1.5], at: [-0.25, 0], color: '#f2f2f2', on: 27 },
++    ],
++  },
++  relay_module_1ch: {
++    pcb: '#1d5fa8',
++    lift: 2,
++    shapes: [
++      { box: [19, 15.5, 15], at: [0.12, -0.08], color: '#2b6cdf' },
++      { box: [8, 15, 10], at: [-0.38, -0.08], color: '#1fa37a' },
++      { led: [1.6, 1, 0.8], at: [-0.15, 0.3], color: '#ff4d4d' },
++    ],
++  },
++  vibration_motor_module: {
++    pcb: '#1d5fa8',
++    lift: 2,
++    shapes: [{ cyl: [5, 2.7], at: [0.15, -0.1], color: SILVER, metal: 0.7 }],
++  },
++  ws2812b_ring_12: { pcb: null, shapes: [{ ring: [18.4, 12.5], leds: 12 }] },
++}
++
++// A part with no look of its own (a custom part, or one added to the library later) gets its category's.
++const BY_CATEGORY: Record<Category, Look> = {
++  mcu: {
++    pcb: '#1d6b8f',
++    lift: 4,
++    shapes: [
++      { box: [10, 10, 1.4], at: [0.05, 0], color: '#141414' },
++      { box: [7, 7, 3], at: [-0.43, 0], color: SILVER, metal: 0.6 },
++    ],
++  },
++  sensor: {
++    pcb: '#2563a8',
++    lift: 2,
++    shapes: [{ box: [3, 3, 1], at: [0, -0.2], color: '#141414' }],
++  },
++  display: {
++    pcb: '#1f4e9c',
++    lift: 2,
++    shapes: [
++      { box: [24, 14, 1.4], at: [0, -0.07], color: '#0b0e13' },
++      { screen: [20, 10], at: [0, -0.07] },
++    ],
++  },
++  light: {
++    pcb: '#222326',
++    lift: 2,
++    shapes: [
++      { led: [5, 5, 1.6], at: [-0.25, -0.1], color: '#f5f5f5' },
++      { led: [5, 5, 1.6], at: [0.25, -0.1], color: '#f5f5f5' },
++    ],
++  },
++  input: {
++    pcb: '#1f2937',
++    lift: 2,
++    shapes: [{ cyl: [4, 5], at: [0, -0.1], color: '#141414' }],
++  },
++  output: {
++    pcb: '#14532d',
++    lift: 2,
++    shapes: [{ cyl: [5, 7], at: [0, -0.1], color: '#141414' }],
++  },
++  power: {
++    pcb: '#3f3f46',
++    lift: 2,
++    shapes: [{ box: [10, 8, 6], at: [0, -0.1], color: '#141414' }],
++  },
++}
++
++export const categoryOf = (partId: string): Category => LIBRARY[partId]?.cat ?? 'sensor'
++
++/** Where the part's header pins are, in header order: library order, then any extra pin the wiring uses. */
++export const pinsOf = (partId: string, used: string[]) => {
++  const pins = [...(LIBRARY[partId]?.pins ?? [])]
++  for (const p of used) if (!pins.includes(p)) pins.push(p)
++  return pins
++}
++
++export interface PartModel {
++  root: Group
++  /** Pin tips, where a jumper wire's housing slides on, in root (layout box) coordinates. */
++  pins: { name: string; at: Vector3 }[]
++  /** The USB socket's mouth and the direction a plug comes from (boards only). */
++  usb: { at: Vector3; dir: Vector3 } | null
++  /** Every surface material, for the highlight glow. */
++  mats: MeshStandardMaterial[]
++  /** 'off', 'upload' (with progress 0..1) or 'on': screens draw, LEDs light. */
++  setPower: (state: 'off' | 'upload' | 'on', progress?: number) => void
++}
++
++const EDGES = new LineBasicMaterial({
++  color: '#09090b',
++  transparent: true,
++  opacity: 0.45,
++})
++const PITCH = 2.54
++const PIN_UP = 3.5 // pin above its plastic strip
++const STRIP = 2.5
++
++function drawScreen(ctx: CanvasRenderingContext2D, state: 'off' | 'upload' | 'on', p: number) {
++  ctx.fillStyle = '#05080c'
++  ctx.fillRect(0, 0, 256, 128)
++  if (state === 'off') return
++  ctx.fillStyle = '#bfe9ff'
++  ctx.strokeStyle = '#bfe9ff'
++  ctx.textAlign = 'center'
++  if (state === 'upload') {
++    ctx.font = 'bold 22px monospace'
++    ctx.fillText('UPLOADING', 128, 48)
++    ctx.lineWidth = 3
++    ctx.strokeRect(28, 66, 200, 20)
++    ctx.fillRect(32, 70, 192 * p, 12)
++    ctx.font = 'bold 16px monospace'
++    ctx.fillText(`${Math.round(p * 100)}%`, 128, 112)
++  } else {
++    ctx.font = 'bold 16px monospace'
++    ctx.fillText('DITTO', 128, 26)
++    ctx.font = 'bold 54px monospace'
++    ctx.fillText('READY', 128, 88)
++    ctx.fillRect(48, 106, 160, 4)
++  }
++}
++
++/**
++ * Builds a part to fill a layout box of `size` (x, y, z mm). `toward` is the direction, in the box's
++ * frame, of the board the part wires to (or, for the board itself, of the nearest case wall): the
++ * header turns to face it, and a board turns its USB socket to it.
++ */
++export function buildPart(
++  partId: string,
++  category: Category,
++  size: Vector3,
++  toward: Vector2,
++  pinNames: string[],
++): PartModel {
++  const look = LOOKS[partId] ?? BY_CATEGORY[category]
++  const isBoard = category === 'mcu'
++  const mats: MeshStandardMaterial[] = []
++  const std = (color: string, metal = 0) => {
++    const m = new MeshStandardMaterial({
++      color,
++      roughness: metal ? 0.35 : 0.7,
++      metalness: metal,
++    })
++    mats.push(m)
++    return m
++  }
++  const add = (
++    parent: Group,
++    geo: BufferGeometry,
++    m: MeshStandardMaterial | MeshBasicMaterial,
++    at: [number, number, number],
++    edges = true,
++  ) => {
++    const mesh = new Mesh(geo, m)
++    mesh.position.set(...at)
++    if (edges) mesh.add(new LineSegments(new EdgesGeometry(geo, 28), EDGES))
++    parent.add(mesh)
++    return mesh
++  }
++  const zcyl = (r: number, h: number, seg = 28) => new CylinderGeometry(r, r, h, seg).rotateX(Math.PI / 2)
++
++  // Which way the model turns: 0, 90, 180 or 270° about z. The canonical model has its header on
++  // +y (a board: rows on ±y, USB at -x). Turning by 90 or 270 swaps the footprint's sides.
++  const turns = [0, 1, 2, 3]
++  const footprint = (q: number) => (q % 2 ? [size.y, size.x] : [size.x, size.y])
++  const normal = (q: number) => [new Vector2(0, 1), new Vector2(-1, 0), new Vector2(0, -1), new Vector2(1, 0)][q]
++  let quarter: number
++  if (isBoard) {
++    const long = size.x >= size.y ? [0, 2] : [1, 3]
++    // the USB end (-x canonical, which is -normal(q) turned a further 90°) faces `toward`
++    const usbDir = (q: number) => normal((q + 1) % 4)
++    quarter = long.sort((a, b) => usbDir(b).dot(toward) - usbDir(a).dot(toward))[0]
++  } else {
++    const fits = (q: number) => pinNames.length * PITCH <= footprint(q)[0] - 1
++    const ok = turns.filter(fits)
++    const pool = ok.length ? ok : [size.x >= size.y ? 0 : 1, size.x >= size.y ? 2 : 3]
++    quarter = pool.sort((a, b) => normal(b).dot(toward) - normal(a).dot(toward))[0]
++  }
++  const [a, b] = footprint(quarter)
++  const h = size.z
++  const floor = -h / 2
++
++  const root = new Group()
++  const body = new Group()
++  body.rotation.z = (quarter * Math.PI) / 2
++  root.add(body)
++
++  const lift = Math.min(look.lift ?? 0, Math.max(0, h - 4))
++  const pcbT = look.pcb ? 1.6 : 0
++  const top = floor + lift + pcbT
++  if (look.pcb) {
++    add(body, new BoxGeometry(a, b, pcbT), std(look.pcb), [0, 0, floor + lift + pcbT / 2])
++    // posts under the corners
++    if (lift > 0.5) {
++      const post = std('#3a3a40')
++      for (const [sx, sy] of [
++        [1, 1],
++        [-1, 1],
++        [1, -1],
++        [-1, -1],
++      ])
++        add(body, zcyl(1.6, lift, 16), post, [sx * (a / 2 - 2.5), sy * (b / 2 - 2.5), floor + lift / 2], false)
++    }
++  }
++
++  // header strips and pins (canonical frame)
++  const pins: { name: string; at: Vector3 }[] = []
++  const stripMat = std('#18191b')
++  const gold = std('#d9c37c', 0.7)
++  const header = (names: string[], y: number, xs: number[]) => {
++    if (!names.length) return
++    const len = Math.max(...xs) - Math.min(...xs) + PITCH
++    add(body, new BoxGeometry(len, PITCH, STRIP), stripMat, [
++      (Math.max(...xs) + Math.min(...xs)) / 2,
++      y,
++      top + STRIP / 2,
++    ])
++    names.forEach((name, i) => {
++      add(body, new BoxGeometry(0.64, 0.64, PIN_UP + 1), gold, [xs[i], y, top + STRIP + (PIN_UP - 1) / 2], false)
++      pins.push({ name, at: new Vector3(xs[i], y, top + STRIP + PIN_UP) })
++    })
++  }
++  if (partId === 'esp32_devkitc') {
++    // the 48.26 mm PCB plus the antenna overhang at +x: rows centred on the PCB, not the box
++    const xs = ESP32_ROWS[0].map((_, i) => 22.86 - PITCH * i - 3.02)
++    header(ESP32_ROWS[0], b / 2 - 1.27, xs)
++    header(ESP32_ROWS[1], -(b / 2 - 1.27), xs)
++  } else if (isBoard) {
++    const half = Math.ceil(pinNames.length / 2)
++    const rows = [pinNames.slice(0, half), pinNames.slice(half)]
++    const pitch = Math.min(PITCH, (a - 4) / Math.max(1, half))
++    rows.forEach((row, r) =>
++      header(
++        row,
++        (r ? -1 : 1) * (b / 2 - 1.27),
++        row.map((_, i) => a / 2 - 2 - 2 - pitch * i),
++      ),
++    )
++  } else if (pinNames.length) {
++    const pitch = Math.min(PITCH, (a - 1) / pinNames.length)
++    const x0 = (-(pinNames.length - 1) * pitch) / 2
++    header(
++      pinNames,
++      b / 2 - 1.5,
++      pinNames.map((_, i) => x0 + pitch * i),
++    )
++  }
++
++  // shapes on top
++  let screen: { ctx: CanvasRenderingContext2D; tex: CanvasTexture } | null = null
++  const leds: MeshStandardMaterial[] = []
++  for (const s of look.shapes) {
++    if ('box' in s) {
++      const [sx, sy, sz] = [Math.min(s.box[0], a - 0.5), Math.min(s.box[1], b - 0.5), s.box[2]]
++      add(body, new BoxGeometry(sx, sy, sz), std(s.color, s.metal), [
++        s.at[0] * a,
++        s.at[1] * b,
++        top + (s.on ?? 0) + sz / 2,
++      ])
++    } else if ('cyl' in s) {
++      const r = Math.min(s.cyl[0], a / 2 - 0.3, b / 2 - 0.3)
++      add(
++        body,
++        zcyl(r, s.cyl[1]),
++        std(s.color, s.metal),
++        [s.at[0] * a, s.at[1] * b, top + (s.on ?? 0) + s.cyl[1] / 2],
++        false,
++      )
++    } else if ('led' in s) {
++      const m = std(s.color)
++      m.emissive.set(s.color)
++      m.emissiveIntensity = 0
++      leds.push(m)
++      add(body, new BoxGeometry(...s.led), m, [s.at[0] * a, s.at[1] * b, top + s.led[2] / 2], false)
++    } else if ('dome' in s) {
++      const r = Math.min(s.dome, a / 2, b / 2)
++      const geo = new SphereGeometry(r, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2)
++      add(body, geo, std(s.color), [s.at[0] * a, s.at[1] * b, top + 3], false)
++    } else if ('screen' in s) {
++      const canvas = document.createElement('canvas')
++      canvas.width = 256
++      canvas.height = 128
++      const ctx = canvas.getContext('2d')
++      if (ctx) {
++        const tex = new CanvasTexture(canvas)
++        tex.colorSpace = SRGBColorSpace
++        screen = { ctx, tex }
++        drawScreen(ctx, 'off', 0)
++        const [sx, sy] = [Math.min(s.screen[0], a - 2), Math.min(s.screen[1], b - 2)]
++        const m = add(
++          body,
++          new PlaneGeometry(sx, sy),
++          new MeshBasicMaterial({ map: tex }),
++          [s.at[0] * a, s.at[1] * b, top + 1.45],
++          false,
++        )
++        m.renderOrder = 1
++      }
++    } else if ('ring' in s) {
++      const [ro, ri] = [Math.min(s.ring[0], a / 2, b / 2), s.ring[1]]
++      add(body, zcyl(ro, 1.6, 48), std('#18191b'), [0, 0, floor + 0.8], false)
++      add(body, zcyl(ri, 1.7, 48), std('#202024'), [0, 0, floor + 0.8], false)
++      for (let i = 0; i < s.leds; i++) {
++        const t = (i / s.leds) * Math.PI * 2
++        const color = `hsl(${Math.round((i / s.leds) * 360)}, 90%, 60%)`
++        const m = std('#f2f2f2')
++        m.emissive.set(color)
++        m.emissiveIntensity = 0
++        leds.push(m)
++        add(
++          body,
++          new BoxGeometry(5, 5, 1.6),
++          m,
++          [(Math.cos(t) * (ro + ri)) / 2, (Math.sin(t) * (ro + ri)) / 2, floor + 2.4],
++          false,
++        )
++      }
++    }
++  }
++
++  // canonical -> root coordinates
++  const toRoot = (v: Vector3) => v.clone().applyAxisAngle(new Vector3(0, 0, 1), body.rotation.z)
++  const usb = isBoard
++    ? {
++        at: toRoot(new Vector3(-a / 2, 0, top + 1.5)),
++        dir: toRoot(new Vector3(-1, 0, 0)),
++      }
++    : null
++
++  let power = ''
++  return {
++    root,
++    pins: pins.map((p) => ({ name: p.name, at: toRoot(p.at) })),
++    usb,
++    mats,
++    setPower(state, progress = 0) {
++      const key = state === 'upload' ? `u${Math.round(progress * 40)}` : state
++      if (key === power) return
++      power = key
++      if (screen) {
++        drawScreen(screen.ctx, state, progress)
++        screen.tex.needsUpdate = true
++      }
++      // a board's LED blinks while it uploads; lights stay lit once the code runs
++      const blink = state === 'upload' ? Math.round(progress * 40) % 2 : 0
++      leds.forEach((m) => {
++        m.emissiveIntensity = isBoard
++          ? state === 'upload'
++            ? blink * 2.5
++            : state === 'on'
++              ? 1.2
++              : 0
++          : state === 'on'
++            ? 1.6
++            : 0
++      })
++    },
++  }
++}
+diff --git a/frontend/viewer.html b/frontend/viewer.html
+new file mode 100644
+index 0000000..f789f20
+--- /dev/null
++++ b/frontend/viewer.html
+@@ -0,0 +1,12 @@
++<!doctype html>
++<html lang="en">
++  <head>
++    <meta charset="UTF-8" />
++    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
++    <title>Ditto · 3D viewer (dev)</title>
++  </head>
++  <body>
++    <div id="root"></div>
++    <script type="module" src="/src/dev/viewer.tsx"></script>
++  </body>
++</html>

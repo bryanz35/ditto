@@ -1,0 +1,52 @@
+# Project spec template - fill this before CAD, wiring or code.
+# An agent should copy this file, fill every field (or mark it TBD with a reason),
+# then pick the closest reference build in ../projects/ and parts from ../components/components.json.
+
+project_id: my_robot
+title: ""
+closest_reference: swerve3 | ftc_decode | arm4dof | diffdrive | tripod
+goal: ""                 # what the robot must do, measurable
+constraints:
+  size_mm: {length: null, width: null, height: null}
+  mass_kg_max: null
+  budget_usd: null
+  rules_document: ""     # competition manual URL/version if any
+  environment: ""        # floor type, lighting, outdoor/indoor
+
+compute:
+  pattern: "SBC + MCU | single SBC | single MCU | MCU + edge device | vendor controller"
+  main: ""               # component id
+  secondary: ""
+  links: []              # e.g. {from: rpi4b, to: pico_rp2040, type: UART, baud: 1000000}
+
+actuators:               # one entry per motor/servo
+  - {name: "", component_id: "", qty: 1, gear_ratio: null, driver: "", supply_v: null, stall_a: null}
+
+sensors:
+  - {name: "", component_id: "", qty: 1, bus: "", address: "", logic_v: null, rate_hz: null}
+
+power:
+  battery: {chemistry: "", cells: null, nominal_v: null, capacity_ah: null, c_rating: null}
+  main_fuse_a: null
+  rails:
+    - {name: "5V_SBC", regulator: "", rating_a: null, loads: []}
+  stall_budget_a: null   # sum of stall currents that can occur together
+
+pin_map: []              # {mcu_pin: "", signal: "", device_pin: "", notes: ""}
+
+mechanical:
+  drivetrain_geometry: ""   # e.g. pods at R=120 mm, 120 deg spacing
+  key_dimensions_mm: {}
+  cad_tool: ""
+  purchased_part_step_files: []
+
+software:
+  language_framework: ""
+  loops: []              # {name: "", runs_on: "", rate_hz: null}
+  protocols: []
+  calibration_constants_file: "config/calibration.yaml"
+
+verification:
+  - ""                   # measurable acceptance tests
+
+open_questions: []

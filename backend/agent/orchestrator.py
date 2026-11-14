@@ -26,6 +26,9 @@ HERE = Path(__file__).resolve().parent
 EXAMPLE_SPEC = HERE.parents[1] / "fixtures" / "specs" / "plant_monitor.json"
 AGENTS_MD = "/AGENTS.md"
 """Path of the house rules in the agent's in-memory scratchpad (see house_rules())."""
+REFERENCES = HERE.parents[1] / "references"
+"""The user's past projects; their text files are copied into the scratchpad under /references/."""
+REFERENCE_SUFFIXES = {".md", ".json", ".yaml", ".yml", ".txt"}
 
 ModelLike = str | BaseChatModel
 
@@ -75,8 +78,22 @@ def prompt(name: str) -> str:
     return text.replace("{example}", EXAMPLE_SPEC.read_text().strip())
 
 
+def reference_files() -> dict[str, Path]:
+    """Scratchpad path -> source file for each text file under references/ (none if it's missing)."""
+    return {
+        f"/references/{p.relative_to(REFERENCES).as_posix()}": p
+        for p in sorted(REFERENCES.rglob("*"))
+        if p.is_file() and p.suffix in REFERENCE_SUFFIXES
+    }
+
+
 def house_rules() -> str:
-    return (HERE / "AGENTS.md").read_text()
+    """AGENTS.md, plus how to use the past projects and a list of their files when there are any."""
+    rules = (HERE / "AGENTS.md").read_text()
+    if refs := reference_files():
+        listing = "".join(f"\n- `{path}`" for path in refs)
+        rules += f"\n{prompt('references')}{listing}\n"
+    return rules
 
 
 def profile(user: UserContext | None) -> str:

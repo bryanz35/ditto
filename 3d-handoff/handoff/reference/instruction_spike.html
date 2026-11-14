@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ditto · 3D instruction spike</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#e8edf2; --ink:#1c1f24; --muted:#5d6672; --card:#ffffff; --line:#d5dce4;
+    --accent:#ff5a36; --accent-ink:#ffffff; --callout:#dcebf7; --ok:#2e9e4f;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:Nunito,system-ui,sans-serif;overflow:hidden}
+  canvas#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+  #ui{position:fixed;inset:0;pointer-events:none}
+  #ui button,#ui .card,#ui .stepbar,#ui .modal{pointer-events:auto}
+  button{font:inherit;color:inherit;cursor:pointer}
+  .top{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:14px;padding:14px 18px}
+  .brand{font-weight:900;font-size:22px;letter-spacing:-.5px;display:flex;align-items:center;gap:8px}
+  .blob{width:26px;height:22px;background:var(--accent);border-radius:55% 45% 50% 50%/60% 60% 40% 40%;display:inline-block;position:relative}
+  .blob:after{content:"";position:absolute;width:4px;height:4px;border-radius:50%;background:#fff;top:8px;left:8px;box-shadow:7px 0 0 #fff}
+  .tag{font-weight:700;font-size:12px;color:var(--muted);background:#fff;border:1px solid var(--line);padding:3px 8px;border-radius:99px;letter-spacing:0}
+  .seg{margin-left:auto;display:flex;background:#fff;border:1px solid var(--line);border-radius:12px;padding:3px}
+  .seg button{border:0;background:none;padding:6px 12px;border-radius:9px;font-weight:700;font-size:13px;color:var(--muted)}
+  .seg button.on{background:var(--ink);color:#fff}
+  .ghost{border:1px solid var(--line);background:#fff;border-radius:10px;padding:7px 12px;font-weight:700;font-size:13px;white-space:nowrap}
+  .card{background:var(--card);border-radius:18px;box-shadow:0 1px 0 rgba(0,0,0,.04),0 10px 30px rgba(30,40,60,.10)}
+  .cta{background:var(--accent);color:var(--accent-ink);border:0;border-radius:14px;padding:14px 22px;font-weight:900;font-size:17px;box-shadow:0 6px 0 #c63d1f}
+  .cta:active{transform:translateY(3px);box-shadow:0 3px 0 #c63d1f}
+  .cta.small{padding:9px 16px;font-size:15px;box-shadow:0 4px 0 #c63d1f}
+
+  /* overview */
+  .parts{position:absolute;left:18px;top:70px;width:300px;max-height:calc(100% - 180px);overflow:auto;padding:6px}
+  .parts-head{width:100%;display:flex;align-items:center;gap:8px;border:0;background:none;padding:10px 12px;font-weight:900;font-size:17px;text-align:left}
+  .parts-head .count{font-weight:700;color:var(--muted);font-size:14px}
+  .parts-head .chev{margin-left:auto;transition:transform .2s}
+  .parts.closed .chev{transform:rotate(-90deg)}
+  .parts.closed ul,.parts.closed .total{display:none}
+  .parts ul{list-style:none;margin:0;padding:0 4px}
+  .parts li{border-top:1px solid var(--line);padding:9px 8px;border-radius:10px;cursor:pointer}
+  .parts li:hover,.parts li.hi{background:#fff3ef}
+  .parts .r1{display:flex;gap:8px;align-items:baseline;font-weight:800;font-size:14px}
+  .parts .qty{color:var(--accent);min-width:28px}
+  .parts .price{margin-left:auto;color:var(--muted);font-weight:700;font-size:13px}
+  .parts .why{display:none;color:var(--muted);font-size:13px;margin:4px 0 0 36px;line-height:1.35}
+  .parts li.open .why{display:block}
+  .parts .owned{font-size:11px;font-weight:800;color:var(--ok);background:#e6f5ea;border-radius:6px;padding:1px 6px}
+  .parts .total{display:flex;justify-content:space-between;padding:10px 12px 8px;font-weight:900;border-top:2px solid var(--ink);margin:4px 4px 0}
+  .parts .note{font-size:11px;color:var(--muted);padding:0 12px 8px}
+  .hint{position:absolute;left:50%;bottom:96px;transform:translateX(-50%);font-weight:800;color:var(--muted);font-size:14px;background:rgba(255,255,255,.7);padding:6px 12px;border-radius:99px;white-space:nowrap}
+  #startBtn{position:absolute;left:50%;bottom:28px;transform:translateX(-50%)}
+  #startBtn:active{transform:translate(-50%,3px)}
+
+  /* build */
+  .stepcard{position:absolute;left:18px;top:70px;width:330px;padding:16px 18px 14px}
+  .stepnum{font-weight:900;font-size:44px;line-height:1;color:var(--ink)}
+  .stepnum small{font-size:15px;color:var(--muted);font-weight:800;margin-left:4px}
+  .stepcard h2{margin:6px 0 6px;font-size:20px;font-weight:900;letter-spacing:-.2px}
+  .stepcard p{margin:0 0 10px;color:#36404c;line-height:1.45;font-size:15px}
+  .chips{display:flex;flex-direction:column;gap:5px;margin:0 0 10px}
+  .chip{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;background:#f4f6f8;border-radius:8px;padding:5px 8px}
+  .chip i{width:22px;height:6px;border-radius:3px;display:inline-block;flex:none}
+  .chip span{color:var(--muted);font-weight:700}
+  .callout{background:var(--callout);border-radius:12px;padding:8px 10px 10px;margin-bottom:12px}
+  .callout-h{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.8px;color:#3d5a75;margin-bottom:4px}
+  .callout .need{font-weight:800;font-size:14px;padding:1px 0}
+  .callout .need b{color:var(--accent);display:inline-block;min-width:28px}
+  .row{display:flex;gap:8px;align-items:center}
+  .row button:not(.cta){border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 12px;font-weight:800}
+  .row .cta{margin-left:auto}
+  .stepbar{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:8px;background:#fff;padding:8px;border-radius:16px;box-shadow:0 10px 30px rgba(30,40,60,.12);max-width:calc(100% - 24px);overflow-x:auto}
+  .stepbar button{width:46px;height:46px;flex:none;border-radius:11px;border:2px solid var(--line);background:#fff;font-weight:900;font-size:16px;position:relative}
+  .stepbar button.done{background:#eef8f0;border-color:#bfe3c8;color:var(--ok)}
+  .stepbar button.cur{border-color:var(--ink);background:var(--ink);color:#fff}
+  .stepbar button small{position:absolute;left:0;right:0;bottom:2px;font-size:9px;font-weight:800;opacity:.7;letter-spacing:.2px}
+  .back{position:absolute;right:18px;bottom:28px}
+  .playhint{position:absolute;right:18px;top:70px;font-size:13px;font-weight:800;color:var(--muted);background:rgba(255,255,255,.75);padding:6px 10px;border-radius:99px}
+
+  .tip{position:fixed;max-width:260px;background:var(--ink);color:#fff;border-radius:12px;padding:9px 11px;font-size:13px;line-height:1.35;pointer-events:none;z-index:5}
+  .tip b{display:block;font-size:14px;margin-bottom:2px}
+  .modal{position:fixed;inset:0;background:rgba(20,24,30,.45);display:flex;align-items:center;justify-content:center;z-index:9}
+  .modal[hidden],section[hidden],.tip[hidden]{display:none}
+  .modal-box{background:#fff;border-radius:16px;width:min(760px,92vw);max-height:84vh;display:flex;flex-direction:column;overflow:hidden}
+  .modal-h{display:flex;align-items:center;gap:10px;padding:14px 16px;font-weight:900;border-bottom:1px solid var(--line)}
+  .modal-h span{font-weight:700;color:var(--muted);font-size:13px}
+  .modal-h button{margin-left:auto;border:0;background:#f1f3f5;border-radius:8px;padding:4px 10px;font-weight:900}
+  .modal pre{margin:0;padding:14px 16px;overflow:auto;font:12px/1.5 "JetBrains Mono",ui-monospace,monospace;color:#2a3340;background:#fafbfc}
+  #err{position:fixed;left:12px;bottom:12px;background:#fff0f0;color:#a40000;padding:8px 12px;border-radius:8px;font-size:13px;display:none;z-index:20}
+  @media (max-width:720px){
+    .parts{width:auto;right:18px;top:62px;max-height:40%}
+    .stepcard{left:10px;right:10px;width:auto;top:60px;padding:12px 14px}
+    .stepnum{font-size:30px}.stepcard h2{font-size:17px}.stepcard p{font-size:14px}
+    .tag,.playhint{display:none}
+    .seg button{padding:5px 8px;font-size:12px}
+    .back{bottom:86px}
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <header class="top">
+    <div class="brand"><span class="blob"></span>ditto <span class="tag">3D instructions · tech spike</span></div>
+    <div class="seg" id="skill">
+      <button data-l="beginner" class="on">Beginner</button>
+      <button data-l="intermediate">Intermediate</button>
+      <button data-l="expert">Expert</button>
+    </div>
+    <button class="ghost" id="dataBtn">{ } data</button>
+  </header>
+
+  <section id="overview">
+    <aside class="card parts" id="parts">
+      <button class="parts-head" id="partsToggle">Parts list <span class="count" id="partsCount"></span><span class="chev">▾</span></button>
+      <ul id="partsList"></ul>
+      <div class="total"><span>Total</span><span id="partsTotal"></span></div>
+      <div class="note">Sample prices. Tap a part to see why Ditto picked it.</div>
+    </aside>
+    <div class="hint" id="hint">Hover the model to see inside · click to pin it open</div>
+    <button class="cta" id="startBtn">Start building →</button>
+  </section>
+
+  <section id="build" hidden>
+    <article class="card stepcard">
+      <div class="stepnum" id="stepNum"></div>
+      <h2 id="stepTitle"></h2>
+      <p id="stepText"></p>
+      <div class="chips" id="stepWires"></div>
+      <div class="callout"><div class="callout-h">You need</div><div id="stepParts"></div></div>
+      <div class="row">
+        <button id="prevBtn" aria-label="Previous step">←</button>
+        <button id="replayBtn">↻ Replay</button>
+        <button id="nextBtn" class="cta small">Next →</button>
+      </div>
+    </article>
+    <div class="playhint">Hover or tap the model to replay · drag to turn</div>
+    <nav class="stepbar" id="stepBar"></nav>
+    <button class="ghost back" id="backOverview">← Overview</button>
+  </section>
+
+  <div id="tip" class="tip" hidden></div>
+  <div id="modal" class="modal" hidden>
+    <div class="modal-box">
+      <div class="modal-h">What the backend sends <span>layout.json + instructions.json for this skill level</span><button id="closeModal">✕</button></div>
+      <pre id="dataPre"></pre>
+    </div>
+  </div>
+</div>
+<div id="err"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+window.addEventListener('error', e => { const d = document.getElementById('err'); d.textContent = 'Error: ' + e.message; d.style.display = 'block'; });
+
+/* =====================================================================
+   1. THE CONTRACT — what the backend would send.
+   Everything below this block is generic: it never names a specific part.
+   ===================================================================== */
+
+// Subset of the parts-library YAML. `board_mm`, `mount_holes`, `features` already exist in the plan.
+// New fields: `headers` (where each pin physically is) and `look` (simple shapes for a procedural model).
+// Dimensions are approximate placeholders, not caliper-measured.
+const LIBRARY = {
+  esp32_devkitc: {
+    name: 'ESP32 DevKitC', short: 'ESP32 board',
+    board_mm: { l: 55, w: 28, h: 1.6 }, pcb: '#2a2d35',
+    mount_holes: [[-25.9, -8.5], [-25.9, 8.5], [25.9, -8.5], [25.9, 8.5]],
+    headers: [
+      { origin: [22.86, 12.7], step: [-2.54, 0], pins: ['3V3','EN','GPIO36','GPIO39','GPIO34','GPIO35','GPIO32','GPIO33','GPIO25','GPIO26','GPIO27','GPIO14','GPIO12','GND','GPIO13','SD2','SD3','CMD','5V'] },
+      { origin: [22.86, -12.7], step: [-2.54, 0], pins: ['GND','GPIO23','GPIO22','TX','RX','GPIO21','GND','GPIO19','GPIO18','GPIO5','GPIO17','GPIO16','GPIO4','GPIO0','GPIO2','GPIO15','SD1','SD0','CLK'] },
+    ],
+    features: [{ kind: 'usb', face: 'left', at: [-26, 0] }],
+    look: [
+      { shape: 'box', at: [12.5, 0], size: [23, 0.8, 17], color: '#33363f' },
+      { shape: 'box', at: [10.5, 0], size: [17.6, 3.1, 15.8], color: '#c9ccd2', metal: 0.6 },
+      { shape: 'box', at: [-26, 0], size: [6, 3, 8], color: '#c9ccd2', metal: 0.6 },
+      { shape: 'box', at: [-21.5, 8.6], size: [3.5, 1.6, 3], color: '#f2f2f2' },
+      { shape: 'box', at: [-21.5, -8.6], size: [3.5, 1.6, 3], color: '#f2f2f2' },
+      { shape: 'box', at: [-15, -3], size: [5, 1.4, 6], color: '#151515' },
+      { shape: 'led', at: [-18.5, 5], size: [1.6, 0.8, 1.0], color: '#ff4d4d' },
+    ],
+    price_usd: 6.5, reason: 'The brain. It runs your timer code, and has Wi-Fi if you want it later.',
+  },
+  ssd1306_096_i2c: {
+    name: '0.96" OLED screen', short: 'screen',
+    board_mm: { l: 27.3, w: 27.8, h: 1.2 }, pcb: '#1f4e9c',
+    mount_holes: [[-11.4, -11.9], [11.4, -11.9], [-11.4, 11.9], [11.4, 11.9]],
+    headers: [{ origin: [-3.81, -12.2], step: [2.54, 0], dir: 'down', pins: ['GND', 'VCC', 'SCL', 'SDA'] }],
+    features: [{ kind: 'display_window', face: 'top', at: [0, 0.5], size: [24, 13] }],
+    look: [
+      { shape: 'box', at: [0, 0.5], size: [26, 1.4, 16], color: '#0d1117' },
+      { shape: 'screen', at: [0, 0.5], size: [22, 11] },
+      { shape: 'box', at: [0, 9.6], size: [9, 0.3, 2.6], color: '#c8a35a' },
+    ],
+    price_usd: 4.0, reason: 'Shows the countdown big enough to read from across the desk.',
+  },
+  passive_buzzer: {
+    name: 'Passive buzzer module', short: 'beeper',
+    board_mm: { l: 18.5, w: 15, h: 1.6 }, pcb: '#2f6b3f',
+    mount_holes: [[6.5, -5.5], [6.5, 5.5]],
+    headers: [{ origin: [-7.75, -1.27], step: [0, 2.54], pins: ['SIG', 'GND'] }],
+    features: [],
+    look: [
+      { shape: 'cyl', at: [0.5, 0], r: 5.5, h: 8, color: '#1c1c1c' },
+      { shape: 'cyl', at: [0.5, 0], r: 1, h: 8.1, color: '#5a5a5a' },
+    ],
+    price_usd: 1.0, reason: 'Beeps when a focus session ends.',
+  },
+};
+
+// layout.json — produced by backend/tools/layout.py (it already computes these placements).
+const LAYOUT = {
+  units: 'mm, Y-up. build123d is Z-up: convert once, in one place.',
+  rev: 7,
+  enclosure: {
+    inner: { l: 100, w: 62, h: 36 }, wall: 2.4, floor: 2, color: '#ffc83d',
+    cutouts: [{ face: 'left', for: 'mcu.usb', center_zy: [0, 10.1], size_zy: [12, 9] }],
+    lid_window: { for: 'oled1', center_xz: [30, -9.5], size_xz: [24, 13] },
+    lid_sound_holes: { for: 'buzz1', center_xz: [30.5, 19], r: 1.1 },
+    lid_screws: [[-47, -28], [47, -28], [-47, 28], [47, 28]],
+  },
+  placements: [
+    { ref: 'mcu',   part_id: 'esp32_devkitc',   at_xz: [-18, 0],  standoff_mm: 5 },
+    { ref: 'oled1', part_id: 'ssd1306_096_i2c', at_xz: [30, -10], standoff_mm: 30 },
+    { ref: 'buzz1', part_id: 'passive_buzzer',  at_xz: [30, 19],  standoff_mm: 5 },
+  ],
+};
+
+// spec.json `connections` — exactly the shape in the project plan.
+const CONNECTIONS = [
+  { part_ref: 'oled1', part_pin: 'GND', mcu_pin: 'GND',    bus: 'power' },
+  { part_ref: 'oled1', part_pin: 'VCC', mcu_pin: '3V3',    bus: 'power' },
+  { part_ref: 'oled1', part_pin: 'SCL', mcu_pin: 'GPIO22', bus: 'i2c' },
+  { part_ref: 'oled1', part_pin: 'SDA', mcu_pin: 'GPIO21', bus: 'i2c' },
+  { part_ref: 'buzz1', part_pin: 'SIG', mcu_pin: 'GPIO25', bus: 'gpio' },
+  { part_ref: 'buzz1', part_pin: 'GND', mcu_pin: 'GND',    bus: 'power' },
+];
+
+/* =====================================================================
+   2. Derived geometry facts (would live in Python next to layout.py)
+   ===================================================================== */
+const E = LAYOUT.enclosure;
+const FLOOR = E.floor, INNER_H = E.inner.h, LID_Y = FLOOR + INNER_H;
+const PL = Object.fromEntries(LAYOUT.placements.map(p => [p.ref, p]));
+const partOf = ref => LIBRARY[PL[ref].part_id];
+const boardBottomY = ref => FLOOR + PL[ref].standoff_mm;
+const boardTopY = ref => boardBottomY(ref) + partOf(ref).board_mm.h;
+const PIN_LEN = 6;
+
+function headerPins(ref) {
+  const p = PL[ref], part = partOf(ref), out = [];
+  part.headers.forEach((h, hi) => h.pins.forEach((name, i) => {
+    out.push({ name, id: `${ref}:${hi}:${i}`,
+      local: [h.origin[0] + h.step[0] * i, h.origin[1] + h.step[1] * i],
+      dir: h.dir === 'down' ? -1 : 1,
+      world: new THREE.Vector3(p.at_xz[0] + h.origin[0] + h.step[0] * i, h.dir === 'down' ? boardBottomY(ref) - PIN_LEN : boardTopY(ref) + PIN_LEN, p.at_xz[1] + h.origin[1] + h.step[1] * i) });
+  }));
+  return out;
+}
+
+// Spec says "GND" or "3V3"; a builder needs a specific header pin. Pick the nearest unused one.
+const usedPins = new Set();
+function pickPin(ref, name, near) {
+  const cands = headerPins(ref).filter(p => p.name === name && !usedPins.has(p.id));
+  if (!cands.length) throw new Error(`No free ${name} pin on ${ref}: two wires can't share one header pin`);
+  cands.sort((a, b) => a.world.distanceTo(near) - b.world.distanceTo(near));
+  usedPins.add(cands[0].id);
+  return cands[0];
+}
+function wireColor(c) {
+  const p = c.part_pin.toUpperCase();
+  if (p.includes('GND')) return { hex: '#26282c', label: 'black' };
+  if (c.mcu_pin === '3V3' || c.mcu_pin === '5V') return { hex: '#e53935', label: 'red' };
+  if (p === 'SCL') return { hex: '#f6c20d', label: 'yellow' };
+  if (p === 'SDA') return { hex: '#1e88e5', label: 'blue' };
+  return { hex: '#2e9e4f', label: 'green' };
+}
+const WIRES = CONNECTIONS.map((c, i) => {
+  const end = headerPins(c.part_ref).find(p => p.name === c.part_pin);
+  const start = pickPin('mcu', c.mcu_pin, end.world);
+  return { ref: `w.${c.part_ref}.${c.part_pin}`, part_ref: c.part_ref, part_pin: c.part_pin, mcu_pin: c.mcu_pin,
+           from: start.world.toArray().map(n => +n.toFixed(2)), to: end.world.toArray().map(n => +n.toFixed(2)),
+           to_dir: end.dir, color: wireColor(c), idx: i };
+});
+const screwsOf = ref => partOf(ref).mount_holes.map((_, i) => `${ref}.s${i + 1}`);
+const LID_SCREWS = E.lid_screws.map((_, i) => `lid.s${i + 1}`);
+
+/* =====================================================================
+   3. instructions.json — a deterministic planner (would be backend/tools/instructions.py).
+   The LLM only rewrites the text; order + geometry come from code.
+   ===================================================================== */
+const STANDOFF_WORD = { beginner: 'posts', intermediate: 'standoffs', expert: 'standoffs' };
+function planSteps(level) {
+  const S = [];
+  const P = LAYOUT.placements;
+  S.push({ kind: 'print', title: 'Print the case', actions: [{ type: 'print', targets: ['base', 'lid'] }] });
+  if (level === 'expert') {
+    S.push({ kind: 'mount', refs: P.map(p => p.ref), title: 'Mount all boards',
+             actions: [{ type: 'place', targets: P.map(p => p.ref) }, { type: 'screw', targets: P.flatMap(p => screwsOf(p.ref)) }] });
+  } else {
+    for (const p of P) {
+      if (level === 'beginner') {
+        S.push({ kind: 'place', refs: [p.ref], title: `Place the ${partOf(p.ref).short}`, actions: [{ type: 'place', targets: [p.ref] }] });
+        S.push({ kind: 'screw', refs: [p.ref], title: `Screw the ${partOf(p.ref).short} down`, actions: [{ type: 'screw', targets: screwsOf(p.ref) }] });
+      } else {
+        S.push({ kind: 'mount', refs: [p.ref], title: `Mount the ${partOf(p.ref).short}`,
+                 actions: [{ type: 'place', targets: [p.ref] }, { type: 'screw', targets: screwsOf(p.ref) }] });
+      }
+    }
+  }
+  const wiredParts = [...new Set(WIRES.map(w => w.part_ref))];
+  if (level === 'expert') S.push({ kind: 'wire', refs: wiredParts, title: 'Wire it up', actions: [{ type: 'wire', targets: WIRES.map(w => w.ref) }] });
+  else for (const r of wiredParts) S.push({ kind: 'wire', refs: [r], title: `Connect the ${partOf(r).short}`, actions: [{ type: 'wire', targets: WIRES.filter(w => w.part_ref === r).map(w => w.ref) }] });
+  S.push({ kind: 'flash', title: 'Plug in & upload the code', actions: [{ type: 'plug', targets: ['usb'] }, { type: 'flash', targets: ['mcu'] }] });
+  S.push({ kind: 'lid', title: 'Close the lid', actions: [{ type: 'place', targets: ['lid'] }, { type: 'screw', targets: LID_SCREWS }] });
+  S.forEach((s, i) => { s.n = i + 1; s.text = textFor(s, level); });
+  return S;
+}
+function textFor(s, L) {
+  const B = L === 'beginner', X = L === 'expert';
+  const part = s.refs ? partOf(s.refs[0]) : null;
+  const n = s.refs ? part.mount_holes.length : 0;
+  const usb = s.refs && part.features.some(f => f.kind === 'usb');
+  switch (s.kind) {
+    case 'print': return B ? 'Send base.stl and lid.stl to a 3D printer. Ditto already checked they fit your printer. It takes about 2 hours, so start this first.'
+                          : X ? 'base.stl + lid.stl · PLA · 0.2 mm · no supports.' : 'Print base.stl and lid.stl in PLA at 0.2 mm layers. No supports needed.';
+    case 'place': return `Set the ${part.short} on its ${n} ${STANDOFF_WORD[L]}${usb ? ', with the USB port facing the hole in the wall' : ''}. ${part.reason}`;
+    case 'screw': return `Add ${n} small screws. Turn clockwise until snug. Too tight can crack the plastic posts.`;
+    case 'mount': return X ? 'Seat each board on its standoffs, USB to the cutout. M2.5 screws, snug.'
+                           : `Seat the ${part.short} on its ${n} standoffs${usb ? ', USB toward the cutout' : ''}, then ${n}× M2.5 screws, snug only.`;
+    case 'wire': return B ? 'Push each wire onto its pin until it clicks. Match the colors below. Each color has one job, so you can check your work at a glance.'
+                          : X ? 'Female–female jumpers per the pinout below.' : 'Female–female jumpers, colors as listed:';
+    case 'flash': return B ? 'Plug the USB cable through the hole in the wall, then press Upload in Ditto. When the screen lights up, it worked!'
+                           : X ? 'Flash over USB; expect 25:00 on boot.' : 'Connect USB and press Upload. The screen shows 25:00 when it boots.';
+    case 'lid': return B ? 'Lay the lid on top with the window over the screen, then add the 4 corner screws.' : X ? 'Lid on, 4× M2.5.' : 'Close the lid (window over the screen) and fit 4× M2.5 at the corners.';
+  }
+}
+
+/* =====================================================================
+   4. Renderer + scene (generic from here down)
+   ===================================================================== */
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.localClippingEnabled = true;
+renderer.setClearColor('#e8edf2');
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, 1, 5, 4000);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.minDistance = 80; controls.maxDistance = 900; controls.maxPolarAngle = Math.PI * 0.49;
+
+scene.add(new THREE.HemisphereLight('#ffffff', '#cfd6de', 1.7));
+const sun = new THREE.DirectionalLight('#ffffff', 2.1);
+sun.position.set(110, 230, 140); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -190, right: 190, top: 190, bottom: -190, near: 10, far: 700 });
+sun.shadow.bias = -0.0004;
+scene.add(sun);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), new THREE.ShadowMaterial({ opacity: 0.13 }));
+ground.rotation.x = -Math.PI / 2; ground.position.y = -0.05; ground.receiveShadow = true; scene.add(ground);
+
+const printPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 1e4); // keeps y < constant
+const edgeMat = new THREE.LineBasicMaterial({ color: '#1c1f24', transparent: true, opacity: 0.55 });
+const edgeMatClip = edgeMat.clone(); edgeMatClip.clippingPlanes = [printPlane];
+
+function mat(color, o = {}) {
+  const m = new THREE.MeshStandardMaterial({ color, roughness: o.rough ?? 0.72, metalness: o.metal ?? 0 });
+  if (o.clip) { m.clippingPlanes = [printPlane]; m.side = THREE.DoubleSide; }
+  return m;
+}
+function mesh(geom, material, o = {}) {
+  const m = new THREE.Mesh(geom, material);
+  m.castShadow = o.shadow ?? true; m.receiveShadow = true;
+  if (o.edges !== false) m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geom, 28), o.clip ? edgeMatClip : edgeMat));
+  if (o.at) m.position.set(...o.at);
+  return m;
+}
+const BoxG = (x, y, z) => new THREE.BoxGeometry(x, y, z);
+const CylG = (r, h, seg = 24, r2) => new THREE.CylinderGeometry(r, r2 ?? r, h, seg);
+
+/* ---------- object registry ---------- */
+const OBJ = {};
+function register(ref, group, info) {
+  group.userData.ref = ref; scene.add(group);
+  OBJ[ref] = { ref, group, home: group.position.clone(), explode: info.explode || new THREE.Vector3(), ...info };
+}
+
+/* ---------- printed case (from the enclosure block) ---------- */
+function buildBase() {
+  const g = new THREE.Group();
+  const { l, w, h } = E.inner, t = E.wall, f = E.floor, L = l + 2 * t, W = w + 2 * t;
+  const m = () => mat(E.color, { clip: true });
+  const add = (geo, at, wall = true) => { const k = mesh(geo, m(), { at, clip: true }); k.userData.wall = wall; g.add(k); };
+  add(BoxG(L, f, W), [0, f / 2, 0], false);
+  add(BoxG(L, h, t), [0, f + h / 2, -(w / 2 + t / 2)]);
+  add(BoxG(L, h, t), [0, f + h / 2, w / 2 + t / 2]);
+  add(BoxG(t, h, w), [l / 2 + t / 2, f + h / 2, 0]);
+  // left wall, built around its cutout
+  const c = E.cutouts[0], x = -(l / 2 + t / 2);
+  const cz0 = c.center_zy[0] - c.size_zy[0] / 2, cz1 = c.center_zy[0] + c.size_zy[0] / 2;
+  const cy0 = c.center_zy[1] - c.size_zy[1] / 2, cy1 = c.center_zy[1] + c.size_zy[1] / 2;
+  add(BoxG(t, cy0 - f, w), [x, (f + cy0) / 2, 0]);
+  add(BoxG(t, f + h - cy1, w), [x, (cy1 + f + h) / 2, 0]);
+  add(BoxG(t, cy1 - cy0, cz0 + w / 2), [x, (cy0 + cy1) / 2, (-w / 2 + cz0) / 2]);
+  add(BoxG(t, cy1 - cy0, w / 2 - cz1), [x, (cy0 + cy1) / 2, (cz1 + w / 2) / 2]);
+  for (const [px, pz] of E.lid_screws) add(BoxG(6, h, 6), [px, f + h / 2, pz]);
+  for (const p of LAYOUT.placements) for (const [hx, hz] of partOf(p.ref).mount_holes)
+    add(CylG(2.5, p.standoff_mm, 20, 2.9), [p.at_xz[0] + hx, f + p.standoff_mm / 2, p.at_xz[1] + hz], false);
+  return g;
+}
+function buildLid() {
+  const { l, w } = E.inner, t = E.wall, L = l + 2 * t, W = w + 2 * t;
+  const s = new THREE.Shape();
+  s.moveTo(-L / 2, -W / 2); s.lineTo(L / 2, -W / 2); s.lineTo(L / 2, W / 2); s.lineTo(-L / 2, W / 2); s.closePath();
+  const rect = (cx, cz, sx, sz) => { const p = new THREE.Path(); const y = -cz;
+    p.moveTo(cx - sx / 2, y - sz / 2); p.lineTo(cx - sx / 2, y + sz / 2); p.lineTo(cx + sx / 2, y + sz / 2); p.lineTo(cx + sx / 2, y - sz / 2); p.closePath(); return p; };
+  const circ = (cx, cz, r) => { const p = new THREE.Path(); p.absarc(cx, -cz, r, 0, Math.PI * 2, true); return p; };
+  const lw = E.lid_window; s.holes.push(rect(lw.center_xz[0], lw.center_xz[1], lw.size_xz[0], lw.size_xz[1]));
+  const sh = E.lid_sound_holes; for (const [dx, dz] of [[0, 0], [3.2, 0], [-3.2, 0], [0, 3.2], [0, -3.2]]) s.holes.push(circ(sh.center_xz[0] + dx, sh.center_xz[1] + dz, sh.r));
+  for (const [px, pz] of E.lid_screws) s.holes.push(circ(px, pz, 1.4));
+  const geo = new THREE.ExtrudeGeometry(s, { depth: 2, bevelEnabled: false, curveSegments: 14 });
+  geo.rotateX(-Math.PI / 2);
+  const g = new THREE.Group(); g.add(mesh(geo, mat(E.color, { clip: true }), { clip: true }));
+  return g;
+}
+
+/* ---------- boards: procedural from library fields ---------- */
+const screenCanvas = document.createElement('canvas'); screenCanvas.width = 256; screenCanvas.height = 128;
+const screenTex = new THREE.CanvasTexture(screenCanvas); screenTex.colorSpace = THREE.SRGBColorSpace; screenTex.anisotropy = 4;
+let screenKey = '';
+function drawScreen(state, p = 0) {
+  const key = state + (state === 'upload' ? Math.round(p * 40) : '');
+  if (key === screenKey) return; screenKey = key;
+  const c = screenCanvas.getContext('2d');
+  c.fillStyle = '#05080c'; c.fillRect(0, 0, 256, 128);
+  c.fillStyle = '#bfe9ff'; c.strokeStyle = '#bfe9ff'; c.textAlign = 'center';
+  if (state === 'upload') {
+    c.font = 'bold 22px monospace'; c.fillText('UPLOADING', 128, 48);
+    c.lineWidth = 3; c.strokeRect(28, 66, 200, 20); c.fillRect(32, 70, 192 * p, 12);
+    c.font = 'bold 16px monospace'; c.fillText(Math.round(p * 100) + '%', 128, 112);
+  } else if (state === 'on') {
+    c.font = 'bold 14px monospace'; c.fillText('FOCUS', 128, 22);
+    c.font = 'bold 64px monospace'; c.fillText('25:00', 128, 92);
+    c.fillRect(40, 108, 176, 4);
+  }
+  screenTex.needsUpdate = true;
+}
+drawScreen('off');
+let ledMat = null;
+
+function buildBoard(ref) {
+  const part = partOf(ref), { l, w, h } = part.board_mm, g = new THREE.Group();
+  g.add(mesh(BoxG(l, h, w), mat(part.pcb), { at: [0, h / 2, 0] }));
+  for (const [hx, hz] of part.mount_holes) g.add(mesh(CylG(1.7, 0.12, 16), mat('#d4b04a', { metal: .5, rough: .4 }), { at: [hx, h + 0.06, hz], edges: false, shadow: false }));
+  for (const hd of part.headers) {
+    const n = hd.pins.length, along = hd.step[0] !== 0 ? 'x' : 'z';
+    const cx = hd.origin[0] + hd.step[0] * (n - 1) / 2, cz = hd.origin[1] + hd.step[1] * (n - 1) / 2;
+    const len = n * 2.54;
+    const dn = hd.dir === 'down';
+    g.add(mesh(along === 'x' ? BoxG(len, 2.5, 2.54) : BoxG(2.54, 2.5, len), mat('#18191b'), { at: [cx, dn ? -1.25 : h + 1.25, cz] }));
+    hd.pins.forEach((_, i) => g.add(mesh(BoxG(0.64, PIN_LEN, 0.64), mat('#d9c37c', { metal: .7, rough: .35 }),
+      { at: [hd.origin[0] + hd.step[0] * i, dn ? -PIN_LEN / 2 : h + PIN_LEN / 2, hd.origin[1] + hd.step[1] * i], edges: false, shadow: false })));
+  }
+  for (const k of part.look) {
+    if (k.shape === 'box') g.add(mesh(BoxG(...k.size), mat(k.color, { metal: k.metal || 0, rough: k.metal ? .35 : .7 }), { at: [k.at[0], h + k.size[1] / 2, k.at[1]] }));
+    if (k.shape === 'cyl') g.add(mesh(CylG(k.r, k.h, 28), mat(k.color), { at: [k.at[0], h + k.h / 2, k.at[1]] }));
+    if (k.shape === 'led') { ledMat = mat(k.color); ledMat.emissive = new THREE.Color('#ff2a2a'); ledMat.emissiveIntensity = 0;
+      g.add(mesh(BoxG(...k.size), ledMat, { at: [k.at[0], h + k.size[1] / 2, k.at[1]], edges: false })); }
+    if (k.shape === 'screen') { const geo = new THREE.PlaneGeometry(k.size[0], k.size[1]); geo.rotateX(-Math.PI / 2);
+      const sm = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: screenTex })); sm.position.set(k.at[0], h + 1.43, k.at[1]); g.add(sm); }
+  }
+  const p = PL[ref]; g.position.set(p.at_xz[0], boardBottomY(ref), p.at_xz[1]);
+  return g;
+}
+
+function buildScrew() {
+  const g = new THREE.Group(), steel = () => mat('#b9bec6', { metal: .75, rough: .3 });
+  g.add(mesh(CylG(2.2, 1.6, 20), steel(), { at: [0, 0.8, 0] }));
+  g.add(mesh(CylG(1.2, 6, 12), steel(), { at: [0, -3, 0], edges: false }));
+  g.add(mesh(BoxG(3.2, 0.5, 0.55), mat('#3b3f45'), { at: [0, 1.62, 0], edges: false }));
+  g.add(mesh(BoxG(0.55, 0.5, 3.2), mat('#3b3f45'), { at: [0, 1.62, 0], edges: false }));
+  return g;
+}
+
+function buildWire(w) {
+  const g = new THREE.Group();
+  const a = new THREE.Vector3(...w.from), b = new THREE.Vector3(...w.to);
+  const HOUS = 7, sb = w.to_dir, out = (p, s) => p.clone().add(new THREE.Vector3(0, 2.5 * s, 0));
+  const p0 = out(a, 1), p4 = out(b, sb);
+  const spread = (w.idx - 2.5) * 1.3;
+  const p1 = p0.clone().add(new THREE.Vector3(0, 6, 0)), p3 = p4.clone().add(new THREE.Vector3(0, 6 * sb, 0));
+  const p2 = p0.clone().lerp(p4, 0.5); p2.y = Math.min(LID_Y - 2.5, Math.max(p1.y, p3.y) + 4 + Math.abs(spread)); p2.z += spread; p2.x += spread * 0.6;
+  const curve = new THREE.CatmullRomCurve3([p0, p1, p2, p3, p4], false, 'centripetal');
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 90, 0.6, 8, false), mat(w.color.hex, { rough: .55 }));
+  tube.castShadow = true; g.add(tube);
+  const housing = (p, s) => mesh(BoxG(2.5, HOUS, 2.5), mat('#151618'), { at: [p.x, p.y - s, p.z] });
+  const h0 = housing(a, 1), h1 = housing(b, sb); g.add(h0, h1);
+  g.userData.anim = { tube, h0, h1, count: tube.geometry.index.count };
+  return g;
+}
+
+function buildUsb() {
+  const g = new THREE.Group();
+  const y = boardTopY('mcu') + 1.5, xIn = PL.mcu.at_xz[0] - 29, xWall = -(E.inner.l / 2 + E.wall);
+  g.add(mesh(BoxG(xIn - xWall + 1, 2.4, 7), mat('#c9ccd2', { metal: .6, rough: .35 }), { at: [(xIn + xWall) / 2 - 0.5, y, 0] }));
+  g.add(mesh(BoxG(13, 7, 11), mat('#2b2d31'), { at: [xWall - 6.5, y, 0] }));
+  const pts = [[xWall - 13, y, 0], [xWall - 26, y, 0], [xWall - 42, 4, 5], [xWall - 70, 1.3, 14], [xWall - 105, 1.3, 20]].map(p => new THREE.Vector3(...p));
+  const cable = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 60, 1.6, 10), mat('#2b2d31'));
+  cable.castShadow = true; g.add(cable);
+  return g;
+}
+
+/* ---------- helpers for the instruction player ---------- */
+function buildArrow() {
+  const g = new THREE.Group(), m = new THREE.MeshBasicMaterial({ color: '#ff5a36', transparent: true });
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(4.5, 8, 24), m); cone.rotation.x = Math.PI; cone.position.y = 4;
+  const shaft = new THREE.Mesh(CylG(1.7, 12, 16), m); shaft.position.y = 14;
+  g.add(cone, shaft); g.userData.mat = m; g.visible = false; scene.add(g); return g;
+}
+function buildDriver() {
+  const g = new THREE.Group();
+  g.add(mesh(CylG(0.9, 22, 12), mat('#c9ccd2', { metal: .7, rough: .3 }), { at: [0, 11, 0], edges: false }));
+  g.add(mesh(CylG(4.2, 26, 20, 4.6), mat('#ff5a36'), { at: [0, 35, 0] }));
+  g.visible = false; scene.add(g); return g;
+}
+function buildNozzle() {
+  const g = new THREE.Group();
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(2.2, 4, 18), mat('#d4a640', { metal: .6, rough: .35 })); tip.rotation.x = Math.PI; tip.position.y = 2; g.add(tip);
+  g.add(mesh(BoxG(12, 9, 12), mat('#c9ccd2', { metal: .5, rough: .4 }), { at: [0, 8.5, 0] }));
+  g.add(mesh(CylG(4.5, 12, 18), mat('#9aa1aa', { metal: .5 }), { at: [0, 19, 0] }));
+  g.visible = false; scene.add(g); return g;
+}
+const arrow = buildArrow(), driver = buildDriver(), nozzle = buildNozzle();
+const BED_LID_POS = new THREE.Vector3(0, 0, 78);
+const bed = mesh(BoxG(136, 1.5, 196), mat('#30333a', { rough: .9 }), { at: [0, -0.8, 34] }); bed.visible = false; scene.add(bed);
+
+/* ---------- build everything ---------- */
+register('base', buildBase(), { kind: 'printed', name: 'Case base (3D-printed)', reason: 'Ditto designed it around these exact boards: posts under every screw hole, a hole for the USB plug.' });
+const lidG = buildLid(); lidG.position.set(0, LID_Y, 0);
+register('lid', lidG, { kind: 'printed', name: 'Lid (3D-printed)', reason: 'Has a window over the screen and small holes so you can hear the beeper.', explode: new THREE.Vector3(0, 72, 0) });
+const EXP = { mcu: [0, 28, 0], oled1: [44, 22, -6], buzz1: [6, 30, 8] };
+for (const p of LAYOUT.placements) {
+  const part = partOf(p.ref);
+  register(p.ref, buildBoard(p.ref), { kind: 'board', name: part.name, reason: part.reason, explode: new THREE.Vector3(...EXP[p.ref]) });
+  part.mount_holes.forEach(([hx, hz], i) => {
+    const s = buildScrew(); s.position.set(p.at_xz[0] + hx, boardTopY(p.ref), p.at_xz[1] + hz);
+    register(`${p.ref}.s${i + 1}`, s, { kind: 'screw', name: 'M2.5 × 6 mm screw', reason: `Holds the ${part.short} on its post.`, explode: new THREE.Vector3(...EXP[p.ref]).add(new THREE.Vector3(0, 18, 0)) });
+  });
+}
+E.lid_screws.forEach(([x, z], i) => {
+  const s = buildScrew(); s.position.set(x, LID_Y + 2, z);
+  register(`lid.s${i + 1}`, s, { kind: 'screw', name: 'M2.5 × 6 mm screw', reason: 'Holds the lid on.', explode: new THREE.Vector3(0, 94, 0) });
+});
+for (const w of WIRES) register(w.ref, buildWire(w), { kind: 'wire', name: `${w.color.label} jumper wire`, reason: `${partOf(w.part_ref).short} ${w.part_pin} → ESP32 ${w.mcu_pin}`, wire: w });
+register('usb', buildUsb(), { kind: 'cable', name: 'USB cable', reason: 'Powers the timer and uploads the code. Already in your inventory.', explode: new THREE.Vector3(-34, 0, 0) });
+
+for (const o of Object.values(OBJ)) o.box = new THREE.Box3().setFromObject(o.group);
+const ALL_HOME = new THREE.Box3(); const ALL_EXP = new THREE.Box3();
+for (const o of Object.values(OBJ)) if (o.kind !== 'cable') { ALL_HOME.union(o.box); ALL_EXP.union(o.box.clone().translate(o.explode)); }
+const proxy = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ visible: false })); scene.add(proxy);
+
+/* =====================================================================
+   5. Action vocabulary: each type is one parameterized animation.
+   ===================================================================== */
+const DUR = { print: 5.2, place: 1.15, screw: 0.95, wire: 0.85, plug: 1.0, flash: 2.6 };
+const ease = { out: t => 1 - Math.pow(1 - t, 3), inOut: t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2 };
+function pose(ref, { off, pos, rotY = 0, visible = true } = {}) {
+  const o = OBJ[ref]; o.group.visible = visible; if (!visible) return;
+  o.group.position.copy(pos || o.home); if (off) o.group.position.add(off); o.group.rotation.y = rotY;
+}
+function wireDraw(ref, t) {
+  const a = OBJ[ref].group.userData.anim; if (!a) return;
+  a.tube.geometry.setDrawRange(0, Math.floor(a.count * t / 3) * 3);
+  a.h0.visible = t > 0; a.h1.visible = t >= 0.98; a.h1.scale.setScalar(t >= 0.98 ? 1 : 0.01);
+}
+const ACTIONS = {
+  print(seg, t) {
+    bed.visible = true;
+    pose('base'); pose('lid', { pos: BED_LID_POS });
+    printPlane.constant = -0.5 + t * (LID_Y + 1);
+    nozzle.visible = t > 0 && t < 1;
+    const T = performance.now() / 1000, h = printPlane.constant;
+    const zr = h < 2 ? [-32, 110] : [-32, 32];
+    nozzle.position.set(48 * Math.sin(T * 6.1), Math.max(0, h) + 0.2, (zr[0] + zr[1]) / 2 + (zr[1] - zr[0]) / 2 * Math.sin(T * 1.7));
+  },
+  place(seg, t) {
+    const e = ease.out(t), lift = 38 * (1 - e);
+    pose(seg.ref, { off: new THREE.Vector3(0, lift, 0), rotY: 0.35 * (1 - e) });
+    const b = OBJ[seg.ref].box, c = b.getCenter(new THREE.Vector3());
+    arrow.visible = t < 0.9; arrow.userData.mat.opacity = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.3;
+    arrow.position.set(c.x, b.max.y + lift + 6 + 3 * Math.sin(t * 12), c.z);
+  },
+  screw(seg, t) {
+    const e = ease.inOut(t), rot = -e * Math.PI * 10;
+    pose(seg.ref, { off: new THREE.Vector3(0, 16 * (1 - e), 0), rotY: rot });
+    driver.visible = t > 0 && t < 1;
+    driver.position.copy(OBJ[seg.ref].group.position).add(new THREE.Vector3(0, 1.7, 0)); driver.rotation.y = rot;
+  },
+  wire(seg, t) { pose(seg.ref); wireDraw(seg.ref, ease.inOut(t)); },
+  plug(seg, t) { pose(seg.ref, { off: new THREE.Vector3(-34 * (1 - ease.out(t)), 0, 0) }); },
+  flash(seg, t) {
+    if (t >= 1) { drawScreen('on'); ledMat.emissiveIntensity = 0; return; }
+    drawScreen('upload', t); ledMat.emissiveIntensity = (Math.floor(t * 18) % 2) ? 2.5 : 0;
+  },
+};
+
+/* =====================================================================
+   6. Step player + overview
+   ===================================================================== */
+let level = 'beginner', STEPS = planSteps(level), mode = 'overview', cur = 0;
+let mentions = {}, timeline = { segs: [], total: 0 }, tStart = 0, playing = false;
+function indexMentions() {
+  mentions = {};
+  STEPS.forEach((s, k) => s.actions.forEach(a => a.targets.forEach(r => (mentions[r] ||= []).push({ step: k, type: a.type }))));
+}
+function buildTimeline(step) {
+  const segs = []; let t = 0.35;
+  for (const a of step.actions) {
+    if (a.type === 'print' || a.type === 'flash') { segs.push({ type: a.type, ref: a.targets[0], start: t, dur: DUR[a.type] }); t += DUR[a.type]; }
+    else for (const ref of a.targets) { segs.push({ type: a.type, ref, start: t, dur: DUR[a.type] }); t += DUR[a.type] * (a.type === 'wire' ? 0.8 : 1); }
+    t += 0.3;
+  }
+  return { segs, total: t };
+}
+function baseState(k) {
+  printPlane.constant = 1e4; bed.visible = nozzle.visible = driver.visible = arrow.visible = false;
+  for (const ref in OBJ) {
+    const ms = mentions[ref] || [], before = ms.filter(m => m.step < k), now = ms.filter(m => m.step === k && m.type !== 'flash'), after = ms.filter(m => m.step > k);
+    let show = before.length > 0 && !now.length;
+    if (show && before.every(m => m.type === 'print') && after.length) show = false; // printed, waiting in the parts pile
+    pose(ref, { visible: show }); wireDraw(ref, 1);
+  }
+  const flashed = STEPS.some((s, i) => i < k && s.actions.some(a => a.type === 'flash'));
+  drawScreen(flashed ? 'on' : 'off'); if (ledMat) ledMat.emissiveIntensity = 0;
+}
+const GHOST_KINDS = new Set(['place', 'screw', 'mount', 'wire', 'flash']);
+let ghosted = null;
+function ghostCase(on) {
+  if (on === ghosted) return; ghosted = on;
+  OBJ.base.group.traverse(m => { if (m.isMesh && m.userData.wall) { m.material.transparent = on; m.material.opacity = on ? 0.25 : 1; m.material.depthWrite = !on; m.castShadow = !on; } });
+}
+function play() { ghostCase(GHOST_KINDS.has(STEPS[cur].kind)); baseState(cur); timeline = buildTimeline(STEPS[cur]); tStart = performance.now() / 1000; playing = true; }
+function tickPlayer(now) {
+  if (!playing) return;
+  const t = now - tStart;
+  driver.visible = arrow.visible = false;
+  for (const s of timeline.segs) { const p = (t - s.start) / s.dur; if (p >= 0) ACTIONS[s.type](s, Math.min(1, p)); }
+  if (t > timeline.total + 0.6) playing = false;
+}
+
+let explodeT = 0, explodeE = 0, pinned = false;
+function overviewState(dt) {
+  explodeE += (explodeT - explodeE) * (1 - Math.exp(-dt * 7));
+  printPlane.constant = 1e4; bed.visible = nozzle.visible = driver.visible = arrow.visible = false;
+  for (const ref in OBJ) {
+    const o = OBJ[ref];
+    if (o.kind === 'wire') { o.group.visible = explodeE < 0.1; wireDraw(ref, 1); continue; }
+    pose(ref, { off: o.explode.clone().multiplyScalar(explodeE) });
+  }
+  const b = ALL_HOME.clone(); b.min.lerp(ALL_EXP.min, explodeE); b.max.lerp(ALL_EXP.max, explodeE);
+  b.getCenter(proxy.position); b.getSize(proxy.scale);
+  if (!camTween && Math.abs(explodeT - explodeE) > 0.002) { // camera breathes out to fit the exploded parts
+    const c = b.getCenter(new THREE.Vector3()), dir = camera.position.clone().sub(controls.target).normalize();
+    controls.target.copy(c); camera.position.copy(c).addScaledVector(dir, fitDist(b, 1.08));
+  }
+}
+
+/* ---------- camera framing ---------- */
+const VIEW_DIR = new THREE.Vector3(0.6, 0.95, 1.0).normalize();
+let camTween = null;
+function fitDist(box, pad) {
+  const r = Math.max(60, box.getBoundingSphere(new THREE.Sphere()).radius);
+  const fovH = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * Math.min(camera.aspect, 1.6));
+  return r * pad / Math.sin(Math.min(THREE.MathUtils.degToRad(camera.fov), fovH) / 2);
+}
+function frame(box, pad = 1.2) {
+  const c = box.getCenter(new THREE.Vector3()), d = fitDist(box, pad);
+  camTween = { p0: camera.position.clone(), t0: controls.target.clone(), p1: c.clone().addScaledVector(VIEW_DIR, d), t1: c, start: performance.now() / 1000, dur: 0.9 };
+}
+function stepBox(step) {
+  const b = new THREE.Box3();
+  for (const a of step.actions) for (const r of a.targets) {
+    if (a.type === 'print') { b.union(new THREE.Box3().setFromObject(bed)); continue; }
+    const o = OBJ[r]; if (!o) continue;
+    if (o.kind === 'cable') { b.union(OBJ.mcu.box.clone().expandByVector(new THREE.Vector3(18, 0, 0))); b.union(OBJ.oled1.box); continue; }
+    b.union(o.box);
+    if (o.kind === 'screw') b.union(OBJ[r.split('.')[0]].box);
+    if (o.kind === 'wire') { b.union(OBJ[o.wire.part_ref].box); b.union(OBJ.mcu.box); }
+    if (a.type === 'place') b.union(o.box.clone().translate(new THREE.Vector3(0, 30, 0)));
+    if (a.type === 'flash') b.union(OBJ.oled1.box);
+  }
+  if (b.isEmpty()) b.copy(ALL_HOME);
+  return b;
+}
+
+/* ---------- UI ---------- */
+const $ = s => document.querySelector(s);
+function renderParts() {
+  const count = k => Object.values(OBJ).filter(o => o.kind === k).length;
+  const rows = [
+    ...LAYOUT.placements.map(p => ({ ref: p.ref, qty: 1, name: partOf(p.ref).name, price: partOf(p.ref).price_usd, why: partOf(p.ref).reason })),
+    { ref: 'mcu.s1', qty: count('screw'), name: 'M2.5 × 6 mm screws', price: 0.1 * count('screw'), why: 'Every board screws onto a post Ditto put in the case.' },
+    { ref: WIRES[0].ref, qty: count('wire'), name: 'Jumper wires (female–female)', price: 0.1 * count('wire'), why: 'No soldering: each wire pushes onto a pin.' },
+    { ref: 'usb', qty: 1, name: 'USB cable', price: 0, owned: true, why: OBJ.usb.reason },
+    { ref: 'base', qty: 1, name: 'Printed case (base + lid)', price: 0.8, why: OBJ.base.reason },
+  ];
+  $('#partsCount').textContent = `(${rows.length})`;
+  $('#partsList').innerHTML = rows.map((r, i) => `<li data-ref="${r.ref}" data-i="${i}"><div class="r1"><span class="qty">${r.qty}×</span><span>${r.name}</span>
+    <span class="price">${r.owned ? '<span class="owned">you have it</span>' : '$' + r.price.toFixed(2)}</span></div><div class="why">${r.why}</div></li>`).join('');
+  $('#partsTotal').textContent = '$' + rows.reduce((s, r) => s + (r.owned ? 0 : r.price), 0).toFixed(2);
+  document.querySelectorAll('#partsList li').forEach(li => {
+    li.onclick = () => li.classList.toggle('open');
+    li.onmouseenter = () => { listHi = li.dataset.ref; }; li.onmouseleave = () => { listHi = null; };
+  });
+}
+function needs(step) {
+  const out = [];
+  for (const a of step.actions) {
+    if (a.type === 'print') { out.push([1, 'base.stl'], [1, 'lid.stl']); continue; }
+    if (a.type === 'flash') { out.push(['', 'Ditto → Upload']); continue; }
+    const groups = {};
+    for (const r of a.targets) { const o = OBJ[r]; const k = o.kind === 'wire' ? 'jumper wires' : o.kind === 'screw' ? 'M2.5 screws' : o.kind === 'printed' ? 'lid (printed)' : o.kind === 'cable' ? 'USB cable' : partOf(r).short; groups[k] = (groups[k] || 0) + 1; }
+    for (const [k, n] of Object.entries(groups)) out.push([n, k]);
+  }
+  return out;
+}
+function renderStep() {
+  const s = STEPS[cur];
+  $('#stepNum').innerHTML = `${s.n}<small>/ ${STEPS.length}</small>`;
+  $('#stepTitle').textContent = s.title;
+  $('#stepText').textContent = s.text;
+  const wires = s.actions.filter(a => a.type === 'wire').flatMap(a => a.targets.map(r => OBJ[r].wire));
+  $('#stepWires').innerHTML = wires.map(w => `<div class="chip"><i style="background:${w.color.hex}"></i>${partOf(w.part_ref).short} ${w.part_pin} <span>→</span> ESP32 ${w.mcu_pin}</div>`).join('');
+  $('#stepParts').innerHTML = needs(s).map(([n, k]) => `<div class="need"><b>${n ? n + '×' : '→'}</b>${k}</div>`).join('');
+  $('#prevBtn').disabled = cur === 0;
+  $('#nextBtn').textContent = cur === STEPS.length - 1 ? 'Done ✓' : 'Next →';
+  const ICON = { print: 'print', place: 'place', screw: 'screw', mount: 'mount', wire: 'wire', flash: 'code', lid: 'lid' };
+  $('#stepBar').innerHTML = STEPS.map((st, i) => `<button class="${i === cur ? 'cur' : i < cur ? 'done' : ''}" data-i="${i}" title="${st.title}">${i < cur ? '✓' : st.n}<small>${ICON[st.kind]}</small></button>`).join('');
+  document.querySelectorAll('#stepBar button').forEach(b => b.onclick = () => goStep(+b.dataset.i));
+}
+function goStep(i) { cur = Math.max(0, Math.min(STEPS.length - 1, i)); renderStep(); frame(stepBox(STEPS[cur])); play(); }
+function setMode(m) {
+  mode = m; $('#overview').hidden = m !== 'overview'; $('#build').hidden = m !== 'build'; tip.hidden = true;
+  if (m === 'overview') { ghostCase(false); playing = false; pinned = false; explodeT = 0; explodeE = 0; frame(ALL_HOME, 1.08); drawScreen('on'); if (ledMat) ledMat.emissiveIntensity = 0; }
+  else goStep(cur);
+  applyViewOffset();
+}
+$('#startBtn').onclick = () => { cur = 0; setMode('build'); };
+$('#backOverview').onclick = () => setMode('overview');
+$('#prevBtn').onclick = () => goStep(cur - 1);
+$('#nextBtn').onclick = () => cur === STEPS.length - 1 ? setMode('overview') : goStep(cur + 1);
+$('#replayBtn').onclick = () => play();
+$('#partsToggle').onclick = () => $('#parts').classList.toggle('closed');
+document.querySelectorAll('#skill button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#skill button').forEach(x => x.classList.toggle('on', x === b));
+  level = b.dataset.l; STEPS = planSteps(level); indexMentions();
+  if (mode === 'build') { cur = Math.min(cur, STEPS.length - 1); goStep(cur); }
+});
+$('#dataBtn').onclick = () => {
+  const data = { 'layout.json': { ...LAYOUT, wires: WIRES.map(({ ref, part_ref, part_pin, mcu_pin, from, to, color }) => ({ ref, part_ref, part_pin, mcu_pin, from, to, color: color.label })) },
+                 'instructions.json': { rev: LAYOUT.rev, skill: level, steps: STEPS.map(({ n, kind, title, text, actions }) => ({ n, kind, title, text, actions })) } };
+  $('#dataPre').textContent = JSON.stringify(data, null, 2).replace(/\[\s+([-\d.]+),\s+([-\d.]+)(,\s+([-\d.]+))?\s+\]/g, (m, a, b, _, c) => `[${a}, ${b}${c ? ', ' + c : ''}]`);
+  $('#modal').hidden = false;
+};
+$('#closeModal').onclick = () => $('#modal').hidden = true;
+$('#modal').onclick = e => { if (e.target.id === 'modal') $('#modal').hidden = true; };
+
+/* ---------- picking ---------- */
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+let pointerIn = false, pointerXY = [0, 0], hoveringModel = false, hiRef = null, listHi = null, downXY = null;
+const tip = $('#tip');
+canvas.addEventListener('pointermove', e => {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  pointerXY = [e.clientX, e.clientY]; pointerIn = e.pointerType === 'mouse';
+});
+canvas.addEventListener('pointerleave', () => { pointerIn = false; });
+canvas.addEventListener('pointerdown', e => { downXY = [e.clientX, e.clientY]; });
+canvas.addEventListener('pointerup', e => {
+  if (!downXY || Math.hypot(e.clientX - downXY[0], e.clientY - downXY[1]) > 6) return;
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  if (mode === 'overview') { ray.setFromCamera(ndc, camera); const hit = ray.intersectObject(proxy).length > 0; pinned = hit ? !pinned : false; }
+  else if (pickRef()) play();
+});
+function visibleChain(o) { for (; o; o = o.parent) if (!o.visible) return false; return true; }
+function pickRef() {
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObjects(Object.values(OBJ).map(o => o.group).filter(g => g.visible), true);
+  for (const h of hits) { if (!h.object.isMesh || !visibleChain(h.object)) continue; let o = h.object; while (o && !o.userData.ref) o = o.parent; if (o) return o.userData.ref; }
+  return null;
+}
+function setHighlight(ref) {
+  if (ref === hiRef) return;
+  const paint = (r, on) => { if (!r || !OBJ[r]) return; OBJ[r].group.traverse(m => { if (m.isMesh && m.material.emissive && m.material !== ledMat) { m.material.emissive.set(on ? '#ff5a36' : '#000000'); m.material.emissiveIntensity = on ? 0.35 : 0; } }); };
+  paint(hiRef, false); paint(ref, true); hiRef = ref;
+  document.querySelectorAll('#partsList li').forEach(li => li.classList.toggle('hi', li.dataset.ref === ref));
+}
+function tickHover() {
+  if (mode === 'overview') {
+    let over = false, ref = null;
+    if (pointerIn) { ray.setFromCamera(ndc, camera); over = ray.intersectObject(proxy).length > 0; if (over) ref = pickRef(); }
+    explodeT = (over || pinned) ? 1 : 0;
+    const show = listHi || (explodeE > 0.5 ? ref : null);
+    setHighlight(show);
+    if (ref && explodeE > 0.5 && !listHi) {
+      const o = OBJ[ref]; tip.hidden = false; tip.innerHTML = `<b>${o.name}</b>${o.reason}`;
+      tip.style.left = Math.min(pointerXY[0] + 16, innerWidth - 270) + 'px'; tip.style.top = (pointerXY[1] + 16) + 'px';
+    } else tip.hidden = true;
+  } else {
+    setHighlight(null); tip.hidden = true;
+    const over = pointerIn && !!pickRef();
+    if (over && !hoveringModel && !playing) play();
+    hoveringModel = over;
+  }
+}
+
+/* ---------- loop ---------- */
+function applyViewOffset() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (w > 760) camera.setViewOffset(w, h, -w * 0.11, h * 0.035, w, h); else camera.setViewOffset(w, h, 0, -h * (mode === 'build' ? 0.12 : 0.05), w, h);
+  camera.updateProjectionMatrix();
+}
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; applyViewOffset();
+}
+window.addEventListener('resize', resize);
+let last = performance.now() / 1000;
+function loop() {
+  const now = performance.now() / 1000, dt = Math.min(0.05, now - last); last = now;
+  if (camTween) {
+    const k = ease.inOut(Math.min(1, (now - camTween.start) / camTween.dur));
+    camera.position.lerpVectors(camTween.p0, camTween.p1, k); controls.target.lerpVectors(camTween.t0, camTween.t1, k);
+    if (k >= 1) camTween = null;
+  }
+  if (mode === 'overview') overviewState(dt); else tickPlayer(now);
+  tickHover();
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+indexMentions(); renderParts(); resize();
+if (innerWidth < 720) { $('#parts').classList.add('closed'); $('#hint').textContent = 'Tap the model to see inside'; }
+camera.position.set(260, 260, 340); controls.target.set(0, 20, 0);
+setMode('overview');
+loop();
+
+// test hooks
+window.__ditto = { setMode, goStep, OBJ, STEPS: () => STEPS, setExplode: v => { pinned = !!v; }, get playing() { return playing; } };
+</script>
+</body>
+</html>
