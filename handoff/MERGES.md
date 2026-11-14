@@ -33,3 +33,4 @@ you depend on appears here.
 13:04 053b5bd contract v4: BomOffer + BomLine.offers (T38 #5)
 13:05 3614136 contract v5: RunSummary for GET /runs (T39 #6)
 13:15 610e847 T37 user profile: agent adapts wording to UserContext.level, addresses user by name
+13:35 e3798ca T38 store offers: price_bom fills BomLine.offers (one per seller, cheapest first)
