@@ -755,6 +755,43 @@ export interface UserContext1 {
   rejected: string[];
 }
 /**
+ * One item of GET /runs (newest first by ts).
+ *
+ * This interface was referenced by `P2DContracts`'s JSON-Schema
+ * via the `definition` "RunSummary".
+ */
+export interface RunSummary {
+  run_id: string;
+  spec_rev: number;
+  /**
+   * The latest event's stage.
+   */
+  stage:
+    | "plan"
+    | "validate"
+    | "layout"
+    | "enclosure"
+    | "assembly"
+    | "firmware"
+    | "wiring"
+    | "simulate"
+    | "bom"
+    | "checks"
+    | "done";
+  /**
+   * The latest event's status.
+   */
+  status: "queued" | "running" | "passed" | "failed" | "stale" | "skipped" | "waiting";
+  /**
+   * spec.title; "" until the runner saves spec.json.
+   */
+  title: string;
+  /**
+   * The latest event's ts.
+   */
+  ts: number;
+}
+/**
  * This interface was referenced by `P2DContracts`'s JSON-Schema
  * via the `definition` "Todo".
  */

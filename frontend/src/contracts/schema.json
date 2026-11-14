@@ -1667,6 +1667,67 @@
       "title": "RunRequest",
       "type": "object"
     },
+    "RunSummary": {
+      "additionalProperties": false,
+      "description": "One item of GET /runs (newest first by ts).",
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "spec_rev": {
+          "type": "integer"
+        },
+        "stage": {
+          "description": "The latest event's stage.",
+          "enum": [
+            "plan",
+            "validate",
+            "layout",
+            "enclosure",
+            "assembly",
+            "firmware",
+            "wiring",
+            "simulate",
+            "bom",
+            "checks",
+            "done"
+          ],
+          "type": "string"
+        },
+        "status": {
+          "description": "The latest event's status.",
+          "enum": [
+            "queued",
+            "running",
+            "passed",
+            "failed",
+            "stale",
+            "skipped",
+            "waiting"
+          ],
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "description": "spec.title; \"\" until the runner saves spec.json.",
+          "type": "string"
+        },
+        "ts": {
+          "description": "The latest event's ts.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "run_id",
+        "title",
+        "stage",
+        "status",
+        "ts",
+        "spec_rev"
+      ],
+      "title": "RunSummary",
+      "type": "object"
+    },
     "Todo": {
       "additionalProperties": false,
       "properties": {

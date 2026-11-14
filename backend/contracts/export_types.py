@@ -16,7 +16,7 @@ from backend.contracts.events import Event, Question, Todo
 from backend.contracts.hardware import Hardware
 from backend.contracts.parts import BoardDef, PartDef
 from backend.contracts.results import ToolResult
-from backend.contracts.runner import AnswerRequest, EditRequest, RunRequest
+from backend.contracts.runner import AnswerRequest, EditRequest, RunRequest, RunSummary
 from backend.contracts.spec import Layout, ProjectSpec
 
 FRONTEND = Path(__file__).resolve().parents[2] / "frontend"
@@ -33,6 +33,7 @@ MODELS = [
     RunRequest,
     EditRequest,
     AnswerRequest,
+    RunSummary,
     RunManifest,
     Wiring,
     Bom,

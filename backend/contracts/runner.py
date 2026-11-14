@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Protocol
 
 from backend.contracts.base import Model
-from backend.contracts.events import Event, Stage
+from backend.contracts.events import Event, Stage, Status
 from backend.contracts.results import ToolResult
 from backend.contracts.spec import ProjectSpec, UserContext
 
@@ -78,6 +78,21 @@ class AnswerRequest(Model):
 
     question_id: str
     answer: str
+
+
+class RunSummary(Model):
+    """One item of GET /runs (newest first by ts)."""
+
+    run_id: str
+    title: str = ""
+    """spec.title; "" until the runner saves spec.json."""
+    stage: Stage
+    """The latest event's stage."""
+    status: Status
+    """The latest event's status."""
+    ts: float
+    """The latest event's ts."""
+    spec_rev: int
 
 
 class Runner(Protocol):
