@@ -35,11 +35,16 @@ class BoardError(Exception):
 # ----------------------------------------------------------------------------- git helpers
 
 def git(*args: str, check: bool = True, input_text: str | None = None, env: dict | None = None) -> str:
-    proc = subprocess.run(["git", *args], capture_output=True, text=True, input=input_text,
+    # Bytes in, bytes out: text mode on Windows turns "\n" into "\r\n" on stdin, which corrupts the
+    # tree that `git mktree` builds (file names end up as "state.json\r").
+    proc = subprocess.run(["git", *args], capture_output=True,
+                          input=input_text.encode("utf-8") if input_text is not None else None,
                           env={**os.environ, **(env or {})})
+    out = proc.stdout.decode("utf-8", errors="replace").replace("\r\n", "\n")
     if check and proc.returncode != 0:
-        raise BoardError(f"git {' '.join(args)} failed: {proc.stderr.strip()}")
-    return proc.stdout.strip()
+        err = proc.stderr.decode("utf-8", errors="replace").strip()
+        raise BoardError(f"git {' '.join(args)} failed: {err}")
+    return out.strip()
 
 
 def git_ok(*args: str) -> bool:
@@ -105,9 +110,9 @@ def load_plan() -> dict:
     text = None
     if main:
         text = subprocess.run(["git", "show", f"{main}:handoff/tasks.json"],
-                              capture_output=True, text=True).stdout or None
+                              capture_output=True, text=True, encoding="utf-8").stdout or None
     if not text:
-        with open(os.path.join(toplevel(), "handoff", "tasks.json")) as f:
+        with open(os.path.join(toplevel(), "handoff", "tasks.json"), encoding="utf-8") as f:
             text = f.read()
     plan = json.loads(text)
     plan["by_id"] = {t["id"]: t for t in plan["tasks"]}
@@ -118,7 +123,7 @@ def hardware_mode() -> str:
     main = rev(ref("main"))
     text = ""
     if main:
-        text = subprocess.run(["git", "show", f"{main}:handoff/HARDWARE.md"], capture_output=True, text=True).stdout
+        text = subprocess.run(["git", "show", f"{main}:handoff/HARDWARE.md"], capture_output=True, text=True, encoding="utf-8").stdout
     for line in text.splitlines():
         if line.strip().startswith("MODE="):
             value = line.split("=", 1)[1].split("#")[0].strip().upper()
@@ -198,7 +203,7 @@ def whoami(args) -> dict:
     env = {}
     path = os.path.join(toplevel(), ".env.worktree")
     if os.path.exists(path):
-        for line in open(path):
+        for line in open(path, encoding="utf-8"):
             if "=" in line and not line.lstrip().startswith("#"):
                 k, v = line.strip().split("=", 1)
                 env[k] = v
@@ -663,7 +668,7 @@ def cmd_submit(args):
 
 def read_notes(args) -> str:
     if getattr(args, "notes_file", None):
-        return open(args.notes_file).read().strip()
+        return open(args.notes_file, encoding="utf-8").read().strip()
     return (getattr(args, "notes", None) or "").strip()
 
 
@@ -805,6 +810,9 @@ def cmd_ack(args):
 def main(argv=None):
     if hasattr(signal, "SIGPIPE"):  # behave quietly when piped into head/less
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+    for stream in (sys.stdout, sys.stderr):  # Windows consoles default to cp1252, which can't print the board
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--as", dest="as_", help="act as this agent (e.g. B-web, R, I) or 'human'")
     sub = p.add_subparsers(dest="cmd", required=True)
