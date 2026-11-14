@@ -16,14 +16,11 @@ Error codes (one per check, so each maps to one row kind in the checks panel):
 from collections.abc import Callable
 from pathlib import Path
 
+from backend.contracts import invariants as inv
 from backend.contracts.artifacts import Bom, EnclosureManifest, RunManifest, Wiring
 from backend.contracts.parts import PartLibrary
 from backend.contracts.results import ToolError, ToolResult
 from backend.contracts.spec import Layout, ProjectSpec
-
-# shortcut: Q's invariant helpers live under tests/ (contract request T21-invariants-location);
-# switch this import when the Integrator moves them under backend/.
-from tests.integration import invariants as inv
 
 HINTS = {
     "pins_mismatch": "rerun the firmware stage so pins.h is regenerated from spec.connections",
