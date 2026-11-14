@@ -29,6 +29,7 @@ export function Overview({
   reply,
   onOwn,
   onDetails,
+  onBuild,
   onExit,
 }: {
   state: RunState
@@ -40,6 +41,7 @@ export function Overview({
   /** Adds one of the part to My parts. */
   onOwn: (partId: string) => Promise<void>
   onDetails: () => void
+  onBuild: () => void
   onExit: () => void
 }) {
   const bom = useJson<Bom>(urlOf('bom_json'))
@@ -122,7 +124,7 @@ export function Overview({
         onOwn={onOwn}
       />
       {buying && <BuyPanel line={buying} onClose={() => setBuying(null)} />}
-      <Dock reply={reply} />
+      <Dock reply={reply} onBuild={onBuild} />
     </main>
   )
 }
@@ -353,7 +355,7 @@ function BuyPanel({ line, onClose }: { line: BomLine; onClose: () => void }) {
   )
 }
 
-function Dock({ reply }: { reply: Reply }) {
+function Dock({ reply, onBuild }: { reply: Reply; onBuild: () => void }) {
   const [text, setText] = useState('')
   const submit = async (value: string) => {
     if (value.trim() && reply.ready && (await reply.send(value))) setText('')
@@ -398,8 +400,7 @@ function Dock({ reply }: { reply: Reply }) {
             <Icon name="arrow-up" />
           </button>
         </span>
-        {/* shortcut: the build guide is T40 */}
-        <button type="button" className="btn primary tall" {...soon('T40')}>
+        <button type="button" className="btn primary tall" onClick={onBuild}>
           <Icon name="hammer" />
           Start building
         </button>

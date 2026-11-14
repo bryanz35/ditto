@@ -3,10 +3,11 @@
 const URLS = import.meta.glob<string>('./assets/icons/*.svg', { eager: true, query: '?url', import: 'default' })
 
 export type IconName =
-  | 'arrow-up' | 'bell' | 'bike' | 'book-open' | 'box' | 'cable' | 'check' | 'chevron-down' | 'chevron-right'
-  | 'circle-small' | 'cpu' | 'droplet' | 'ellipsis' | 'external-link' | 'hammer' | 'house' | 'image'
-  | 'image-plus' | 'lightbulb' | 'loader' | 'log-out' | 'monitor' | 'panel-left' | 'plus' | 'printer'
-  | 'rotate-ccw' | 'screw' | 'search' | 'shopping-cart' | 'sprout' | 'square' | 'timer' | 'usb' | 'volume' | 'x'
+  | 'arrow-left' | 'arrow-right' | 'arrow-up' | 'bell' | 'bike' | 'book-open' | 'box' | 'cable' | 'check'
+  | 'chevron-down' | 'chevron-right' | 'circle-small' | 'copy' | 'cpu' | 'download' | 'droplet' | 'ellipsis'
+  | 'external-link' | 'file-code' | 'hammer' | 'house' | 'image' | 'image-plus' | 'lightbulb' | 'loader'
+  | 'log-out' | 'monitor' | 'panel-left' | 'plus' | 'printer' | 'rotate-ccw' | 'screw' | 'search'
+  | 'shopping-cart' | 'sprout' | 'square' | 'timer' | 'triangle-alert' | 'usb' | 'volume' | 'x'
 
 export function Icon({ name, className = '' }: { name: IconName; className?: string }) {
   return (

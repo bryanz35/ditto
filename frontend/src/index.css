@@ -39,6 +39,17 @@
   --size-control-lg: 40px;
   --font-ui: Inter, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  /* wire/* in the file: red, black, yellow, blue; the rest are picked to stay distinct */
+  --color-wire-red: #e5534b;
+  --color-wire-black: #111111;
+  --color-wire-yellow: #eab308;
+  --color-wire-blue: #3b82f6;
+  --color-wire-green: #22c55e;
+  --color-wire-orange: #f97316;
+  --color-wire-purple: #a855f7;
+  --color-wire-white: #f5f5f5;
+  --color-wire-teal: #14b8a6;
+  --color-wire-grey: #8b8b8b;
   color-scheme: dark;
   font: 400 13px/18px var(--font-ui);
   color: var(--color-text-primary);
@@ -388,6 +399,69 @@ pre {
 .inventory input { width: 72px; }
 .page input:focus { outline: none; border-color: var(--color-border-focus); }
 
+/* ---------- Build guide (Figma 25:735 Build · Step 9, 28:900 Step cards) ---------- */
+.build .viewport { bottom: 80px; }
+.build .pill { cursor: default; }
+.build .pill:hover { background: var(--color-surface-raised); }
+.caps { margin: 0; font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.66px; text-transform: uppercase; color: var(--color-text-secondary); }
+.step-card {
+  position: absolute; top: 64px; left: 16px; width: 360px; max-height: calc(100% - 64px - 80px - 16px); overflow-y: auto;
+  display: flex; flex-direction: column; gap: var(--space-16); padding: var(--space-16);
+  background: var(--color-surface-panel); border: 1px solid var(--color-border-default); border-radius: var(--radius-md);
+}
+.step-header { display: flex; flex-direction: column; gap: var(--space-6); }
+.step-header .top { display: flex; align-items: baseline; gap: var(--space-4); }
+.step-header .number { font-size: 28px; line-height: 36px; font-weight: 600; letter-spacing: -0.28px; color: var(--color-text-bright); }
+.step-header .total { font-weight: 500; color: var(--color-text-secondary); }
+.step-header h2 { font-size: 18px; line-height: 24px; font-weight: 600; color: var(--color-text-bright); }
+.step-card .group { display: flex; flex-direction: column; gap: var(--space-4); }
+.wire {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 10px 7px var(--space-8);
+  border: none; border-radius: var(--radius-sm); background: var(--color-surface-raised); cursor: pointer;
+  font-weight: 500; color: var(--color-text-bright); white-space: nowrap; text-align: left;
+}
+.wire:hover { background: var(--color-surface-control); }
+.wire[aria-checked='true'] { color: var(--color-text-secondary); }
+.wire[aria-checked='true'] .box { color: var(--color-status-passed); }
+.wire .arrow { color: var(--color-icon-muted); }
+.swatch { width: 20px; height: 6px; flex: none; border-radius: 3px; }
+.swatch[data-colour='black'] { border: 1px solid var(--color-border-strong); }
+.file-item { display: flex; align-items: center; gap: 10px; padding: var(--space-8); border-radius: var(--radius-sm); background: var(--color-surface-raised); }
+.file-item .tile { width: 32px; height: 32px; background: var(--color-surface-control); }
+.file-item .name { color: var(--color-text-bright); }
+a.btn { text-decoration: none; }
+.file-actions { display: flex; gap: var(--space-6); }
+.callout { display: flex; align-items: flex-start; gap: 10px; padding: 10px var(--space-12) 10px 10px; border-radius: var(--radius-sm); background: var(--color-surface-raised); font-size: 12px; line-height: 16px; }
+.callout.warning { border-left: 2px solid var(--color-status-warning); }
+.callout.warning .icon { color: var(--color-status-warning); }
+.needs { display: flex; flex-direction: column; gap: var(--space-6); padding: 10px var(--space-12) var(--space-12); border-radius: var(--radius-sm); background: var(--color-surface-selected); }
+.needs .caps, .needs b { color: var(--color-accent-default); }
+.needs p { display: flex; align-items: center; gap: var(--space-8); }
+.needs b { font-weight: 600; }
+.needs .what { flex: 1; font-weight: 500; color: var(--color-text-bright); }
+.needs .have { display: flex; align-items: center; gap: var(--space-2); font-size: 12px; line-height: 16px; color: var(--color-status-passed); }
+.step-nav { display: flex; align-items: center; gap: var(--space-8); }
+.tracker {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 80px; display: flex; align-items: center; gap: var(--space-16); padding: 0 var(--space-16);
+  background: var(--color-surface-chrome); border-top: 1px solid var(--color-border-subtle);
+}
+.tracker ol { flex: 1; min-width: 0; display: flex; gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
+.tracker li { flex: 1; min-width: 0; }
+.step-tile {
+  display: flex; flex-direction: column; justify-content: center; gap: var(--space-2); width: 100%; height: 48px; padding: 0 var(--space-8);
+  border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm); background: none; cursor: pointer; text-align: left;
+  font-size: 12px; line-height: 16px; font-weight: 500; color: var(--color-text-secondary);
+}
+.step-tile:hover { background: var(--color-surface-hover); }
+.step-tile .mono { display: flex; align-items: center; gap: var(--space-4); }
+.step-tile .mono .icon { width: 12px; height: 12px; color: var(--color-status-passed); }
+.step-tile .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.step-tile[aria-current='step'] { background: var(--color-surface-selected); border-color: var(--color-border-focus); color: var(--color-text-bright); }
+.step-tile[aria-current='step'] .mono { color: var(--color-accent-default); }
+.progress { display: flex; flex-direction: column; gap: var(--space-6); width: 120px; flex: none; font-size: 12px; line-height: 16px; font-weight: 500; }
+.track { height: 4px; border-radius: 2px; background: var(--color-surface-control); overflow: hidden; }
+.track span { display: block; height: 100%; border-radius: 2px; background: var(--color-accent-default); }
+
 /* ---------- narrow screens: the design is desktop-first ---------- */
 @media (max-width: 760px) {
   .sidebar { display: none; }
@@ -395,4 +469,6 @@ pre {
   .buy-panel { left: 8px; right: 8px; width: auto; top: 72px; z-index: 5; }
   .view-toolbar, .viewport-hint { display: none; }
   .thread, .dock, .start { padding-left: var(--space-16); padding-right: var(--space-16); }
+  .step-card { left: 8px; right: 8px; width: auto; }
+  .tracker ol .label, .progress { display: none; }
 }

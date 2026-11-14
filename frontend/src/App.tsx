@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Build } from './Build'
 import { answerQuestion, editRun, fileUrl, getMemory, putMemory, startRun, useJson, useReply, useRun } from './api'
 import type { ProjectSpec, UserContext } from './contracts'
 import { MyParts } from './MyParts'
@@ -95,6 +96,7 @@ function Workspace({
 }) {
   const { state, connection, reconnect } = useRun(runId)
   const [details, setDetails] = useState(false)
+  const [building, setBuilding] = useState(false)
   const urlOf = (name: string) => {
     const a = state.artifacts[name]
     return a ? fileUrl(runId, a.path, a.seq) : null
@@ -138,6 +140,9 @@ function Workspace({
     <Details state={state} urlOf={urlOf} staleOf={staleOf} onClose={() => setDetails(false)} />
   )
 
+  if (planned && building) {
+    return <Build runId={runId} title={title} spec={spec} urlOf={urlOf} onBack={() => setBuilding(false)} onExit={onExit} />
+  }
   if (planned) {
     return (
       <>
@@ -150,6 +155,7 @@ function Workspace({
           reply={reply}
           onOwn={onOwn}
           onDetails={() => setDetails(true)}
+          onBuild={() => setBuilding(true)}
           onExit={onExit}
         />
         {banner}

@@ -240,7 +240,6 @@ describe('Overview', () => {
     within(parts).getByText(/^\$25\.00 to buy/)
     within(parts).getByText('$25.00') // the total
     expect(screen.getByRole('button', { name: /Buy all/ }).title).toBe('Not connected yet (T38)')
-    expect(screen.getByRole('button', { name: /Start building/ }).title).toBe('Not connected yet (T40)')
 
     // the part's reason and wiring when its row opens
     fireEvent.click(within(parts).getByRole('button', { name: /OLED/ }))
@@ -347,6 +346,47 @@ describe('Overview', () => {
     expect(enclosure()).toBe('failed')
     screen.getByText(/base\.stl has open edges/)
     screen.getByText(/Out of date/) // the 3D view still shows the rev 2 case
+  })
+})
+
+describe('Build guide', () => {
+  const card = () => screen.getByRole('region', { name: /^Step \d+$/ })
+  const startBuilding = async () => {
+    openRun().emit(lines)
+    fireEvent.click(screen.getByRole('button', { name: /Start building/ }))
+    return within(await screen.findByRole('region', { name: /^Step \d+$/ }))
+  }
+
+  it('walks the steps from the run files and keeps the progress in this browser', async () => {
+    const step = await startBuilding()
+    step.getByRole('heading', { name: 'Print the case' })
+    expect(step.getByRole('link', { name: 'Download base.stl' }).getAttribute('href')).toMatch(/files\/cad\/base\.stl\?/)
+    step.getByRole('link', { name: 'Download lid.stl' })
+    const tracker = screen.getByRole('navigation', { name: 'Steps' })
+    expect(within(tracker).getAllByRole('listitem')).toHaveLength(12)
+
+    // jump to the screen's wiring, tick a wire, finish the step
+    fireEvent.click(within(tracker).getByRole('button', { name: /Wire screen/ }))
+    within(card()).getByRole('heading', { name: 'Connect the screen' })
+    within(card()).getByText('Wires · 0 of 4 connected')
+    const vcc = within(card()).getByRole('checkbox', { name: /screen VCC.*ESP32 3V3.*red/ })
+    fireEvent.click(vcc)
+    expect(vcc.getAttribute('aria-checked')).toBe('true')
+    within(card()).getByText('Wires · 1 of 4 connected')
+    fireEvent.click(within(card()).getByRole('button', { name: 'Done, next step' }))
+    within(card()).getByRole('heading', { name: 'Connect the soil sensor' })
+    screen.getByText('Building · 1 of 12 steps done')
+    screen.getByText('1 of 12 done')
+
+    // a reload comes back to the same step with the same ticks
+    cleanup()
+    const resumed = await startBuilding()
+    resumed.getByRole('heading', { name: 'Connect the soil sensor' })
+    fireEvent.click(within(card()).getByRole('button', { name: 'Back' }))
+    expect(within(card()).getByRole('checkbox', { name: /screen VCC/ }).getAttribute('aria-checked')).toBe('true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Overview' }))
+    screen.getByRole('region', { name: 'Parts list' })
   })
 })
 
