@@ -309,10 +309,6 @@ a.store:hover { background: var(--color-surface-control); }
 .logo-tile { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--radius-sm); background: var(--color-surface-control); font-size: 12px; font-weight: 500; color: var(--color-text-bright); }
 .store .name { color: var(--color-text-bright); }
 .store .price { font-weight: 600; color: var(--color-text-bright); }
-.skeleton .text { gap: var(--space-6); }
-.bar { display: block; height: 10px; width: 120px; border-radius: var(--radius-sm); background: var(--color-surface-control); }
-.bar.long { height: 8px; width: 180px; max-width: 100%; }
-.bar.short { width: 40px; flex: none; }
 .buy-panel .footnote { padding: 0 var(--space-16) var(--space-12); text-align: left; }
 .overview-dock {
   position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); width: min(720px, calc(100% - 32px));

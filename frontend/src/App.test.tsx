@@ -34,8 +34,12 @@ const RUN_FILES = import.meta.glob<string>('../../fixtures/runs/plant_monitor/**
   import: 'default',
   eager: true,
 })
-const fileBody = (url: string) =>
-  RUN_FILES[`../../fixtures/runs/plant_monitor/${url.match(/\/files\/([^?]+)/)?.[1]}`]
+/** Run files a test serves instead of the fixture's, by path in the run directory. */
+let fileOverrides: Record<string, string> = {}
+const fileBody = (url: string) => {
+  const path = url.match(/\/files\/([^?]+)/)?.[1] ?? ''
+  return fileOverrides[path] ?? RUN_FILES[`../../fixtures/runs/plant_monitor/${path}`]
+}
 
 class FakeEventSource {
   static CONNECTING = 0
@@ -124,6 +128,7 @@ beforeEach(() => {
   editStatus = 202
   putStatus = 200
   memory = null
+  fileOverrides = {}
   localStorage.clear()
   vi.stubGlobal('EventSource', FakeEventSource)
   vi.stubGlobal('fetch', fetchMock)
@@ -262,7 +267,6 @@ describe('Overview', () => {
     await within(parts).findByText('shows the readings · 1×')
     within(parts).getByText(/^\$25\.00 to buy/)
     within(parts).getByText('$25.00') // the total
-    expect(screen.getByRole('button', { name: /Buy all/ }).title).toBe('Not connected yet (T38)')
 
     // the part's reason and wiring when its row opens
     fireEvent.click(within(parts).getByRole('button', { name: /OLED/ }))
@@ -273,6 +277,40 @@ describe('Overview', () => {
     fireEvent.click(within(parts).getByRole('button', { name: /^Buy$/ }))
     const store = within(screen.getByRole('region', { name: 'Where to buy' })).getByRole('link', { name: /protosupplies\.com/ })
     expect(store.getAttribute('href')).toBe('https://protosupplies.com/product/oled-0-96-128x64-i2c-blue-display/')
+  })
+
+  it('lists every store offer cheapest first, and Buy all gives the cheapest store per part to buy (T38)', async () => {
+    const bom = JSON.parse(RUN_FILES['../../fixtures/runs/plant_monitor/bom.json'])
+    const oled = bom.lines.find((l: { part_id: string }) => l.part_id === 'ssd1306_096_i2c')
+    oled.offers = [
+      { seller: 'LCSC', url: 'https://lcsc.example/oled', unit_price_usd: 3.1, in_stock: true },
+      { seller: 'DigiKey', url: 'https://digikey.example/oled', unit_price_usd: 4.2, in_stock: false },
+      { seller: 'Mouser', url: null, unit_price_usd: 4.5, in_stock: null },
+    ]
+    bom.lines.find((l: { part_id: string }) => l.part_id === 'bme280_breakout').owned_qty = 1
+    fileOverrides = { 'bom.json': JSON.stringify(bom) }
+    openRun().emit(lines)
+    const parts = screen.getByRole('region', { name: 'Parts list' })
+    await within(parts).findByText('5 items')
+
+    fireEvent.click(within(parts).getByRole('button', { name: /OLED/ }))
+    fireEvent.click(within(parts).getByRole('button', { name: /^Buy$/ }))
+    const where = screen.getByRole('region', { name: 'Where to buy' })
+    within(where).getByText('3 stores found')
+    expect(within(where).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      'LLCSCIn stock$3.10',
+      'DDigiKeyOut of stock$4.20',
+      'MMouserOpens the store page$4.50',
+    ])
+    expect(within(where).getByRole('link', { name: /LCSC/ }).getAttribute('href')).toBe('https://lcsc.example/oled')
+    expect(within(where).queryByRole('link', { name: /Mouser/ })).toBeNull() // no url: nothing to open
+    expect(where.querySelector('[data-placeholder]')).toBeNull()
+
+    fireEvent.click(within(parts).getByRole('button', { name: /Buy all/ }))
+    const all = screen.getByRole('region', { name: 'Buy all' })
+    within(all).getByText('4 parts to buy') // the BME280 is owned
+    expect(within(all).getByRole('link', { name: /OLED.*LCSC/ }).getAttribute('href')).toBe('https://lcsc.example/oled')
+    expect(within(all).queryByText(/BME280/)).toBeNull()
   })
 
   it('switches between the exploded assembly and the closed case, and finds a clicked part in the list', async () => {

@@ -1,7 +1,7 @@
 // Project · Overview: the 3D model, the parts list and the follow-up dock (Figma 17:310, 19:527).
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useState, type ReactNode } from 'react'
 import { useJson, useSend, type Reply } from './api'
-import type { Bom, BomLine, ProjectSpec, Wiring } from './contracts'
+import type { Bom, BomLine, BomOffer, ProjectSpec, Wiring } from './contracts'
 import { Icon, Segmented } from './Icon'
 import { Badge, QuestionCard, type UrlOf } from './panels'
 import { statusLine, type RunState } from './state'
@@ -50,7 +50,8 @@ export function Overview({
   const [view, setView] = useState<View>('Exploded')
   const [reset, setReset] = useState(0)
   const [open, setOpen] = useState<string | null>(null) // part_id of the expanded row
-  const [buying, setBuying] = useState<BomLine | null>(null)
+  // one part's stores, or 'all': the cheapest store for every part still to buy
+  const [buying, setBuying] = useState<BomLine | 'all' | null>(null)
   const exploded = assembly !== null && view === 'Exploded'
   const shown = exploded ? 'assembly_glb' : 'base_stl'
   const openLine = bom?.lines.find((l) => l.part_id === open) ?? null
@@ -121,9 +122,11 @@ export function Overview({
         open={open}
         onOpen={(id) => setOpen(open === id ? null : id)}
         onBuy={setBuying}
+        onBuyAll={() => setBuying('all')}
         onOwn={onOwn}
       />
-      {buying && <BuyPanel line={buying} onClose={() => setBuying(null)} />}
+      {buying === 'all' && bom && <BuyAllPanel bom={bom} onClose={() => setBuying(null)} />}
+      {buying && buying !== 'all' && <BuyPanel line={buying} onClose={() => setBuying(null)} />}
       <Dock reply={reply} onBuild={onBuild} />
     </main>
   )
@@ -137,6 +140,7 @@ function PartsCard({
   open,
   onOpen,
   onBuy,
+  onBuyAll,
   onOwn,
 }: {
   bom: Bom | null
@@ -146,6 +150,7 @@ function PartsCard({
   open: string | null
   onOpen: (partId: string) => void
   onBuy: (line: BomLine) => void
+  onBuyAll: () => void
   onOwn: (partId: string) => Promise<void>
 }) {
   const owned = bom?.lines.filter((l) => l.owned_qty > 0).length ?? 0
@@ -195,8 +200,7 @@ function PartsCard({
           <b>{bom ? usd(bom.total_usd) : '—'}</b>
         </span>
         <span className="spacer" />
-        {/* shortcut: one store per part until T38 returns several offers */}
-        <button type="button" className="btn secondary" {...soon('T38')}>
+        <button type="button" className="btn secondary" disabled={!bom} onClick={onBuyAll}>
           <Icon name="shopping-cart" />
           Buy all
         </button>
@@ -304,54 +308,112 @@ const hostOf = (url: string) => {
   }
 }
 
-function BuyPanel({ line, onClose }: { line: BomLine; onClose: () => void }) {
-  const store = line.vendor_url ? hostOf(line.vendor_url) : null
+/** Every offer for the line, cheapest first; a line priced without offers keeps its library store link. */
+const storesOf = (line: BomLine): BomOffer[] =>
+  // `?? []`: bom.json files written before T38 have no offers
+  (line.offers ?? []).length > 0
+    ? line.offers
+    : line.vendor_url
+      ? [{ seller: hostOf(line.vendor_url), url: line.vendor_url, unit_price_usd: line.unit_price_usd ?? 0, in_stock: null }]
+      : []
+
+const stock = (o: BomOffer) => (o.in_stock === true ? 'In stock' : o.in_stock === false ? 'Out of stock' : 'Opens the store page')
+
+function StoreRow({ name, detail, price, url }: { name: string; detail: string; price: string; url: string | null }) {
+  const body = (
+    <>
+      <span className="logo-tile">{name[0].toUpperCase()}</span>
+      <span className="text">
+        <span className="name">{name}</span>
+        <span className="detail">{detail}</span>
+      </span>
+      <span className="price">{price}</span>
+      {url && <Icon name="external-link" />}
+    </>
+  )
   return (
-    <section className="buy-panel" aria-label="Where to buy">
+    <li>
+      {url ? (
+        <a className="store" href={url} target="_blank" rel="noreferrer">
+          {body}
+        </a>
+      ) : (
+        <span className="store">{body}</span>
+      )}
+    </li>
+  )
+}
+
+function Panel({ title, detail, status, onClose, children }: { title: string; detail: string; status: ReactNode; onClose: () => void; children: ReactNode }) {
+  return (
+    <section className="buy-panel" aria-label={title}>
       <header>
         <span className="title">
-          <h2>Where to buy</h2>
-          <span className="detail">{line.name}</span>
+          <h2>{title}</h2>
+          <span className="detail">{detail}</span>
         </span>
         <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>
           <Icon name="x" />
         </button>
       </header>
-      <p className="search-status">
-        {store ? '1 store found' : 'No store link yet'}
-        <span className="spacer" />
-        <span className="mono">{line.price_source} price</span>
-      </p>
-      <ul className="stores">
-        {store && line.vendor_url && (
-          <li>
-            <a className="store" href={line.vendor_url} target="_blank" rel="noreferrer">
-              <span className="logo-tile">{store[0].toUpperCase()}</span>
-              <span className="text">
-                <span className="name">{store}</span>
-                <span className="detail">Opens the store page</span>
-              </span>
-              <span className="price">{usd(line.unit_price_usd)}</span>
-              <Icon name="external-link" />
-            </a>
-          </li>
-        )}
-        {/* shortcut: skeleton rows stand in for more stores until T38 returns several offers */}
-        {[0, 1].map((i) => (
-          <li key={i} className="store skeleton" {...soon('T38')}>
-            <span className="logo-tile" />
-            <span className="text">
-              <span className="bar" />
-              <span className="bar long" />
-            </span>
-            <span className="bar short" />
-          </li>
-        ))}
-      </ul>
-      <p className="footnote">
-        More stores: not connected yet (T38). Opens the store in a new tab; Ditto never buys anything for you.
-      </p>
+      <p className="search-status">{status}</p>
+      <ul className="stores">{children}</ul>
+      <p className="footnote">Opens the store in a new tab; Ditto never buys anything for you.</p>
     </section>
+  )
+}
+
+function BuyPanel({ line, onClose }: { line: BomLine; onClose: () => void }) {
+  const stores = storesOf(line)
+  return (
+    <Panel
+      title="Where to buy"
+      detail={line.name}
+      onClose={onClose}
+      status={
+        <>
+          {stores.length === 0 ? 'No store link yet' : `${stores.length} store${stores.length > 1 ? 's' : ''} found`}
+          <span className="spacer" />
+          <span className="mono">{line.price_source} price</span>
+        </>
+      }
+    >
+      {stores.map((o) => (
+        <StoreRow key={o.seller} name={o.seller} detail={stock(o)} price={usd(o.unit_price_usd)} url={o.url} />
+      ))}
+    </Panel>
+  )
+}
+
+/** Buy all: the cheapest store for each part you don't have yet. */
+function BuyAllPanel({ bom, onClose }: { bom: Bom; onClose: () => void }) {
+  const lines = bom.lines.filter((l) => l.owned_qty < l.qty)
+  return (
+    <Panel
+      title="Buy all"
+      detail={`${lines.length} part${lines.length === 1 ? '' : 's'} to buy`}
+      onClose={onClose}
+      status={
+        <>
+          Cheapest store for each part
+          <span className="spacer" />
+          <span className="mono">{usd(bom.total_usd)}</span>
+        </>
+      }
+    >
+      {lines.map((l) => {
+        const best = storesOf(l)[0]
+        return (
+          <StoreRow
+            key={l.part_id}
+            name={l.name}
+            detail={`${l.qty - l.owned_qty}× · ${best ? best.seller : 'no store link yet'}`}
+            price={usd(l.line_total_usd)}
+            url={best?.url ?? null}
+          />
+        )
+      })}
+    </Panel>
   )
 }
 
