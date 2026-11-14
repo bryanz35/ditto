@@ -1,0 +1,41 @@
+{
+  "placements": [
+    {
+      "ref": "buzzer1",
+      "x_mm": 55.3,
+      "y_mm": 1.0,
+      "z_mm": 0.0,
+      "rot_deg": 0,
+      "against_wall": null
+    },
+    {
+      "ref": "env1",
+      "x_mm": 74.8,
+      "y_mm": 1.0,
+      "z_mm": 0.0,
+      "rot_deg": 0,
+      "against_wall": null
+    },
+    {
+      "ref": "esp32",
+      "x_mm": 0.0,
+      "y_mm": 7.0,
+      "z_mm": 0.0,
+      "rot_deg": 0,
+      "against_wall": "left"
+    },
+    {
+      "ref": "oled1",
+      "x_mm": 55.3,
+      "y_mm": 17.0,
+      "z_mm": 3.0,
+      "rot_deg": 0,
+      "against_wall": null
+    }
+  ],
+  "cavity_mm": [
+    97.3,
+    46.0,
+    19.0
+  ]
+}
