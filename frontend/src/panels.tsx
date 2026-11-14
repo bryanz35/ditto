@@ -1,177 +1,85 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
-import { useText } from './api'
-import type { Bom, Question, ToolError, Wiring } from './contracts'
+import { useState, type ReactNode } from 'react'
+import { useText, type Reply } from './api'
+import type { Bom, ToolError, Wiring } from './contracts'
+import { Icon } from './Icon'
 import { STAGES, type RunState, type StageState, type Status } from './state'
+import { usd } from './ui'
 
 /** Resolves an artifact name to its file URL (null until a stage has produced it). */
 export type UrlOf = (name: string) => string | null
 
-const Badge = ({ status }: { status: Status | 'stale' }) => (
+export const Badge = ({ status }: { status: Status | 'stale' }) => (
   <span className={`badge ${status}`}>{status}</span>
 )
 
-/** Runs one request at a time and keeps its error for the form to show. */
-function useSend() {
-  const [sending, setSending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const send = async (request: () => Promise<void>): Promise<boolean> => {
-    setSending(true)
-    setError(null)
-    try {
-      await request()
-      return true
-    } catch (err) {
-      setError((err as Error).message)
-      return false
-    } finally {
-      setSending(false)
-    }
-  }
-  return { sending, error, send }
-}
-
-export function ChatPanel({
-  state,
-  onStart,
-  onEdit,
-  onAnswer,
-}: {
-  state: RunState
-  onStart: (prompt: string, files: File[]) => Promise<void>
-  /** null until there is a run to change */
-  onEdit: ((instruction: string) => Promise<void>) | null
-  onAnswer: (questionId: string, answer: string) => Promise<void>
-}) {
-  const [prompt, setPrompt] = useState('')
-  const [files, setFiles] = useState<File[]>([])
-  const { sending, error, send } = useSend()
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault()
-    void send(() => onStart(prompt, files))
-  }
-
-  return (
-    <aside className="chat">
-      <h1>Prompt-to-Device</h1>
-      <ol className="log">
-        {state.log.map((e) => (
-          <li key={e.seq}>
-            <Badge status={e.status} /> <b>{e.stage}</b> {e.message}
-          </li>
-        ))}
-      </ol>
-      {state.question && (
-        <QuestionBox key={state.question.id} question={state.question} onAnswer={onAnswer} />
-      )}
-      {state.todos.length > 0 && (
-        <ul className="todos" aria-label="Plan">
-          {state.todos.map((t) => (
-            <li key={t.content} className={t.status}>
-              {t.status === 'completed' ? '✓' : t.status === 'in_progress' ? '…' : '○'} {t.content}
-            </li>
-          ))}
-        </ul>
-      )}
-      <form onSubmit={submit}>
-        <label htmlFor="prompt">Describe the device</label>
-        <textarea
-          id="prompt"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="A plant monitor that beeps when the soil is dry"
-          rows={4}
-        />
-        <label htmlFor="files">Sketch or video (optional)</label>
-        <input
-          id="files"
-          type="file"
-          accept="image/*,video/*"
-          multiple
-          onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-        />
-        <button type="submit" disabled={sending || !prompt.trim()}>
-          {sending ? 'Starting…' : 'Build it'}
-        </button>
-        {error && <p role="alert">{error}</p>}
-      </form>
-      {onEdit && <EditForm state={state} onEdit={onEdit} />}
-    </aside>
-  )
-}
-
-function QuestionBox({
-  question,
-  onAnswer,
-}: {
-  question: Question
-  onAnswer: (questionId: string, answer: string) => Promise<void>
-}) {
-  const [text, setText] = useState('')
-  const [sent, setSent] = useState<string | null>(null)
-  const { sending, error, send } = useSend()
-  const answer = async (value: string) => {
-    if (await send(() => onAnswer(question.id, value))) setSent(value)
-  }
+/** The open question, with its options as buttons; free-text answers go through the composer. */
+export function QuestionCard({ reply }: { reply: Reply }) {
+  const { question, answer } = reply
+  if (!question) return null
   return (
     <div className="question" role="status">
       <p>{question.text}</p>
-      {sent !== null ? (
-        <p className="empty">You answered: {sent}</p>
+      {answer !== null ? (
+        <p className="hint">You answered: {answer}</p>
       ) : (
-        <>
+        <div className="options">
           {question.options.map((option) => (
-            <button key={option} type="button" disabled={sending} onClick={() => void answer(option)}>
+            <button
+              key={option}
+              type="button"
+              className="btn secondary"
+              disabled={!reply.ready}
+              onClick={() => void reply.send(option)}
+            >
               {option}
             </button>
           ))}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              void answer(text)
-            }}
-          >
-            <input aria-label="Your answer" value={text} onChange={(e) => setText(e.target.value)} />
-            <button type="submit" disabled={sending || !text.trim()}>
-              Answer
-            </button>
-          </form>
-        </>
+        </div>
       )}
-      {error && <p role="alert">{error}</p>}
     </div>
   )
 }
 
-/** "add a buzzer": only while the run is idle (the API answers 409 while it works). */
-function EditForm({ state, onEdit }: { state: RunState; onEdit: (instruction: string) => Promise<void> }) {
-  const [instruction, setInstruction] = useState('')
-  // lastSeq when the edit was accepted: stay disabled until its first event arrives
-  const [sentAt, setSentAt] = useState<number | null>(null)
-  const { sending, error, send } = useSend()
-  const idle = state.done && sentAt !== state.lastSeq
-  const submit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (await send(() => onEdit(instruction))) {
-      setSentAt(state.lastSeq)
-      setInstruction('')
-    }
-  }
+const TABS = ['Checks', 'Wiring', 'BOM', 'Code', 'Simulation'] as const
+type Tab = (typeof TABS)[number]
+
+/** Everything the checks found and every generated file, in a side drawer. */
+export function Details({
+  state,
+  urlOf,
+  staleOf,
+  onClose,
+}: {
+  state: RunState
+  urlOf: UrlOf
+  staleOf: (name: string) => boolean
+  onClose: () => void
+}) {
+  const [tab, setTab] = useState<Tab>('Checks')
+  const sim = state.stages.simulate
+  const tabs = TABS.filter((t) => t !== 'Simulation' || (sim && sim.status !== 'skipped'))
   return (
-    <form onSubmit={submit}>
-      <label htmlFor="edit">Change the design</label>
-      <textarea
-        id="edit"
-        value={instruction}
-        onChange={(e) => setInstruction(e.target.value)}
-        placeholder="add a buzzer"
-        rows={2}
-      />
-      <button type="submit" disabled={sending || !idle || !instruction.trim()}>
-        {idle ? 'Apply change' : 'Working…'}
-      </button>
-      {error && <p role="alert">{error}</p>}
-    </form>
+    <aside className="drawer" aria-label="Details">
+      <header>
+        <nav role="tablist">
+          {tabs.map((t) => (
+            <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
+              {t}
+            </button>
+          ))}
+        </nav>
+        <button type="button" className="icon-btn" aria-label="Close details" onClick={onClose}>
+          <Icon name="x" />
+        </button>
+      </header>
+      <div role="tabpanel" className="drawer-body">
+        {tab === 'Checks' && <ChecksPanel state={state} />}
+        {tab === 'Wiring' && <WiringTab url={urlOf('wiring_json')} stale={staleOf('wiring_json')} />}
+        {tab === 'BOM' && <BomTab url={urlOf('bom_json')} stale={staleOf('bom_json')} />}
+        {tab === 'Code' && <CodeTab urlOf={urlOf} staleOf={staleOf} />}
+        {tab === 'Simulation' && sim && <SimulationTab stage={sim} urlOf={urlOf} staleOf={staleOf} />}
+      </div>
+    </aside>
   )
 }
 
@@ -329,8 +237,6 @@ export function WiringTab({ url, stale }: { url: string | null; stale: boolean }
     </ArtifactView>
   )
 }
-
-const usd = (v: number | null) => (v === null ? '—' : `$${v.toFixed(2)}`)
 
 export function BomTab({ url, stale }: { url: string | null; stale: boolean }) {
   return (

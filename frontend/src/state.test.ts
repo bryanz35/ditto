@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import runJsonl from '../../fixtures/events/plant_monitor.jsonl?raw'
 import editJsonl from '../../fixtures/events/plant_monitor_edit.jsonl?raw'
 import type { Event } from './contracts'
-import { initialState, isStale, reduce } from './state'
+import { initialState, isStale, reduce, statusLine } from './state'
 
 const parseJsonl = (text: string): Event[] =>
   text
@@ -76,5 +76,25 @@ describe('reduce', () => {
   it('ignores events it already has, so a replayed stream is harmless', () => {
     const half = fold(run.slice(0, 12))
     expect(fold(run, half)).toEqual(fold(run))
+  })
+})
+
+describe('statusLine', () => {
+  const at = (n: number) => fold(run.slice(0, n))
+  it('rotates the generic lines until there is something specific to say', () => {
+    expect(statusLine(initialState, null, 0)).toBe('Dittoing…')
+    expect(statusLine(initialState, null, 4)).toBe('Planning…')
+    expect(statusLine(at(1), null, 2)).toBe('Thinking it through…') // plan, but no project name yet
+  })
+  it('says what the running stage is doing', () => {
+    expect(statusLine(at(1), 'Plant monitor')).toBe('Picking parts for your plant monitor…')
+    expect(statusLine(at(11), 'Plant monitor')).toBe('Designing the case…') // enclosure running
+    expect(statusLine(at(12), 'Plant monitor')).toBe('Writing and testing the code…') // firmware running
+    expect(statusLine(at(22), 'Plant monitor')).toBe('Finding prices…')
+  })
+  it('says when it is fixing a problem, and when it has a question', () => {
+    expect(statusLine(at(5), null)).toBe('Fixing a problem with the wiring…') // validate failed
+    expect(statusLine(at(6), null)).toBe('Fixing a problem with the wiring…') // attempt 2 running
+    expect(statusLine(at(2), null)).toBe('Ditto has a question for you')
   })
 })
