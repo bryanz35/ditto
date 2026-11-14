@@ -32,6 +32,7 @@ RERUNS = {  # every ProjectSpec field -> the stages an edit of it reruns
         "simulate",
     ],  # needs_wifi: validate's adc2_wifi check
     "enclosure": CAD,
+    "custom_parts": ORDER,  # read wherever parts are
 }
 
 

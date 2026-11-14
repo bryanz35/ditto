@@ -243,3 +243,30 @@ def test_syntax_error_gives_line_numbers(tmp_path):
         for f in fields
     )
     assert result.log and len(result.log.splitlines()) <= 40
+
+
+UNO = ProjectSpec.model_validate_json(
+    (ROOT / "fixtures/specs/uno_counter.json").read_text()
+)
+UNO_MAIN = (ROOT / "fixtures/firmware/uno_counter_main.cpp").read_text()
+
+
+def test_uno_project_uses_its_platform_and_pin_names(tmp_path):
+    from backend.contracts.invariants import check_pins
+
+    assert write_firmware_project(UNO, LIB, UNO_MAIN, tmp_path).ok
+    ini = (tmp_path / "platformio.ini").read_text()
+    assert "platform = atmelavr" in ini and "board = uno" in ini
+    assert "ARDUINO_USB_MODE" not in ini
+    pins = (tmp_path / "include/pins.h").read_text()
+    assert "#define PIN_OLED1_SDA A4" in pins and "#define PIN_BUZZER1_SIG 8" in pins
+    assert check_pins(pins, UNO) == []
+    assert lint_firmware(tmp_path).ok
+
+
+@pytest.mark.slow
+@needs_pio
+def test_uno_golden_firmware_compiles(tmp_path):
+    assert write_firmware_project(UNO, LIB, UNO_MAIN, tmp_path).ok
+    result = compile_firmware(tmp_path)
+    assert result.ok, (result.errors, result.log)

@@ -4,14 +4,20 @@
 DEPENDS_ON: dict[str, set[str]] = {  # stage -> spec fields or stages it reads
     # an edit reruns only what this map names and carries every other stage forward, so a field a
     # stage's tools start reading must be added here (tests/unit/api/test_deps.py pins it down)
-    "validate": {"mcu", "parts", "connections", "firmware"},  # needs_wifi vs ADC2
-    "layout": {"mcu", "parts", "enclosure"},
+    "validate": {
+        "mcu",
+        "parts",
+        "connections",
+        "firmware",
+        "custom_parts",
+    },  # needs_wifi vs ADC2
+    "layout": {"mcu", "parts", "enclosure", "custom_parts"},
     "enclosure": {"layout", "enclosure", "user"},  # user.printer
     "assembly": {"layout", "enclosure"},
-    "firmware": {"mcu", "parts", "connections", "firmware"},
-    "wiring": {"mcu", "parts", "connections"},
+    "firmware": {"mcu", "parts", "connections", "firmware", "custom_parts"},
+    "wiring": {"mcu", "parts", "connections", "custom_parts"},
     "simulate": {"firmware", "wiring"},
-    "bom": {"mcu", "parts", "user"},
+    "bom": {"mcu", "parts", "user", "custom_parts"},
 }
 ORDER = list(DEPENDS_ON)  # topological
 

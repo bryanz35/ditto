@@ -143,3 +143,25 @@ def test_device_with_a_custom_body_builds_it_around_the_layout(run):
         hardware=MODE_V,
     )
     assert results["enclosure"].ok and len(layouts) == 1 and layouts[0] is not None
+
+
+def test_tools_see_the_specs_custom_parts(runs_dir):
+    from tests.unit.validate.test_validate_spec import with_touch
+
+    spec = ProjectSpec.model_validate(with_touch())
+    seen = []
+
+    def validate(spec, lib):
+        seen.append("x_ttp223_touch" in lib)
+        return ToolResult(ok=True)
+
+    run_stages(
+        "r1",
+        ["validate"],
+        spec,
+        lambda e: None,
+        toolbox=replace(fake_toolbox(), validate_spec=validate),
+        lib=load_library(),
+        hardware=MODE_V,
+    )
+    assert seen == [True]

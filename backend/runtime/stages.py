@@ -37,6 +37,7 @@ def run_stages(
     hardware: Hardware | None = None,
 ) -> dict[str, ToolResult]:
     hw = hardware or load_hardware()
+    lib = lib.with_parts(spec.custom_parts)
     run_dir = run_dir_for(run_id)
     results: dict[str, ToolResult] = {}
     for stage in [s for s in PIPELINE if s in stages]:

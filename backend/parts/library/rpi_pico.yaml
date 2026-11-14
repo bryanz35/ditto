@@ -1,0 +1,80 @@
+# Raspberry Pi Pico (RP2040), PlatformIO's raspberrypi platform (Arduino mbed core). Pins, 3.3 V logic,
+# ADC on GP26-GP28, 300 mA from 3V3(OUT), size 51 x 21 mm and the four 2.1 mm holes (47 x 11.4 mm
+#   apart, 4.8 mm from the long edges): the Pico datasheet (source). GP23-25 and GP29 aren't on the header.
+# Fixed buses: the core's Wire and SPI use the SDK defaults, I2C0 on GP4/GP5 and SPI0 on GP16/18/19
+#   (CS is any pin): https://github.com/arduino/ArduinoCore-mbed/blob/main/variants/RASPBERRY_PI_PICO/pins_arduino.h
+# Serial is USB CDC, so GP0/GP1 are free.
+# h is an estimate: ~8.5 male headers below + 1 PCB + ~3 micro-USB; the USB's z is an estimate too.
+# Wokwi pin names: https://docs.wokwi.com/parts/wokwi-pi-pico
+id: rpi_pico
+name: Raspberry Pi Pico (RP2040)
+category: mcu
+logic_voltage: 3.3
+supply_voltage: [5.0]  # micro-USB, or 1.8-5.5 V on VSYS
+max_current_ma: 100
+pio_board: pico
+pio_platform: raspberrypi
+has_wifi: false
+wokwi_board: wokwi-pi-pico
+pins:
+  - {name: 3V3, type: power, voltage: 3.3}
+  - {name: VBUS, type: power, voltage: 5.0}
+  - {name: GND, type: gnd}
+  - {name: GP0, type: gpio}
+  - {name: GP1, type: gpio}
+  - {name: GP2, type: gpio}
+  - {name: GP3, type: gpio}
+  - {name: GP4, type: gpio}
+  - {name: GP5, type: gpio}
+  - {name: GP6, type: gpio}
+  - {name: GP7, type: gpio}
+  - {name: GP8, type: gpio}
+  - {name: GP9, type: gpio}
+  - {name: GP10, type: gpio}
+  - {name: GP11, type: gpio}
+  - {name: GP12, type: gpio}
+  - {name: GP13, type: gpio}
+  - {name: GP14, type: gpio}
+  - {name: GP15, type: gpio}
+  - {name: GP16, type: gpio}
+  - {name: GP17, type: gpio}
+  - {name: GP18, type: gpio}
+  - {name: GP19, type: gpio}
+  - {name: GP20, type: gpio}
+  - {name: GP21, type: gpio}
+  - {name: GP22, type: gpio}
+  - {name: GP26, type: gpio}
+  - {name: GP27, type: gpio}
+  - {name: GP28, type: gpio}
+reserved_pins: []
+input_only_pins: []
+strapping_pins: []
+adc1_pins: [GP26, GP27, GP28]
+adc2_pins: []
+bus_pins:
+  i2c_sda: [GP4]
+  i2c_scl: [GP5]
+  spi_miso: [GP16]
+  spi_sck: [GP18]
+  spi_mosi: [GP19]
+power_budget_ma: 300
+board_mm: {l: 51.0, w: 21.0, h: 12.5}
+provisional: true
+dims_source: datasheet
+mount_holes:
+  - {x_mm: 2.0, y_mm: 4.8, d_mm: 2.1}
+  - {x_mm: 2.0, y_mm: 16.2, d_mm: 2.1}
+  - {x_mm: 49.0, y_mm: 4.8, d_mm: 2.1}
+  - {x_mm: 49.0, y_mm: 16.2, d_mm: 2.1}
+features:
+  - {kind: usb, face: left, offset_mm: [10.5, 10.8], size_mm: [10.0, 6.0]}
+pio_lib_deps: []
+snippet: null
+mpn: SC0915
+vendor_url: https://www.raspberrypi.com/products/raspberry-pi-pico/
+manual_price_usd: 4.0
+owned_alternatives: []
+wokwi_type: null  # boards use wokwi_board
+wokwi_pins:
+  GND: GND.1
+source: https://datasheets.raspberrypi.com/pico/pico-datasheet.pdf

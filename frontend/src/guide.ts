@@ -244,7 +244,12 @@ export function buildSteps({
         { qty: '1×', what: 'USB cable' },
         { qty: '1×', what: 'Computer with PlatformIO or the Arduino IDE' },
       ],
-      tip: { tone: 'tip', note: `Nothing happening? Hold the BOOT button on the ${mcu} while the upload starts.` },
+      tip: {
+        tone: 'tip',
+        note: /esp32/i.test(board.part_id)
+          ? `Nothing happening? Hold the BOOT button on the ${mcu} while the upload starts.`
+          : `Nothing happening? Check the ${mcu} and its port are selected, and try another USB cable: some only charge.`,
+      },
     }),
   )
 

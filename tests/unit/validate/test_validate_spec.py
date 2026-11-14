@@ -257,3 +257,91 @@ def test_electronics_fields_go_together():
             ProjectSpec.model_validate({**plant, **broken})
     with pytest.raises(ValidationError, match="need an mcu"):
         ProjectSpec.model_validate({**plant, "mcu": None, "firmware": None})
+
+
+UNO = json.loads((SPECS / "uno_counter.json").read_text())
+
+
+def test_arduino_uno_spec_passes_with_level_shift_warnings():
+    result = validate_spec(ProjectSpec.model_validate(UNO), LIB)
+    assert result.ok, result.errors
+    assert {e.code for e in result.errors} == {"level_shift"}
+
+
+def test_uno_i2c_must_use_its_fixed_pins_and_has_no_wifi():
+    d = json.loads(json.dumps(UNO))
+    sda = next(c for c in d["connections"] if c["part_pin"] == "SDA")
+    sda["mcu_pin"] = "D2"
+    d["firmware"]["needs_wifi"] = True
+    errors = {
+        e.code: e.message
+        for e in validate_spec(ProjectSpec.model_validate(d), LIB).errors
+        if e.severity == "error"
+    }
+    assert set(errors) == {"fixed_bus_pin", "no_wifi"}
+    assert "only on A4" in errors["fixed_bus_pin"]
+    assert "esp32_devkitc" in errors["no_wifi"]
+
+
+TOUCH = {
+    "id": "x_ttp223_touch",
+    "name": "TTP223 capacitive touch button module",
+    "category": "input",
+    "pins": [
+        {"name": "VCC", "type": "power"},
+        {"name": "GND", "type": "gnd"},
+        {"name": "SIG", "type": "gpio_in"},
+    ],
+    "logic_voltage": 3.3,
+    "supply_voltage": [3.3, 5.0],
+    "max_current_ma": 5,
+    "board_mm": {"l": 15, "w": 11, "h": 3},
+    "dims_source": "listing",
+    "manual_price_usd": 0.5,
+    "source": "https://www.tontek.com.tw/uploads/product/106/TTP223-BA6_V2.0_EN.pdf",
+}
+
+
+def with_touch(part=TOUCH) -> dict:
+    d = json.loads(PLANT.read_text())
+    d["custom_parts"] = [part]
+    d["parts"].append(
+        {"ref": "touch1", "part_id": part["id"], "role": "snooze", "reason": "r"}
+    )
+    d["connections"] += [
+        {"part_ref": "touch1", "part_pin": "VCC", "mcu_pin": "3V3", "bus": "power"},
+        {"part_ref": "touch1", "part_pin": "GND", "mcu_pin": "GND", "bus": "power"},
+        {"part_ref": "touch1", "part_pin": "SIG", "mcu_pin": "GPIO27", "bus": "gpio"},
+    ]
+    return d
+
+
+def test_custom_part_validates_with_an_unverified_warning():
+    result = validate_spec(ProjectSpec.model_validate(with_touch()), LIB)
+    assert result.ok, result.errors
+    warning = next(e for e in result.errors if e.code == "unverified_part")
+    assert warning.severity == "warning" and "tontek" in warning.message
+
+
+def test_custom_part_pins_are_checked_like_library_ones():
+    d = with_touch()
+    d["connections"][-1]["mcu_pin"] = "GPIO6"  # flash
+    codes = {e.code for e in validate_spec(ProjectSpec.model_validate(d), LIB).errors}
+    assert "reserved_pin" in codes
+
+
+@pytest.mark.parametrize(
+    "change, match",
+    [
+        ({"id": "ttp223"}, "must start with 'x_'"),
+        ({"category": "mcu"}, "is a board"),
+        ({"dims_source": "measured"}, "nobody measured it"),
+    ],
+)
+def test_custom_parts_rules(change, match):
+    with pytest.raises(ValidationError, match=match):
+        ProjectSpec.model_validate(with_touch({**TOUCH, **change}))
+
+
+def test_no_library_part_uses_the_custom_prefix():
+    assert not [p for p in LIB.parts if p.startswith("x_")]

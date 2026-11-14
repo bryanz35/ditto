@@ -38,6 +38,7 @@ export interface ArtifactInfo {
 }
 /**
  * A microcontroller board: load_library uses this model for files with category "mcu".
+ * Signal pins are named GPIO<n>, GP<n>, D<n> or A<n> (see pin_code).
  *
  * This interface was referenced by `P2DContracts`'s JSON-Schema
  * via the `definition` "BoardDef".
@@ -49,9 +50,17 @@ export interface BoardDef {
    */
   adc2_pins: string[];
   board_mm: Dims;
+  /**
+   * Bus lines this board has only on fixed pins (Uno: i2c_sda on A4); empty when any GPIO can
+   * carry them (ESP32). Firmware then calls Wire.begin() / SPI.begin() without pin arguments.
+   */
+  bus_pins: {
+    [k: string]: string[];
+  };
   category: "mcu" | "sensor" | "display" | "light" | "input" | "output" | "power";
   dims_source: "measured" | "datasheet" | "listing";
   features: Feature[];
+  has_wifi: boolean;
   /**
    * Pin that selects the address: unconnected or GND gives i2c_addresses[0], 3V3 gives
    * i2c_addresses[1]. None when the address is set on the board (e.g. a solder jumper).
@@ -87,6 +96,10 @@ export interface BoardDef {
    */
   pio_board: string;
   pio_lib_deps: string[];
+  /**
+   * PlatformIO platform, e.g. "atmelavr", "raspberrypi".
+   */
+  pio_platform: string;
   /**
    * Current the board's regulator can give the attached parts.
    */
@@ -654,6 +667,12 @@ export interface ProjectSpec {
    */
   assumptions: string[];
   connections: Connection[];
+  /**
+   * Parts the library doesn't have, defined by the agent from a listing or datasheet (`source`).
+   * Ids start with "x_"; never a board; never "measured". Unverified: the UI says so, and the
+   * validator warns for each one used.
+   */
+  custom_parts: PartDef[];
   enclosure: EnclosureSpec1;
   /**
    * Set exactly when `mcu` is.

@@ -2,7 +2,9 @@
 
 - A project is a printed object, an electronics device, or both. Never refuse one for having no
   electronics or a shape that isn't a box.
-- Use only parts from the library (`search_parts`). Never invent a part id or a pin name.
+- Prefer parts from the library (`search_parts`), with their ids and pin names exactly as listed.
+  When none can do the job, the parts-and-pins agent may define one in the spec's `custom_parts`
+  (see its rules), never a board. Never invent a library id or pin name.
 - The project spec is the single source of truth. Change it only through your own tools; plain code
   checks every change before it is saved.
 - Stay in your own section of the spec. If you need a change elsewhere (a pin, a part, a budget),

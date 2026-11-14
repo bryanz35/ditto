@@ -239,6 +239,8 @@ function PartRow({
   const [saved, setSaved] = useState(false)
   const power = rows.find((r) => r.pin_type === 'power')
   const buses = [...new Set(rows.map((r) => r.bus).filter((b) => b !== 'power'))]
+  // backend/contracts/parts.py CUSTOM_PREFIX: a part the agent defined, not the hand-checked library
+  const unverified = line.part_id.startsWith('x_')
   return (
     <li className="part-row" aria-expanded={open}>
       <button type="button" className="head" onClick={onOpen}>
@@ -250,7 +252,7 @@ function PartRow({
             {line.name}
           </span>
           <span className="detail">
-            {role ?? line.refs.join(', ')} · {line.qty}×
+            {role ?? line.refs.join(', ')} · {line.qty}×{unverified && ' · unverified'}
           </span>
         </span>
         {line.owned_qty >= line.qty ? (
@@ -263,6 +265,12 @@ function PartRow({
       {open && (
         <div className="details">
           {reason && <p>{reason}</p>}
+          {unverified && (
+            <p className="stale-note">
+              <Badge status="stale" /> Not in Ditto’s checked parts library: check its pins and size against the seller’s
+              datasheet before you wire it.
+            </p>
+          )}
           <dl>
             {power && (
               <>

@@ -12,7 +12,7 @@ from pathlib import Path
 
 from backend.contracts.artifacts import Bom, EnclosureManifest, RunManifest, Wiring
 from backend.contracts.events import Event
-from backend.contracts.parts import PartLibrary, load_library
+from backend.contracts.parts import PartLibrary, load_library, pin_code
 from backend.contracts.spec import Layout, PartInstance, ProjectSpec
 
 TOL = 0.01  # mm / USD: float slack for computed values
@@ -40,19 +40,19 @@ def _known(spec: ProjectSpec, lib: PartLibrary) -> list[PartInstance]:
 # --- firmware -------------------------------------------------------------------------------------
 
 
-def parse_pins_h(text: str) -> dict[str, int]:
+def parse_pins_h(text: str) -> dict[str, str]:
     return {
-        m[1]: int(m[2])
-        for m in re.finditer(r"^\s*#define\s+(PIN_\w+)\s+(\d+)\b", text, re.MULTILINE)
+        m[1]: m[2]
+        for m in re.finditer(r"^\s*#define\s+(PIN_\w+)\s+(\w+)\b", text, re.MULTILINE)
     }
 
 
 def check_pins(pins_h: str, spec: ProjectSpec) -> list[str]:
-    """pins.h defines exactly PIN_<REF>_<PIN> <n> for every connection on a GPIO."""
+    """pins.h defines exactly PIN_<REF>_<PIN> <pin> for every connection to a signal pin."""
     expected = {
-        f"PIN_{c.part_ref}_{c.part_pin}".upper(): int(c.mcu_pin.removeprefix("GPIO"))
+        f"PIN_{c.part_ref}_{c.part_pin}".upper(): code
         for c in spec.connections
-        if re.fullmatch(r"GPIO\d+", c.mcu_pin)
+        if (code := pin_code(c.mcu_pin))
     }
     actual = parse_pins_h(pins_h)
     problems = [

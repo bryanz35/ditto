@@ -24,6 +24,10 @@ Error codes (severity "error" unless noted):
 - i2c_address_invalid: an address the part can't use, or address-pin wiring that selects another.
 - i2c_address_conflict: two parts on one I2C bus at the same address.
 - power_budget: the parts' total max current is above the board's `power_budget_ma`.
+- no_wifi: `firmware.needs_wifi` on a board without Wi-Fi.
+- fixed_bus_pin: an I2C/SPI line on a pin other than the board's `bus_pins` for it.
+- level_shift (warning): the board's logic voltage is above the part's.
+- unverified_part (warning): a part comes from spec.custom_parts, not the library.
 """
 
 from collections import Counter, defaultdict
@@ -55,11 +59,23 @@ def validate_spec(spec: ProjectSpec, lib: PartLibrary) -> ToolResult:
                 for err in e.errors()
             ]
         )
-    if (
-        spec.mcu is None
-    ):  # print-only: no electronics to check; its stages check the model
+    # print-only: no electronics to check; its stages check the model
+    if spec.mcu is None:
         return _result([])
-    return _result(_Check(spec, lib).run())
+    lib = lib.with_parts(spec.custom_parts)
+    unverified = [
+        ToolError(
+            code="unverified_part",
+            message=f"{inst.ref} uses {inst.part_id}, a part defined in this spec, not the "
+            f"hand-checked library: check its pins, voltages and size against {p.source}",
+            field=f"parts[{i}].part_id",
+            severity="warning",
+        )
+        for i, inst in enumerate(spec.parts)
+        for p in spec.custom_parts
+        if p.id == inst.part_id
+    ]
+    return _result(_Check(spec, lib).run() + unverified)
 
 
 def _result(errors: list[ToolError]) -> ToolResult:
@@ -114,6 +130,17 @@ class _Check:
             if c.mcu_pin in self.bpins and self.bpins[c.mcu_pin].type not in RAILS
         }
 
+        if spec.firmware.needs_wifi and not board.has_wifi:
+            wifi = sorted(
+                p.id
+                for p in lib.parts.values()
+                if isinstance(p, BoardDef) and p.has_wifi
+            )
+            self.add(
+                "no_wifi",
+                f"firmware.needs_wifi is set but {board.id} has no Wi-Fi; use a board that has it ({', '.join(wifi)}) or drop needs_wifi",
+                "mcu.part_id",
+            )
         self.known = self._parts()
         signals = self._connections()
         self._conflicts(signals)
@@ -274,6 +301,14 @@ class _Check:
 
             signals.append((i, c, pin))
             kind = _kind(pin.type)
+            fixed = b.bus_pins.get(pin.type)
+            if fixed and c.mcu_pin not in fixed:
+                self.add(
+                    "fixed_bus_pin",
+                    f"{where} is {pin.type}, which {b.id} has only on {' or '.join(fixed)}; wire it there (several parts on one bus share it)",
+                    field,
+                )
+                continue
             if c.mcu_pin in b.reserved_pins:
                 self.add(
                     "reserved_pin",
@@ -306,6 +341,13 @@ class _Check:
                     "voltage_mismatch",
                     f"{where} uses {part.logic_voltage:g} V logic but {c.mcu_pin} on {b.id} is {b.logic_voltage:g} V and can be damaged; pick a {b.logic_voltage:g} V-logic part for {c.part_ref}",
                     field,
+                )
+            elif part.logic_voltage < b.logic_voltage:
+                self.add(
+                    "level_shift",
+                    f"{b.id} drives {b.logic_voltage:g} V logic but {where} uses {part.logic_voltage:g} V; check the module is {b.logic_voltage:g} V tolerant or add a level shifter",
+                    field,
+                    "warning",
                 )
             if kind == "output" and c.mcu_pin in b.strapping_pins:
                 self.add(

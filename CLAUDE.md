@@ -7,8 +7,11 @@ These rules exist so that parallel work merges cleanly. Follow them even when a 
 
 ## What we're building (one paragraph)
 
-A web app that turns a text prompt, sketch or short video into a buildable ESP32 device: a parts list
-with prices, a wiring plan, compiled Arduino firmware and a 3D-printable enclosure. A deepagents
+A web app that turns a text prompt, sketch or short video into a buildable physical project: a
+3D-printed object, a microcontroller device (ESP32, Arduino Uno/Nano, Raspberry Pi Pico), or both. For a
+device it makes a parts list with prices, a wiring plan, compiled Arduino firmware and a printable case
+(a plain box, or a model-written custom body around it); for a print-only object (`mcu: null`) just the
+printed parts, from build123d code the model writes and plain code runs and checks. A deepagents
 orchestrator delegates to sub-agents (parts and pins, firmware, enclosure). **Every model output is
 checked by plain code before the UI shows it.** The project spec (`ProjectSpec`) is the single source
 of truth: every other output is generated from it.

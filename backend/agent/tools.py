@@ -18,7 +18,7 @@ from langchain_core.tools import BaseTool, tool
 from pydantic import ValidationError
 
 from backend.contracts.events import Event, Stage
-from backend.contracts.parts import BoardDef, PartLibrary
+from backend.contracts.parts import BoardDef, PartLibrary, pin_code
 from backend.contracts.results import ToolError, ToolResult
 from backend.contracts.runner import Emit, StageRunner, run_dir_for
 from backend.contracts.spec import EnclosureSpec, ProjectSpec, UserContext
@@ -55,19 +55,34 @@ class RunContext:
         self.spec_path.write_text(spec.model_dump_json(indent=2) + "\n")
 
     def pin_macros(self) -> str:
-        """The PIN_* macros pins.h defines for the saved spec (T12's rule: GPIO connections only)."""
+        """The board and the PIN_* macros pins.h defines for the saved spec (T12's rule: signal
+        pins only, see pin_code)."""
         spec = self.load_spec()
-        if spec is None:
-            return "No spec is saved yet, so pins.h has no macros."
+        if spec is None or spec.mcu is None:
+            return "No device spec is saved yet, so pins.h has no macros."
         macros = sorted(
             {
                 f"- PIN_{c.part_ref.upper()}_{c.part_pin.upper()} ({c.mcu_pin})"
                 for c in spec.connections
-                if c.mcu_pin.startswith("GPIO")
+                if pin_code(c.mcu_pin)
             }
         )
+        board = self.lib.parts.get(spec.mcu.part_id)
+        about = ""
+        if isinstance(board, BoardDef):
+            about = (
+                f"The board is {board.name} (PlatformIO platform {board.pio_platform}"
+            )
+            about += ")." if board.has_wifi else ", no Wi-Fi)."
+            if board.bus_pins:
+                about += (
+                    " Its I2C and SPI pins are fixed: call Wire.begin() and SPI.begin() "
+                    "without pin arguments."
+                )
+            about += "\n"
         return (
-            "pins.h for the saved spec defines exactly these macros; use no others:\n"
+            about
+            + "pins.h for the saved spec defines exactly these macros; use no others:\n"
             + ("\n".join(macros) or "(none)")
         )
 
@@ -142,7 +157,7 @@ _PART_FIELDS = {"id", "name", "category", "pins", "logic_voltage", "supply_volta
 _PART_FIELDS |= {"max_current_ma", "i2c_addresses", "i2c_address_pin", "mounting"}
 _PART_FIELDS |= {"manual_price_usd", "owned_alternatives", "board_mm"}
 _BOARD_FIELDS = {"reserved_pins", "input_only_pins", "strapping_pins", "adc1_pins"}
-_BOARD_FIELDS |= {"adc2_pins", "power_budget_ma"}
+_BOARD_FIELDS |= {"adc2_pins", "power_budget_ma", "has_wifi", "bus_pins"}
 
 
 def make_tools(ctx: RunContext) -> dict[str, BaseTool]:

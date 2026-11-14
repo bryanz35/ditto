@@ -1,0 +1,105 @@
+{
+  "rev": 1,
+  "title": "Uno counter",
+  "prompt": "Use my Arduino Uno: count seconds on a small screen and beep every ten",
+  "requirements": [
+    "Shows a seconds counter on a 0.96 inch OLED",
+    "Beeps every 10 seconds"
+  ],
+  "assumptions": [
+    "Powered over USB"
+  ],
+  "user": {
+    "budget_usd": null,
+    "owned": {},
+    "printer": null,
+    "rejected": [],
+    "level": "intermediate",
+    "name": null
+  },
+  "mcu": {
+    "ref": "uno",
+    "part_id": "arduino_uno_r3",
+    "qty": 1,
+    "role": "runs the program",
+    "reason": "the user owns an Uno",
+    "i2c_address": null
+  },
+  "parts": [
+    {
+      "ref": "oled1",
+      "part_id": "ssd1306_096_i2c",
+      "qty": 1,
+      "role": "shows the count",
+      "reason": "small I2C screen the Uno can drive",
+      "i2c_address": "0x3C"
+    },
+    {
+      "ref": "buzzer1",
+      "part_id": "buzzer_passive",
+      "qty": 1,
+      "role": "beeps",
+      "reason": "tone() drives it from any pin",
+      "i2c_address": null
+    }
+  ],
+  "connections": [
+    {
+      "part_ref": "oled1",
+      "part_pin": "VCC",
+      "mcu_pin": "5V",
+      "bus": "power",
+      "reason": "the module has its own 3.3 V regulator"
+    },
+    {
+      "part_ref": "oled1",
+      "part_pin": "GND",
+      "mcu_pin": "GND",
+      "bus": "power",
+      "reason": ""
+    },
+    {
+      "part_ref": "oled1",
+      "part_pin": "SDA",
+      "mcu_pin": "A4",
+      "bus": "i2c",
+      "reason": "the Uno's only SDA pin"
+    },
+    {
+      "part_ref": "oled1",
+      "part_pin": "SCL",
+      "mcu_pin": "A5",
+      "bus": "i2c",
+      "reason": "the Uno's only SCL pin"
+    },
+    {
+      "part_ref": "buzzer1",
+      "part_pin": "SIG",
+      "mcu_pin": "D8",
+      "bus": "gpio",
+      "reason": "a free digital pin"
+    },
+    {
+      "part_ref": "buzzer1",
+      "part_pin": "GND",
+      "mcu_pin": "GND",
+      "bus": "power",
+      "reason": ""
+    }
+  ],
+  "firmware": {
+    "framework": "arduino",
+    "behaviors": [
+      "count seconds and show the count",
+      "beep every 10 seconds"
+    ],
+    "needs_wifi": false
+  },
+  "enclosure": {
+    "template": "box_lid",
+    "wall_mm": 2.0,
+    "clearance_mm": 1.0,
+    "extras": [],
+    "code": null
+  }
+}

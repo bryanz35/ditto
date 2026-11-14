@@ -18,7 +18,8 @@ Run directory (runs/<id>/, under $P2D_RUNS_DIR):
     events.jsonl     every Event, one per line (run engine)
     manifest.json    RunManifest (run engine)
     input/           uploads and preprocess_input output
-    cad/             layout.json, base/lid .stl/.step, manifest.json (EnclosureManifest), assembly.glb
+    cad/             layout.json, base/lid .stl/.step, manifest.json (EnclosureManifest), assembly.glb;
+                     for template "custom" also model.py and one .stl/.step per printed part
     firmware/        PlatformIO project: platformio.ini, include/pins.h, src/main.cpp
     sim/             diagram.json, wokwi.toml, serial.log, screenshot.png
     wiring.json      Wiring
