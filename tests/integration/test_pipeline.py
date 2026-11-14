@@ -1,7 +1,7 @@
 """The plant monitor through real_toolbox(), one tool at a time, then the whole chain.
 
-Each step takes fixture inputs (spec, cad/layout.json, main.cpp), so its xfail names only the task
-that makes it pass. Remove a marker when that task merges (board.py QA_UPDATE).
+Each step takes fixture inputs (spec, cad/layout.json, main.cpp) or outputs of its own task, so its
+xfail names only the task that makes it pass. Remove a marker when that task merges (board.py QA_UPDATE).
 """
 
 import json
@@ -105,12 +105,21 @@ def test_compute_layout(tools, lib, spec, tmp_path):
     )
 
 
+def real_layout(tools, lib, spec, tmp_path: Path) -> Layout:
+    """T11's own layout: the T01 fixture layout predates T11's screw posts, so its enclosure tools
+    rightly reject it. Written outside the enclosure out_dir."""
+    result = tools.compute_layout(spec, lib, tmp_path / "layout")
+    assert result.ok, result.errors
+    return Layout.model_validate(result.data["layout"])
+
+
 ENCLOSURE_FILES = {"base_stl", "base_step", "lid_stl", "lid_step", "manifest"}
 
 
 @pytest.mark.slow
 @xfail("T11 (enclosure)")
-def test_build_enclosure(tools, lib, spec, layout, tmp_path):
+def test_build_enclosure(tools, lib, spec, tmp_path):
+    layout = real_layout(tools, lib, spec, tmp_path)
     result = tools.build_enclosure(spec, layout, lib, tmp_path)
     paths = assert_artifacts(result, ENCLOSURE_FILES, tmp_path)
     manifest = EnclosureManifest.model_validate_json(paths["manifest"].read_text())
@@ -121,7 +130,8 @@ def test_build_enclosure(tools, lib, spec, layout, tmp_path):
 
 @pytest.mark.slow
 @xfail("T11 (enclosure check)")
-def test_check_enclosure_generic_printer(tools, lib, spec, layout, tmp_path):
+def test_check_enclosure_generic_printer(tools, lib, spec, tmp_path):
+    layout = real_layout(tools, lib, spec, tmp_path)
     assert tools.build_enclosure(spec, layout, lib, tmp_path).ok
     result = tools.check_enclosure(spec, layout, lib, tmp_path, "generic")
     assert result.ok, result.errors
