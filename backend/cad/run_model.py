@@ -4,13 +4,16 @@
 
 job.json: {"code": str, "out_dir": str, "result": str, and for a device "box": {"cavity_mm",
 "wall_mm", "cutouts", "standoffs"}}. Writes STL and STEP files to out_dir and a JSON result:
-{"ok": true, "artifacts": {...}, "prints": {name: [x, y, z]}} or {"ok": false, "code": ..., "message": ...}.
+{"ok": true, "artifacts": {...}, "prints": {name: [x, y, z]}, "outer": [x, y, z]} (outer: every
+part as exported, so the closed device for base and lid) or {"ok": false, "code": ..., "message": ...}.
 
 The code runs with these names already defined (and anything it imports from build123d and math):
 - print-only: nothing extra. It must set `parts = {"name": shape, ...}`.
 - device: BAY (the closed case's outer solid, enclosure frame), CAVITY_MM (L, W, H), WALL_MM. It must
   set `body` (a shape built around BAY). Code then makes base = box base + (body - keep-out) and keeps
   the box lid, so the parts always fit, every opening stays clear and the lid still comes off.
+  shortcut: the electronics always sit in one axis-aligned box bay; free placement (a tilted screen,
+  parts spread through the body) needs model-proposed placements and collision checks.
 """
 
 import json
@@ -116,11 +119,17 @@ def main(root: str, job_path: str) -> None:
             "cad_build_failed",
             f"export failed: {traceback.format_exc()[-800:]}",
         )
-    sizes = {}
+    sizes, whole = {}, None
     for name, shape in prints.items():
         bb = shape.bounding_box()
-        sizes[name] = [round(bb.size.X, 2), round(bb.size.Y, 2), round(bb.size.Z, 2)]
-    result.write_text(json.dumps({"ok": True, "artifacts": artifacts, "prints": sizes}))
+        sizes[name] = _size(bb)
+        whole = bb if whole is None else whole.add(bb)
+    out = {"ok": True, "artifacts": artifacts, "prints": sizes, "outer": _size(whole)}
+    result.write_text(json.dumps(out))
+
+
+def _size(bb) -> list[float]:
+    return [round(bb.size.X, 2), round(bb.size.Y, 2), round(bb.size.Z, 2)]
 
 
 if __name__ == "__main__":

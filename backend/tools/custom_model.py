@@ -274,7 +274,8 @@ def build_custom_model(
 
     prints = {n: tuple(v) for n, v in sorted(out["prints"].items())}
     if device:
-        manifest = manifest.model_copy(update={"prints": prints})
+        outer = tuple(out["outer"])
+        manifest = manifest.model_copy(update={"prints": prints, "outer_mm": outer})
     else:
         biggest = max(prints.values(), key=lambda s: s[0] * s[1] * s[2])
         manifest = EnclosureManifest(

@@ -5,7 +5,7 @@ import pytest
 
 from backend.contracts.parts import load_library
 from backend.contracts.results import ToolError, ToolResult, not_implemented
-from backend.contracts.spec import ProjectSpec
+from backend.contracts.spec import EnclosureSpec, ProjectSpec
 from backend.runtime.stages import PIPELINE, run_stages
 from backend.tools.fakes import fake_toolbox
 from tests.unit.api.conftest import MODE_V
@@ -120,3 +120,26 @@ def test_print_only_project_runs_only_validate_enclosure_and_checks(runs_dir):
         "no electronics" in e.message for e in final.values() if e.status == "skipped"
     )
     assert built == [None]  # no layout for a print-only project
+
+
+def test_device_with_a_custom_body_builds_it_around_the_layout(run):
+    layouts = []
+
+    def custom(spec, layout, lib, out_dir):
+        layouts.append(layout)
+        return fake_toolbox().build_custom_model(spec, layout, lib, out_dir)
+
+    spec = SPEC.model_copy(
+        update={"enclosure": EnclosureSpec(template="custom", code="body = BAY")}
+    )
+    events = []
+    results = run_stages(
+        "r1",
+        ["layout", "enclosure"],
+        spec,
+        events.append,
+        toolbox=replace(fake_toolbox(), build_custom_model=custom),
+        lib=load_library(),
+        hardware=MODE_V,
+    )
+    assert results["enclosure"].ok and len(layouts) == 1 and layouts[0] is not None

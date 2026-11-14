@@ -132,3 +132,74 @@ def test_loose_pieces_and_a_round_bottom_fail_the_checks(tmp_path, lib):
         ("loose_pieces", "two"),
         ("no_flat_base", "ball"),
     ]
+
+
+PLANT = ProjectSpec.model_validate_json(
+    (ROOT / "fixtures" / "specs" / "plant_monitor.json").read_text()
+)
+
+
+def device_with(code: str) -> ProjectSpec:
+    return PLANT.model_copy(
+        update={"enclosure": EnclosureSpec(template="custom", code=code)}
+    )
+
+
+@pytest.mark.slow
+def test_device_body_keeps_cavity_openings_and_lid_path_clear(tmp_path, lib):
+    from build123d import import_step
+
+    from backend.tools.layout import layout_parts
+
+    spec = device_with(
+        (ROOT / "fixtures" / "cad" / "plant_monitor_stand.py").read_text()
+    )
+    layout, _ = layout_parts(spec, lib)
+    result = build_custom_model(spec, layout, lib, tmp_path)
+    assert result.ok, result.errors
+    manifest = result.data["manifest"]
+    assert set(manifest["prints"]) == {"base", "lid"}
+    assert (
+        manifest["outer_mm"][0] > layout.cavity_mm[0] + 40
+    )  # the foot, not just the box
+    checked = check_enclosure(spec, layout, lib, tmp_path, "generic")
+    assert checked.ok, checked.errors
+
+    base = import_step(tmp_path / "base.step")
+    inside = lambda points: [base.is_inside(p) for p in points]
+    L, W, H = layout.cavity_mm
+    w = spec.enclosure.wall_mm
+    usb = next(c for c in manifest["cutouts"] if c["feature"] == "usb")
+    cable = next(c for c in manifest["cutouts"] if c["feature"] == "cable")
+    assert (usb["face"], cable["face"]) == ("left", "back")
+    clear = [
+        (L / 2, W / 2, H / 2),  # the cavity
+        (L / 2, W / 2, H + w + 5),  # above the lid
+        (-w - 4, *usb["center_mm"]),  # through the wing, in front of the USB port
+        (
+            cable["center_mm"][0],
+            W + w + 2,
+            cable["center_mm"][1],
+        ),  # through the backrest
+    ]
+    solid = [
+        (-w - 4, W - 3, 2.0),
+        (L / 2, W + w + 2, H + 20),
+    ]  # wing and backrest elsewhere
+    assert inside(clear) == [False] * len(clear)
+    assert inside(solid) == [True] * len(solid)
+
+
+@pytest.mark.slow
+def test_device_body_that_misses_the_bay_is_loose(tmp_path, lib):
+    from backend.tools.layout import layout_parts
+
+    spec = device_with(
+        "from build123d import *\nbody = Pos(140, 0, 0) * Box(10, 10, 10)"
+    )
+    layout, _ = layout_parts(spec, lib)
+    assert build_custom_model(spec, layout, lib, tmp_path).ok
+    codes = [
+        e.code for e in check_enclosure(spec, layout, lib, tmp_path, "generic").errors
+    ]
+    assert codes == ["loose_pieces"]

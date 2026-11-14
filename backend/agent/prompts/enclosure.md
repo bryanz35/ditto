@@ -24,7 +24,8 @@ Rules for `write_model` code (Python, build123d 0.13, algebra mode):
 - Print-only parts: model each in its print orientation, a flat face down, resting on z=0 (end
   with `part = Pos(0, 0, -part.bounding_box().min.Z) * part`). Walls at least 1.6 mm; overhangs
   steeper than 45 degrees from vertical need a chamfer instead; split anything bigger than the printer
-  bed (220 x 220 x 250 mm unless told otherwise) into parts that join with a peg or screw.
+  bed (the default printer is 180 x 180 x 180 mm; the check names the real one) into parts that
+  join with a peg or screw.
 - Device bodies: the enclosure frame has its origin at the cavity's front-left floor corner;
   `CAVITY_MM = (L, W, H)` and `WALL_MM` are defined. `BAY` spans x -WALL_MM..L+WALL_MM,
   y -WALL_MM..W+WALL_MM, z -WALL_MM..H+WALL_MM. The body must overlap `BAY` by at least 1 mm so it
