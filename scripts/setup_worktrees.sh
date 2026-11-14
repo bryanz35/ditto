@@ -7,7 +7,7 @@
 #   scripts/setup_worktrees.sh wave2          # T21-T26 (T20 runs on main)
 #   scripts/setup_worktrees.sh wave3          # T30-T33
 #   scripts/setup_worktrees.sh add T17 input  # one task, fresh from main
-#   scripts/setup_worktrees.sh review         # ../<repo>-review (detached) and ../<repo>-reviews (branch "reviews")
+#   scripts/setup_worktrees.sh review         # ../<repo>-review (detached, for the Reviewer)
 #   scripts/setup_worktrees.sh list
 #   scripts/setup_worktrees.sh remove T10     # after the task is merged
 #
@@ -39,10 +39,25 @@ install_deps() {
   fi
 }
 
+agent_role() {                        # prints "<agent> <role>" for a task, from handoff/tasks.json
+  python3 - "$ROOT/handoff/tasks.json" "$1" <<'PY'
+import json, sys
+plan = json.load(open(sys.argv[1])); tid = sys.argv[2]
+if tid == "R":
+    print("R reviewer"); sys.exit()
+t = next((t for t in plan["tasks"] if t["id"] == tid), None)
+roles = {"builder": "builder", "qa": "qa", "reviewer": "reviewer", "main": "integrator"}
+print(f"{t['agent']} {roles[t['kind']]}" if t else "unknown builder")
+PY
+}
+
 write_env() {
-  local dir="$1" id="$2" n="$3"
+  local dir="$1" id="$2" n="$3" agent role
+  read -r agent role < <(agent_role "$id")
   cat > "$dir/.env.worktree" <<EOF
 P2D_TASK=$id
+P2D_AGENT=$agent
+P2D_ROLE=$role
 API_PORT=$((8000 + n))
 WEB_PORT=$((5173 + n))
 P2D_RUNS_DIR=$dir/runs
@@ -69,21 +84,12 @@ add_task() {
 }
 
 add_review() {
-  local rdir="$PARENT/$NAME-review" ndir="$PARENT/$NAME-reviews"
+  local rdir="$PARENT/$NAME-review"
   if [[ ! -d "$rdir" ]]; then
     git worktree add --detach "$rdir" "$BASE"
     write_env "$rdir" "R" 99
     install_deps "$rdir"
     echo "ready  R    $rdir  (detached; check out branches with git checkout --detach <branch>)"
-  fi
-  if [[ ! -d "$ndir" ]]; then
-    if git show-ref --verify --quiet refs/heads/reviews; then
-      git worktree add "$ndir" reviews
-    else
-      git worktree add -b reviews "$ndir" "$BASE"
-    fi
-    mkdir -p "$ndir/handoff/reviews"
-    echo "ready  R    $ndir  (branch reviews: write handoff/reviews/<TASK>.md here)"
   fi
 }
 

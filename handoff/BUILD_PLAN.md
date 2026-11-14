@@ -1,7 +1,7 @@
 # Build plan: Prompt-to-Device (Claude Code handoff)
 
 This plan splits the HackPrinceton project into tasks that several Claude Code agents can build **in
-parallel**, each in its own git worktree. Parallel work stays aligned through three mechanisms:
+parallel**, each in its own git worktree. Parallel work stays aligned through four mechanisms:
 
 1. **Contracts first.** One agent (the Integrator) writes every shared interface, fixture and stub file
    before anyone else starts (Wave 0). After Gate G0 the contracts are frozen.
@@ -10,12 +10,18 @@ parallel**, each in its own git worktree. Parallel work stays aligned through th
 3. **Producer–consumer review.** Every task is reviewed by a dedicated Reviewer agent *and* signed off
    by the agent that consumes its output. QA writes integration tests from the contracts while the
    features are being built.
+4. **One shared board.** `handoff/tasks.json` holds the task graph (dependencies, consumers, agents);
+   the live state (started, submitted, reviewed, signed off, merged) lives on the `coord` branch and is
+   changed only through `scripts/board.py`. Every agent runs `board.py next` to get its next action, and
+   `/loop` with `.claude/loop.md` keeps idle agents checking it. Humans run `board.py status`.
 
 Read `CLAUDE.md` first (every agent loads it automatically). The technical design (schema, parts
 library, checks, starter code) is in `docs/PROJECT_PLAN.md`.
 
 **Files in this handoff and where they go in the repo:** `CLAUDE.md` → repo root;
-`handoff/` → `handoff/`; `docs/PROJECT_PLAN.md` → `docs/`; `scripts/setup_worktrees.sh` → `scripts/`.
+`handoff/` → `handoff/`; `docs/PROJECT_PLAN.md` → `docs/`; `scripts/` → `scripts/`.
+**New to running several agents?** Follow `handoff/RUNBOOK.md`: it lists who starts which session, in
+what order, and the exact prompt for every step.
 T00 commits them on `main` before anything else.
 
 ---
@@ -144,7 +150,7 @@ Put your fastest agents and closest human attention on T13, T11 and T20.
 | Agent | Tasks, in order | Worktree | Branches | Human |
 | --- | --- | --- | --- | --- |
 | **I** Integrator | T00, T01, then merges, contract changes, T20 | main checkout | `main` | Person A |
-| **B-validate** | T10 → T21 | `../<repo>-T10-validators` | `feat/T10-validators`, `feat/T21-cross-checks` | Person A |
+| **B-validate** | T10 → T21 | `../<repo>-T10-validators` | `feat/T10-validators`, `feat/T21-cross-checks` | Person C |
 | **B-agent** | T13 → T33 | `../<repo>-T13-agent` | `feat/T13-agent`, `feat/T33-docs` | Person A |
 | **B-cad** | T11 → T25 → T34 | `../<repo>-T11-cad` | `feat/T11-cad`, `feat/T25-assembly`, `feat/T34-tscircuit` | Person B |
 | **B-parts** | T18 → T26 | `../<repo>-T18-parts` | `feat/T18-parts`, `feat/T26-simulation` | Person B |
@@ -153,7 +159,7 @@ Put your fastest agents and closest human attention on T13, T11 and T20.
 | **B-web** | T15 → T24 → T32 | `../<repo>-T15-web` | `feat/T15-web`, … | Person D |
 | **B-bom** | T16 → T17 | `../<repo>-T16-bom` | `feat/T16-bom`, `feat/T17-input` | Person D |
 | **Q** QA | T19 → T30 | `../<repo>-T19-qa` | `feat/T19-qa`, `feat/T30-evals` | Person D |
-| **R** Reviewer | Reviews every PR; T35 | `../<repo>-review` (detached) | none (read-only) | Rotating |
+| **R** Reviewer | Reviews every PR; T35 | `../<repo>-review` (detached) | none (read-only) | Person B |
 
 When an agent finishes a task, its human starts the next task in a **fresh worktree** from the latest
 `main` (`scripts/setup_worktrees.sh add T21 cross-checks`), not in the old one. A fresh worktree and a
@@ -685,12 +691,15 @@ git diff main...feat/T10-validators
 7. **Determinism:** generated files contain no timestamps or random ordering.
 8. **Readability:** clear names, small functions, comments where hardware behaviour isn't obvious.
 
-**Verdict:** approve, or request changes as a numbered list. Post with `gh pr review` if the repo is on
-GitHub. Without GitHub: write `handoff/reviews/<TASK>.md` in the `../<repo>-reviews` worktree (branch
-`reviews`) and commit; builders read it with `git show reviews:handoff/reviews/<TASK>.md`.
+**Verdict:** record it on the board, which ties it to the exact commit reviewed:
+`board.py review <TASK> approve --notes "..."` or `board.py review <TASK> changes --notes-file <file>`
+(a numbered list). The builder's `next` shows the notes as `FIX_REVIEW`. If the builder pushes new
+commits after an approval, the approval no longer counts and the task returns to the review queue.
+Optionally also post it with `gh pr review` so it shows on GitHub.
 
-**Consumer sign-off:** the consumer agent checks out the producer's branch the same way, runs its own
-code or tests against it, and replies "consumer OK" or lists what breaks.
+**Consumer sign-off:** once R approves, each consumer agent's `next` shows a `SIGNOFF` action. It checks
+out the producer's branch in a temporary worktree, runs its own code or tests against it, and records
+`board.py signoff <TASK> ok` or `fail --notes "..."` (a failure sends the task back to its builder).
 
 ---
 
@@ -714,24 +723,34 @@ code or tests against it, and replies "consumer OK" or lists what breaks.
 
 ## 8. Merge protocol and staying aligned
 
-1. Only I merges to `main`, after: rebased on `main`, `make lint test` green (and slow tests if listed),
-   R approved, consumer OK.
+1. Only I merges to `main`, when its `next` shows `MERGE` (R approved and every consumer signed off at
+   the same commit): merge commit (`git merge --no-ff`, never squash), `make lint test` green (and slow
+   tests if listed), push, then `board.py merged <TASK>`.
 2. Suggested Wave 1 merge order: leaf tools first (T10, T12, T16), then T11, T14, T13, T15, T18, T17.
    Q's suite merges early and often.
-3. After each merge, I appends a line to `handoff/MERGES.md` (`<hour> <sha> <task> <one line>`).
-   Builders rebase on `main` at their next stopping point, and always before opening a PR.
-4. **Contract changes:** a builder writes `handoff/contract-requests/<TASK>-<slug>.md`. I decides within
-   30 minutes. If accepted, I lands it on `main` as its own commit, bumps `CONTRACT_VERSION` in
-   `backend/contracts/__init__.py`, notes it in `handoff/MERGES.md`, reruns `make types`, and tells the
-   affected agents to rebase. Contract tests catch anyone left behind.
+3. After each merge, I appends a line to `handoff/MERGES.md` (`<hour> <sha> <task> <one line>`) for
+   humans; the board itself is the source of truth. Every agent that consumes the merged task gets a
+   `REBASE` action automatically, and QA gets a `QA_UPDATE`. `board.py submit` refuses a branch that
+   isn't rebased on the latest `main`.
+4. **Contract changes:** a builder writes `handoff/contract-requests/<TASK>-<slug>.md`, pushes it, and
+   runs `board.py request --file ... --summary ...`. I sees `DECIDE_CONTRACT` and answers within 30
+   minutes with `board.py decide <id> accept|reject`. If accepted, I lands it on `main` as its own
+   commit, bumps `CONTRACT_VERSION` in `backend/contracts/__init__.py`, reruns `make types`, and runs
+   `board.py announce "<summary>" --rebase`, which gives every active branch a `REBASE` action.
+   Contract tests catch anyone left behind.
 5. **Ownership transfer** (e.g. T23 fixing T18's snippets) is written on the card or in `MERGES.md`;
    never assumed.
-6. **Blocked agent:** set the status file to `blocked`, name the task, and continue with anything in the
-   card that doesn't depend on it (tests, fakes, docstrings). Humans check `handoff/status/` every hour.
+6. **Blocked agent:** `board.py block --on <TASK> --notes "..."`, then continue with anything in the
+   card that doesn't depend on it (tests, fakes, docstrings). The board says `UNBLOCKED` when the
+   blocker is done. Humans check `board.py status` every hour.
 
 ---
 
 ## 9. Kickoff prompts
+
+These are the short generic versions. Every role's real loop is: run `board.py next`, do the action,
+repeat; `/loop` keeps it going while waiting. `handoff/RUNBOOK.md` has a ready-to-paste prompt for every task,
+plus the prompts for reviews, sign-offs, merges and rebases.
 
 Paste into a new Claude Code session started inside the task's worktree.
 

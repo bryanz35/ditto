@@ -1,0 +1,577 @@
+{
+ "version": 1,
+ "comment": "Static task graph. Edit only via the Integrator, together with handoff/BUILD_PLAN.md. Live state lives on the 'coord' branch and is changed only through scripts/board.py.",
+ "agents": {
+  "I": [
+   "T00",
+   "T01",
+   "T20"
+  ],
+  "B-validate": [
+   "T10",
+   "T21"
+  ],
+  "B-agent": [
+   "T13",
+   "T33"
+  ],
+  "B-cad": [
+   "T11",
+   "T25",
+   "T34"
+  ],
+  "B-parts": [
+   "T18",
+   "T26"
+  ],
+  "B-fw": [
+   "T12",
+   "T23",
+   "T31"
+  ],
+  "B-api": [
+   "T14",
+   "T22"
+  ],
+  "B-web": [
+   "T15",
+   "T24",
+   "T32"
+  ],
+  "B-bom": [
+   "T16",
+   "T17"
+  ],
+  "Q": [
+   "T19",
+   "T30"
+  ],
+  "R": [
+   "T35"
+  ]
+ },
+ "tasks": [
+  {
+   "id": "H0",
+   "title": "Hardware check: fill in handoff/HARDWARE.md",
+   "kind": "human",
+   "person": "A",
+   "deps": [],
+   "consumers": [],
+   "soft": [],
+   "slow": false
+  },
+  {
+   "id": "H1",
+   "title": "Measure parts (or copy datasheet dimensions in mode V)",
+   "kind": "human",
+   "person": "B",
+   "deps": [
+    "H0"
+   ],
+   "consumers": [],
+   "soft": [],
+   "slow": false
+  },
+  {
+   "id": "H2",
+   "title": "Choose the showcase device",
+   "kind": "human",
+   "person": "C",
+   "deps": [
+    "H0"
+   ],
+   "consumers": [],
+   "soft": [],
+   "slow": false
+  },
+  {
+   "id": "H3",
+   "title": "Makerspace interview + example prompt 3 + Peri evidence",
+   "kind": "human",
+   "person": "D",
+   "deps": [],
+   "consumers": [],
+   "soft": [],
+   "slow": false
+  },
+  {
+   "id": "H4",
+   "title": "Print and assemble the showcase enclosure",
+   "kind": "human",
+   "person": "B",
+   "deps": [
+    "H0",
+    "T20",
+    "T31"
+   ],
+   "modes": [
+    "P"
+   ],
+   "consumers": [],
+   "soft": [],
+   "slow": false
+  },
+  {
+   "id": "T00",
+   "title": "Repo scaffold and tooling",
+   "kind": "main",
+   "agent": "I",
+   "person": "A",
+   "deps": [],
+   "consumers": [],
+   "soft": [],
+   "slow": false
+  },
+  {
+   "id": "T01",
+   "title": "Contracts, stubs, fixtures (Gate G0)",
+   "kind": "main",
+   "agent": "I",
+   "person": "A",
+   "deps": [
+    "T00"
+   ],
+   "consumers": [],
+   "soft": [],
+   "slow": false
+  },
+  {
+   "id": "T10",
+   "title": "Spec validators",
+   "kind": "builder",
+   "agent": "B-validate",
+   "person": "C",
+   "slug": "validators",
+   "deps": [
+    "T01"
+   ],
+   "consumers": [
+    "B-agent"
+   ],
+   "soft": [],
+   "slow": false,
+   "branch": "feat/T10-validators"
+  },
+  {
+   "id": "T11",
+   "title": "Layout and enclosure",
+   "kind": "builder",
+   "agent": "B-cad",
+   "person": "B",
+   "slug": "cad",
+   "deps": [
+    "T01"
+   ],
+   "consumers": [
+    "B-web",
+    "B-validate"
+   ],
+   "slow": true,
+   "soft": [],
+   "branch": "feat/T11-cad"
+  },
+  {
+   "id": "T12",
+   "title": "Firmware toolchain",
+   "kind": "builder",
+   "agent": "B-fw",
+   "person": "C",
+   "slug": "firmware",
+   "deps": [
+    "T01"
+   ],
+   "consumers": [
+    "B-agent"
+   ],
+   "slow": true,
+   "soft": [],
+   "branch": "feat/T12-firmware"
+  },
+  {
+   "id": "T13",
+   "title": "Agent orchestration",
+   "kind": "builder",
+   "agent": "B-agent",
+   "person": "A",
+   "slug": "agent",
+   "deps": [
+    "T01"
+   ],
+   "consumers": [
+    "B-api"
+   ],
+   "soft": [],
+   "slow": false,
+   "branch": "feat/T13-agent"
+  },
+  {
+   "id": "T14",
+   "title": "API and run engine",
+   "kind": "builder",
+   "agent": "B-api",
+   "person": "C",
+   "slug": "api",
+   "deps": [
+    "T01"
+   ],
+   "consumers": [
+    "B-web"
+   ],
+   "soft": [],
+   "slow": false,
+   "branch": "feat/T14-api"
+  },
+  {
+   "id": "T15",
+   "title": "Frontend shell",
+   "kind": "builder",
+   "agent": "B-web",
+   "person": "D",
+   "slug": "web",
+   "deps": [
+    "T01"
+   ],
+   "consumers": [
+    "B-api"
+   ],
+   "soft": [],
+   "slow": false,
+   "branch": "feat/T15-web"
+  },
+  {
+   "id": "T16",
+   "title": "Pricing and memory",
+   "kind": "builder",
+   "agent": "B-bom",
+   "person": "D",
+   "slug": "bom",
+   "deps": [
+    "T01"
+   ],
+   "consumers": [
+    "B-web",
+    "B-agent"
+   ],
+   "soft": [],
+   "slow": false,
+   "branch": "feat/T16-bom"
+  },
+  {
+   "id": "T17",
+   "title": "Input preprocessing",
+   "kind": "builder",
+   "agent": "B-bom",
+   "person": "D",
+   "slug": "input",
+   "deps": [
+    "T00"
+   ],
+   "consumers": [
+    "B-agent"
+   ],
+   "slow": true,
+   "soft": [],
+   "branch": "feat/T17-input"
+  },
+  {
+   "id": "T18",
+   "title": "Parts library expansion",
+   "kind": "builder",
+   "agent": "B-parts",
+   "person": "B",
+   "slug": "parts",
+   "deps": [
+    "T01"
+   ],
+   "consumers": [
+    "B-fw",
+    "human"
+   ],
+   "soft": [],
+   "slow": false,
+   "branch": "feat/T18-parts"
+  },
+  {
+   "id": "T19",
+   "title": "QA test suite (test-first)",
+   "kind": "qa",
+   "agent": "Q",
+   "person": "D",
+   "slug": "qa",
+   "deps": [
+    "T01"
+   ],
+   "consumers": [
+    "I"
+   ],
+   "soft": [],
+   "slow": false,
+   "branch": "feat/T19-qa"
+  },
+  {
+   "id": "T20",
+   "title": "Integration (Gate G1)",
+   "kind": "main",
+   "agent": "I",
+   "person": "A",
+   "deps": [
+    "T10",
+    "T11",
+    "T12",
+    "T13",
+    "T14",
+    "T15",
+    "T16"
+   ],
+   "consumers": [],
+   "soft": [],
+   "slow": false
+  },
+  {
+   "id": "T21",
+   "title": "Cross-domain checks",
+   "kind": "builder",
+   "agent": "B-validate",
+   "person": "C",
+   "slug": "cross-checks",
+   "deps": [
+    "T10",
+    "T11",
+    "T12",
+    "T14",
+    "T16"
+   ],
+   "consumers": [
+    "B-web"
+   ],
+   "soft": [],
+   "slow": false,
+   "branch": "feat/T21-cross-checks"
+  },
+  {
+   "id": "T22",
+   "title": "Edit and rerun flow",
+   "kind": "builder",
+   "agent": "B-api",
+   "person": "C",
+   "slug": "edits",
+   "deps": [
+    "T13",
+    "T14",
+    "T20"
+   ],
+   "consumers": [
+    "B-web",
+    "Q"
+   ],
+   "soft": [],
+   "slow": false,
+   "branch": "feat/T22-edits"
+  },
+  {
+   "id": "T23",
+   "title": "Library snippet compile",
+   "kind": "builder",
+   "agent": "B-fw",
+   "person": "C",
+   "slug": "snippets",
+   "deps": [
+    "T12",
+    "T18"
+   ],
+   "consumers": [
+    "B-parts"
+   ],
+   "slow": true,
+   "soft": [],
+   "branch": "feat/T23-snippets"
+  },
+  {
+   "id": "T24",
+   "title": "Frontend live hookup",
+   "kind": "builder",
+   "agent": "B-web",
+   "person": "D",
+   "slug": "web-live",
+   "deps": [
+    "T15",
+    "T20",
+    "T21"
+   ],
+   "soft": [
+    "T25"
+   ],
+   "consumers": [
+    "Q"
+   ],
+   "slow": false,
+   "branch": "feat/T24-web-live"
+  },
+  {
+   "id": "T25",
+   "title": "Assembly preview",
+   "kind": "builder",
+   "agent": "B-cad",
+   "person": "B",
+   "slug": "assembly",
+   "deps": [
+    "T11"
+   ],
+   "consumers": [
+    "B-web"
+   ],
+   "slow": true,
+   "required_in": [
+    "E",
+    "V"
+   ],
+   "soft": [],
+   "branch": "feat/T25-assembly"
+  },
+  {
+   "id": "T26",
+   "title": "Simulation (Wokwi)",
+   "kind": "builder",
+   "agent": "B-parts",
+   "person": "B",
+   "slug": "simulation",
+   "deps": [
+    "T12",
+    "T18"
+   ],
+   "consumers": [
+    "B-fw"
+   ],
+   "required_in": [
+    "V"
+   ],
+   "soft": [],
+   "slow": false,
+   "branch": "feat/T26-simulation"
+  },
+  {
+   "id": "T30",
+   "title": "Evals and demo cache",
+   "kind": "qa",
+   "agent": "Q",
+   "person": "D",
+   "slug": "evals",
+   "deps": [
+    "T20",
+    "T21",
+    "T22",
+    "H3"
+   ],
+   "consumers": [
+    "I"
+   ],
+   "soft": [],
+   "slow": false,
+   "branch": "feat/T30-evals"
+  },
+  {
+   "id": "T31",
+   "title": "Showcase device",
+   "kind": "builder",
+   "agent": "B-fw",
+   "person": "C",
+   "slug": "device",
+   "deps": [
+    "H2",
+    "T12",
+    "T14"
+   ],
+   "deps_in_mode": {
+    "V": [
+     "T26"
+    ]
+   },
+   "consumers": [
+    "I"
+   ],
+   "soft": [],
+   "slow": false,
+   "branch": "feat/T31-device"
+  },
+  {
+   "id": "T32",
+   "title": "Inventory and explain UI",
+   "kind": "builder",
+   "agent": "B-web",
+   "person": "D",
+   "slug": "web-explain",
+   "deps": [
+    "T16",
+    "T24"
+   ],
+   "consumers": [
+    "Q"
+   ],
+   "soft": [],
+   "slow": false,
+   "branch": "feat/T32-web-explain"
+  },
+  {
+   "id": "T33",
+   "title": "Docs and Devpost",
+   "kind": "builder",
+   "agent": "B-agent",
+   "person": "A",
+   "slug": "docs",
+   "deps": [
+    "T20"
+   ],
+   "consumers": [
+    "human"
+   ],
+   "soft": [],
+   "slow": false,
+   "branch": "feat/T33-docs"
+  },
+  {
+   "id": "T34",
+   "title": "Stretch: tscircuit board preview",
+   "kind": "builder",
+   "agent": "B-cad",
+   "person": "B",
+   "slug": "tscircuit",
+   "deps": [
+    "T20",
+    "T22"
+   ],
+   "consumers": [
+    "B-web"
+   ],
+   "optional": true,
+   "soft": [],
+   "slow": false,
+   "branch": "feat/T34-tscircuit"
+  },
+  {
+   "id": "T35",
+   "title": "Release check",
+   "kind": "reviewer",
+   "agent": "R",
+   "person": "B",
+   "deps": [
+    "T30",
+    "T31",
+    "T32",
+    "T33"
+   ],
+   "deps_in_mode": {
+    "E": [
+     "T25"
+    ],
+    "V": [
+     "T25",
+     "T26"
+    ]
+   },
+   "consumers": [],
+   "soft": [],
+   "slow": false
+  }
+ ]
+}

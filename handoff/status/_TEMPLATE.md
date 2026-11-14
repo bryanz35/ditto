@@ -1,6 +1,7 @@
 # <TASK> <title>
 
-State: not started | in progress | blocked | in review | merged
+(The task's state lives on the board: `python3 scripts/board.py status`. This file is for notes.)
+
 Updated: <hackathon hour>
 Agent: <agent name> · Worktree: <path> · Branch: <branch>
 
@@ -13,7 +14,6 @@ Done:
 Next:
 - ...
 
-Blocked on: nothing
 Requests: none
 How to test:
     make lint test

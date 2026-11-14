@@ -13,6 +13,32 @@ orchestrator delegates to sub-agents (parts and pins, firmware, enclosure). **Ev
 checked by plain code before the UI shows it.** The project spec (`ProjectSpec`) is the single source
 of truth: every other output is generated from it.
 
+## The coordination board: always know your next step
+
+You never have to guess what to do next or wait for a human to relay messages. Run:
+
+```
+python3 scripts/board.py next
+```
+
+It reads who you are from `.env.worktree` (the main checkout is the Integrator) and prints one ACTION
+with exact instructions: `START`, `WORK`, `SUBMIT`-related steps, `FIX_REVIEW`, `REVIEW`, `SIGNOFF`,
+`REBASE`, `QA_UPDATE`, `MERGE`, `DECIDE_CONTRACT`, `WAIT` or `DONE`.
+The board knows the dependency graph, who consumes whose output, every review verdict and sign-off
+(tied to the exact commit they were given for), and every merge.
+
+- **Run `next` at the start of a session, after every step you finish, and whenever you're unsure.**
+  Do the action it prints, then run it again.
+- **Record every change of state through the board, never by hand:** `board.py start`, `submit`,
+  `block --on <TASK>`, `unblock`, `request --file ... --summary ...`. The Reviewer runs `review`,
+  consumers run `signoff`, the Integrator runs `merged`, `done`, `decide`, `announce`. Each command
+  checks preconditions (for example, `submit` refuses unpushed or un-rebased work).
+- **Waiting is automatic.** Your human starts `/loop` in your session after approving your plan;
+  `.claude/loop.md` makes each wake-up run `next` and act on it, so you pick up review results,
+  sign-off requests and "rebase now" notices on your own.
+- The live state is on the `coord` git branch. Never check it out, edit it or merge it.
+- Humans see everything with `python3 scripts/board.py status`.
+
 ## Golden rules
 
 1. **Work only on your task card.** Your task ID is in `.env.worktree` (`P2D_TASK`) and in your branch name.
@@ -27,9 +53,10 @@ of truth: every other output is generated from it.
 5. **No network in unit tests.** Use fixtures and mocks. Mark slow tests `@pytest.mark.slow`
    (PlatformIO compiles, build123d builds) and tests that call real APIs `@pytest.mark.live`.
 6. **Never commit secrets.** Keys live in `.env` (copied from `.env.example`, symlinked into every worktree, gitignored).
-7. **Keep your status file current** (`handoff/status/<TASK>.md`), at least at every commit you'd
+7. **Keep the board and your notes current.** State changes go through `scripts/board.py`; your status
+   file (`handoff/status/<TASK>.md`) holds your plan, progress notes and test commands, updated at every commit you'd
    want a teammate to know about. It's how the Integrator and humans see progress without interrupting you.
-8. **Don't merge to `main`.** Open a PR (or tell your human it's ready). Only the Integrator merges.
+8. **Don't merge to `main`.** Push your branch, open a PR, and run `board.py submit`. Only the Integrator merges.
 
 ## Ownership map
 
@@ -37,7 +64,7 @@ of truth: every other output is generated from it.
 | --- | --- | --- |
 | `backend/contracts/`, `fixtures/` (except `fixtures/firmware/`), `frontend/src/contracts/`, `tests/contract/` | T01 (Integrator) | Frozen after G0 |
 | `backend/tools/toolbox.py`, `backend/tools/fakes.py`, `handoff/MERGES.md` | T01, T20 (Integrator) | |
-| `pyproject.toml`, `Makefile`, `frontend/package.json`, `scripts/setup_worktrees.sh`, CI | T00 (Integrator) | Need a dependency? Request it |
+| `pyproject.toml`, `Makefile`, `frontend/package.json`, `scripts/` (except `prefetch_prices.py`), CI | T00 (Integrator) | Need a dependency? Request it |
 | `backend/tools/validate_spec.py`, `backend/tools/cross_checks.py` | T10, T21 | |
 | `backend/tools/layout.py`, `backend/tools/build_enclosure.py`, `backend/tools/check_enclosure.py`, `backend/cad/` (except `assembly.py`), `backend/parts/printers/` | T11 | |
 | `backend/cad/assembly.py` | T25 | Assembly preview (`assembly.glb`) |
@@ -53,10 +80,10 @@ of truth: every other output is generated from it.
 | `tests/integration/`, `tests/e2e/`, `evals/` | T19, T30 (QA) | Builders own `tests/unit/<area>/` |
 | `backend/app/routers/device.py`, `device/` | T31 | Showcase device is a placeholder until chosen |
 | `README.md`, `docs/` (except `docs/PROJECT_PLAN.md`) | T33 | |
-| `docs/PROJECT_PLAN.md`, `handoff/BUILD_PLAN.md`, `CLAUDE.md` | Integrator + humans | The plan itself |
+| `docs/PROJECT_PLAN.md`, `handoff/BUILD_PLAN.md`, `handoff/RUNBOOK.md`, `handoff/tasks.json`, `CLAUDE.md`, `.claude/loop.md` | Integrator + humans | The plan itself; `tasks.json` is the task graph the board reads |
+| `coord` branch (board state) | `scripts/board.py` only | Never edited, checked out or merged by hand |
 | `handoff/status/<TASK>.md` | that task | One file per task: no conflicts |
 | `handoff/contract-requests/<TASK>-*.md` | the requesting task | |
-| `handoff/reviews/` (branch `reviews` only) | R (Reviewer) | |
 
 Files are created as stubs in T00/T01 so that no two tasks ever create the same file.
 
@@ -136,16 +163,18 @@ assume mode V: datasheet dimensions, the `generic` printer profile, simulation a
 
 ## Status file format (`handoff/status/<TASK>.md`)
 
+Your task's *state* lives on the board, not here. This file is for notes a teammate or reviewer needs.
+
 ```
 # <TASK> <title>
-State: not started | in progress | blocked | in review | merged
 Updated: <hour of hackathon or time>
+Plan:
+- ...
 Done:
 - ...
 Next:
 - ...
-Blocked on: <task IDs or "nothing">
-Requests: <contract or ownership requests, with links to handoff/contract-requests/...>
+Requests: <contract requests you filed with board.py request>
 How to test: <exact commands>
 ```
 
@@ -154,5 +183,5 @@ How to test: <exact commands>
 - Acceptance criteria on the card all met, each covered by a test where the card says so.
 - `make lint test` green after rebasing on `main`; slow tests green if the card lists them.
 - No edits outside owned paths; no contract edits.
-- Status file says `in review` with exact test commands.
-- Reviewer approved and consumer signed off (see the card).
+- Status file has exact test commands; `board.py submit` accepted the branch.
+- The board shows the review approved and every consumer signed off at your latest commit.
