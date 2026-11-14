@@ -29,3 +29,4 @@ you depend on appears here.
 | 9 | 684793e | T22 | Edit flow: edits rerun only affected stages (deps.py), every affected stage marked stale first |
 | 11 | 6910be2 | T24 | Frontend live hookup: UI streams run events, panels show checks/BOM/wiring, viewer loads run GLB/STL files |
 | 12 | 1fa8a6c | T36 | Ditto V2 UI (absorbs T32): Start, Planning, Overview + Where to buy, Details drawer, My parts. Static placeholders name T37 (level, name), T38 (stores, Buy all), T39 (Stop), T40 (Start building). T40 unblocked |
+12:59 c749731 contract v3: UserContext.level + name (T37 #4); I also touched backend/memory/store.py PREFERENCES, tests/unit/memory/test_router.py, frontend/src/MyParts.tsx EMPTY to keep main green
