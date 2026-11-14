@@ -15,3 +15,4 @@ you depend on appears here.
 | 6 | 07ed525 | CR#1 | Integrator applied T18's request to T16's test_prefetch (library pinned to esp32_devkitc). Test-only, no contract change, CONTRACT_VERSION unchanged |
 | 6 | cf64363 | T12 | pins.h, PlatformIO project generation, lint (pins.h include, P2D_READY, no numeric pins), compile with parsed file:line:col errors. Golden compile verified by B-fw; on the Integrator machine Smart App Control blocks pio.exe (WinError 4551). Follow-up for B-fw (T23): compile_firmware raises OSError when pio can't be executed; should return a ToolResult error |
 | 6 | 205ea2e | T15 | Frontend shell: Vite + React app, run state from events, typed against src/contracts |
+| 6 | 0915335 | T19 | QA suite: integration pipeline (xfail per pending task), invariant helpers (pins.h/cutouts/BOM/spec_rev), e2e plant monitor + edits (live), evals skeleton. test_write_firmware_project_and_lint now XPASSes (T12 merged) |
