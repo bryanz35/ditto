@@ -128,6 +128,11 @@ export function isStale(state: RunState, name: string): boolean {
   return a !== undefined && state.stale.includes(a.stage)
 }
 
+/** The project's conversation after the first prompt: the user's follow-ups and Ditto's replies
+ * (events with data.chat, see backend/contracts/events.py). */
+export const chatTurns = (state: RunState): Event[] =>
+  state.log.filter((e) => e.data.chat === 'user' || e.data.chat === 'agent')
+
 const GENERIC = ['Dittoing…', 'Planning…', 'Thinking it through…']
 // Plain words for a stage, for "Fixing a problem with the …".
 const NOUN: Partial<Record<Stage, string>> = {

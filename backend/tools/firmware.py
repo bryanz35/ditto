@@ -36,6 +36,9 @@ _jinja = Environment(
     keep_trailing_newline=True,
 )
 
+# The core's USB device library (USB.h, USBHIDKeyboard.h, USBHIDGamepad.h, ...): ESP32-S3 native USB.
+_NATIVE_USB = re.compile(r'^\s*#\s*include\s*[<"]USB', re.MULTILINE)
+
 # Calls whose first argument is a pin number (ledcAttach and tone: Arduino core 3 names for PWM).
 _PIN_CALL = re.compile(
     r"\b(pinMode|digitalWrite|digitalRead|analogRead|ledcAttachPin|ledcAttach|tone|noTone)"
@@ -101,7 +104,9 @@ def write_firmware_project(
         )
     lib_deps = sorted({d for p in instances for d in lib.get(p.part_id).pio_lib_deps})
     ini = _jinja.get_template("platformio.ini.j2").render(
-        pio_board=board.pio_board, lib_deps=lib_deps
+        pio_board=board.pio_board,
+        lib_deps=lib_deps,
+        native_usb=_NATIVE_USB.search(main_cpp) is not None,
     )
 
     files = {

@@ -275,9 +275,42 @@ describe('Planning', () => {
     expect(lastCall('/api/runs/plant_monitor/cancel', 'POST')).toBeDefined()
     expect(screen.queryByRole('alert')).toBeNull()
   })
+  it('keeps a run that ended without a spec in the chat, with Ditto\'s reply, and takes a message', async () => {
+    const event = (seq: number, stage: string, status: string, message: string, data = {}) =>
+      JSON.stringify({ ...JSON.parse(lines[0]), seq, stage, status, message, artifacts: {}, errors: [], data })
+    const stream = openRun()
+    stream.emit([
+      lines[0],
+      event(90, 'plan', 'running', "There's no joystick part: should I use four buttons?", { chat: 'agent' }),
+      event(91, 'done', 'failed', 'Waiting for your reply'),
+    ])
+    screen.getByText(/should I use four buttons/)
+    expect(screen.queryByRole('button', { name: /Plan ready/ })).toBeNull() // still in the chat
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message Ditto' }), { target: { value: 'yes, buttons' } })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Send' })))
+    expect(JSON.parse(lastCall('/api/runs/plant_monitor/edit')![1]!.body as string)).toEqual({ instruction: 'yes, buttons' })
+    stream.emit([event(92, 'plan', 'queued', 'yes, buttons', { chat: 'user' })])
+    screen.getByText('yes, buttons', { selector: '.user-msg p' })
+  })
 })
 
 describe('Overview', () => {
+  it('shows the conversation about the design: follow-ups and Ditto\'s replies', () => {
+    const chat = (seq: number, who: string, message: string) =>
+      JSON.stringify({ ...JSON.parse(lines[0]), seq, message, data: { chat: who } })
+    const last = JSON.parse(lines.at(-1)!).seq as number
+    openRun().emit([...lines, chat(last + 1, 'user', 'make the walls 3 mm'), chat(last + 2, 'agent', 'Walls are **3 mm** now.')])
+    const log = screen.getByRole('list', { name: 'Conversation' })
+    expect([...log.querySelectorAll('li')].map((li) => [li.className, li.textContent])).toEqual([
+      ['from-user', 'make the walls 3 mm'],
+      ['from-agent', 'Walls are 3 mm now.'],
+    ])
+    within(log).getByText('3 mm', { selector: 'strong' }) // Ditto's replies are markdown
+    // folds to its tab so it doesn't cover the model
+    fireEvent.click(screen.getByRole('button', { name: /Conversation/ }))
+    expect(screen.queryByRole('list', { name: 'Conversation' })).toBeNull()
+  })
+
   it('opens once the plan is done, with the parts from the BOM and their roles from the spec', async () => {
     openRun().emit(lines)
     screen.getByRole('button', { name: 'Plan ready · all checks passed' })

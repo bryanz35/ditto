@@ -29,6 +29,7 @@ from backend.contracts.runner import (
     AnswerRequest,
     EditRequest,
     Emit,
+    NoSpec,
     RunRequest,
     StageRunner,
     run_dir_for,
@@ -160,9 +161,15 @@ class AgentRunner:
                             data={"todos": items},
                         )
                     )
-            interrupts = (await agent.aget_state(config)).interrupts
-            if not interrupts:
+            state = await agent.aget_state(config)
+            if not state.interrupts:
+                messages = state.values.get("messages") or [None]
+                if reply := _text(messages[-1]):
+                    ctx.emit(
+                        _event(ctx, "plan", "running", reply, data={"chat": "agent"})
+                    )
                 return
+            interrupts = state.interrupts
             resume = {}
             for interrupt in interrupts:
                 requests = interrupt.value["action_requests"]
@@ -225,11 +232,23 @@ def _plan(ctx: RunContext, status, message: str) -> None:
     ctx.emit(_event(ctx, "plan", status, message))
 
 
+def _text(message) -> str:
+    """The text of the agent's last message: its reply to the user."""
+    content = getattr(message, "content", "")
+    if isinstance(content, list):
+        content = "".join(b.get("text", "") for b in content if isinstance(b, dict))
+    return content.strip()
+
+
 def _finish(ctx: RunContext, after_rev: int = 0) -> ProjectSpec:
-    """The saved spec, which must be newer than after_rev (the rev an edit started from)."""
+    """The saved spec. after_rev: the rev an edit started from; an edit that saved nothing newer
+    (it answered a question, or couldn't make the change) keeps that spec, and its reply says why."""
     spec = ctx.load_spec()
-    if spec is None or spec.rev <= after_rev:
-        _plan(ctx, "failed", "The agent finished without a new validated spec")
-        raise RuntimeError(f"run {ctx.run_id}: no new spec passed validation")
+    if spec is None:
+        _plan(ctx, "failed", "No validated spec yet")
+        raise NoSpec(f"run {ctx.run_id}: the agent ended without a validated spec")
+    if spec.rev <= after_rev:
+        _plan(ctx, "passed", f"No change to the spec (rev {spec.rev})")
+        return spec
     _plan(ctx, "passed", f"Spec rev {spec.rev} saved")
     return spec

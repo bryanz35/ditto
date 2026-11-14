@@ -1,10 +1,11 @@
 // Project · Overview: the 3D model, the parts list and the follow-up dock (Figma 17:310, 19:527).
-import { lazy, Suspense, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
+import Markdown from 'react-markdown'
 import { useJson, useSend, type Reply } from './api'
-import type { Bom, BomLine, BomOffer, ProjectSpec, Wiring } from './contracts'
+import type { Bom, BomLine, BomOffer, Event, ProjectSpec, Wiring } from './contracts'
 import { Icon, Segmented } from './Icon'
 import { Badge, QuestionCard, type UrlOf } from './panels'
-import { statusLine, type RunState } from './state'
+import { chatTurns, statusLine, type RunState } from './state'
 import { partIcon, soon, usd } from './ui'
 
 // three.js is big; load it only when the overview first renders.
@@ -127,6 +128,7 @@ export function Overview({
       />
       {buying === 'all' && bom && <BuyAllPanel bom={bom} onClose={() => setBuying(null)} />}
       {buying && buying !== 'all' && <BuyPanel line={buying} onClose={() => setBuying(null)} />}
+      <ChatPanel turns={chatTurns(state)} />
       <Dock reply={reply} onBuild={onBuild} />
     </main>
   )
@@ -414,6 +416,41 @@ function BuyAllPanel({ bom, onClose }: { bom: Bom; onClose: () => void }) {
         )
       })}
     </Panel>
+  )
+}
+
+/** turns: the conversation about the design so far, newest at the bottom. Folds to a tab so the model stays visible. */
+function ChatPanel({ turns }: { turns: Event[] }) {
+  const [shown, setShown] = useState(true)
+  const log = useRef<HTMLOListElement>(null)
+  useEffect(() => {
+    if (log.current) log.current.scrollTop = log.current.scrollHeight
+  }, [turns.length, shown])
+  if (turns.length === 0) return null
+  return (
+    <section className={`chat-panel${shown ? '' : ' folded'}`}>
+      <button type="button" className="chat-tab" aria-expanded={shown} onClick={() => setShown(!shown)}>
+        <Icon name={shown ? 'chevron-down' : 'chevron-right'} />
+        Conversation
+        <span className="spacer" />
+        <span className="mono">{turns.length}</span>
+      </button>
+      {shown && (
+        <ol ref={log} className="chat-log" aria-label="Conversation">
+          {turns.map((e) =>
+            e.data.chat === 'user' ? (
+              <li key={e.seq} className="from-user">
+                {e.message}
+              </li>
+            ) : (
+              <li key={e.seq} className="from-agent">
+                <Markdown>{e.message}</Markdown>
+              </li>
+            ),
+          )}
+        </ol>
+      )}
+    </section>
   )
 }
 

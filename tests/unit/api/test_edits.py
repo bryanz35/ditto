@@ -8,7 +8,7 @@ from functools import partial
 from backend.contracts.events import Event
 from backend.contracts.invariants import check_events, check_run_dir, stages_run
 from backend.contracts.parts import load_library
-from backend.contracts.runner import EditRequest, RunRequest, run_dir_for
+from backend.contracts.runner import EditRequest, NoSpec, RunRequest, run_dir_for
 from backend.contracts.spec import ProjectSpec
 from backend.runtime.replay_runner import ReplayRunner
 from backend.runtime.runs import RunEngine, read_events
@@ -147,11 +147,97 @@ async def test_edit_after_an_api_restart_still_reruns_only_what_it_affects(runs_
     assert check_events(read_events("r1")) == []
 
 
-async def test_editing_a_run_that_never_saved_a_spec_still_ends_with_done(runs_dir):
-    (runs_dir / "r1").mkdir()  # the plan failed before spec.json was written
-    engine = make_engine(CountingRunner())
+async def test_editing_a_run_that_never_saved_a_spec_restarts_it(runs_dir):
+    (
+        runs_dir / "r1"
+    ).mkdir()  # failed before spec.json (and, in older runs, request.json)
+    runner = CountingRunner()
+    engine = make_engine(runner)
     engine.edit("r1", EditRequest(instruction="make the walls 3 mm"))
     await finish(engine, "r1")
 
     last = read_events("r1")[-1]
+    assert (last.stage, last.status) == ("done", "passed")
+    assert runner.model_calls == 1  # run(), not edit()
+
+
+class FailingRunner(ReplayRunner):
+    """run() fails before saving a spec its first `failures` times, like a model API error."""
+
+    def __init__(self, failures):
+        super().__init__(delay_scale=0)
+        self.failures, self.prompts = failures, []
+
+    async def run(self, request, emit):
+        self.prompts.append(request.prompt)
+        if len(self.prompts) <= self.failures:
+            raise RuntimeError("model unavailable")
+        return await super().run(request, emit)
+
+
+async def test_a_run_that_stops_says_why_and_tries_again(runs_dir):
+    runner = FailingRunner(failures=1)
+    engine = make_engine(runner)
+    engine.start(RunRequest(run_id="r1", prompt="a plant monitor"))
+    await finish(engine, "r1")
+
+    assert len(runner.prompts) == 2
+    assert runner.prompts[1].startswith("a plant monitor\n\n")
+    assert "RuntimeError: model unavailable" in runner.prompts[1]
+    events = read_events("r1")
+    [note] = [e for e in events if e.stage == "plan" and e.data.get("attempt") == 1]
+    assert note.status == "failed"
+    assert "stopped on an error: RuntimeError: model unavailable" in note.message
+    assert "Trying again (2 of 3)" in note.message
+    assert (events[-1].stage, events[-1].status) == ("done", "passed")
+    assert check_events(events) == []
+
+
+async def test_a_run_that_keeps_stopping_gives_up_then_a_message_restarts_it(runs_dir):
+    runner = FailingRunner(failures=3)
+    engine = make_engine(runner)
+    engine.start(RunRequest(run_id="r1", prompt="a plant monitor"))
+    await finish(engine, "r1")
+    last = read_events("r1")[-1]
     assert (last.stage, last.status) == ("done", "failed")
+    assert "I tried 3 times" in last.message
+    assert len(runner.prompts) == 3
+
+    engine.edit("r1", EditRequest(instruction="try again"))
+    await finish(engine, "r1")
+    assert runner.prompts[3] == "a plant monitor\n\ntry again"
+    [said] = [e for e in read_events("r1") if e.data.get("chat") == "user"]
+    assert (said.stage, said.status, said.message) == ("plan", "queued", "try again")
+    assert read_events("r1")[-1].status == "passed"
+
+
+class AsksFirstRunner(ReplayRunner):
+    """run() ends without a spec on purpose the first time, like an agent asking what to build."""
+
+    def __init__(self):
+        super().__init__(delay_scale=0)
+        self.calls = 0
+
+    async def run(self, request, emit):
+        self.calls += 1
+        if self.calls == 1:
+            raise NoSpec("asked what to build")
+        return await super().run(request, emit)
+
+
+async def test_a_run_the_agent_ends_without_a_spec_waits_for_the_user(runs_dir):
+    runner = AsksFirstRunner()
+    engine = make_engine(runner)
+    engine.start(RunRequest(run_id="r1", prompt="a gadget"))
+    await finish(engine, "r1")
+    last = read_events("r1")[-1]
+    assert (last.stage, last.status, last.message) == (
+        "done",
+        "failed",
+        "Waiting for your reply",
+    )
+    assert runner.calls == 1  # not retried
+
+    engine.edit("r1", EditRequest(instruction="a plant monitor"))
+    await finish(engine, "r1")
+    assert read_events("r1")[-1].status == "passed"

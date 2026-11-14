@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import runJsonl from '../../fixtures/events/plant_monitor.jsonl?raw'
 import editJsonl from '../../fixtures/events/plant_monitor_edit.jsonl?raw'
 import type { Event } from './contracts'
-import { initialState, isStale, reduce, statusLine } from './state'
+import { chatTurns, initialState, isStale, reduce, statusLine } from './state'
 
 const parseJsonl = (text: string): Event[] =>
   text
@@ -76,6 +76,15 @@ describe('reduce', () => {
   it('ignores events it already has, so a replayed stream is harmless', () => {
     const half = fold(run.slice(0, 12))
     expect(fold(run, half)).toEqual(fold(run))
+  })
+})
+
+describe('chatTurns', () => {
+  it("picks the user's follow-ups and Ditto's replies, in order", () => {
+    const said = { ...run[0], seq: 900, status: 'queued', message: 'add a buzzer', data: { chat: 'user' } } as Event
+    const reply = { ...run[0], seq: 901, message: 'Added one.', data: { chat: 'agent' } } as Event
+    expect(chatTurns(fold(run))).toEqual([])
+    expect(chatTurns(fold([...run, said, reply])).map((e) => e.message)).toEqual(['add a buzzer', 'Added one.'])
   })
 })
 

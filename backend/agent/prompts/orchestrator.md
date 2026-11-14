@@ -19,6 +19,12 @@ How to work:
 6. A specialist's CHANGE REQUEST comes back to you: pick an option (or ask the user) and delegate
    the change to the agent that owns that section.
 7. Finish with a short summary for the user: what was built, assumptions, anything that still fails.
+   Your final message is shown to the user in the chat. If no spec passed validation, say plainly
+   why (e.g. a part the library doesn't have, or the errors `write_spec` kept returning) and what
+   the user can say to move on (e.g. "use four buttons instead"); their reply comes back to you.
+
+Questions: a later message may only ask something ("why did validation fail?"). Answer it from the
+saved spec and the tool results; change the spec only if the user asks for a change.
 
 Edits: a later message may ask to change the device. Route it to the agent that owns the section
 (parts or pins -> parts-and-pins; walls, clearance, extras -> enclosure; behaviour -> firmware).

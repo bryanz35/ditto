@@ -1,10 +1,11 @@
 // Project · Planning: the prompt as a chat turn and Ditto at work under it (Figma 11:142).
 import { useEffect, useState } from 'react'
+import Markdown from 'react-markdown'
 import { useSend, type Reply } from './api'
 import { Icon, type IconName } from './Icon'
 import { QuestionCard } from './panels'
 import { ago, type Recent } from './recent'
-import { statusLine, type RunState } from './state'
+import { chatTurns, statusLine, type RunState } from './state'
 import { enterSends, soon } from './ui'
 
 /** Seconds since epoch, ticking once a second. */
@@ -81,30 +82,49 @@ export function Planning({
               </p>
             </div>
           )}
-          <div className="thinking">
-            {/* shortcut: placeholder sprite from the design until the pixel-art frames exist */}
-            <div className="sprite" aria-hidden="true">
-              {Array.from({ length: 9 }, (_, i) => (
-                <span key={i} />
-              ))}
+          {chatTurns(state).map((e) =>
+            e.data.chat === 'user' ? (
+              <div key={e.seq} className="user-turn">
+                <div className="user-msg">
+                  <p>{e.message}</p>
+                </div>
+                <p className="turn-meta">You</p>
+              </div>
+            ) : (
+              <div key={e.seq} className="agent-turn">
+                <div className="md">
+                  <Markdown>{e.message}</Markdown>
+                </div>
+                <p className="turn-meta">Ditto</p>
+              </div>
+            ),
+          )}
+          {!state.done && (
+            <div className="thinking">
+              {/* shortcut: placeholder sprite from the design until the pixel-art frames exist */}
+              <div className="sprite" aria-hidden="true">
+                {Array.from({ length: 9 }, (_, i) => (
+                  <span key={i} />
+                ))}
+              </div>
+              <div className="status">
+                <p className="status-line">
+                  {statusLine(state, project, Math.floor(now / 3))}
+                </p>
+                <p className="mono">Dittoing · {clock}</p>
+                {state.todos.length > 0 && (
+                  <ul className="steps" aria-label="Plan">
+                    {state.todos.map((t) => (
+                      <li key={t.content} className={t.status}>
+                        <Icon name={TODO_ICON[t.status]} />
+                        {t.content}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
-            <div className="status">
-              <p className="status-line">
-                {statusLine(state, project, Math.floor(now / 3))}
-              </p>
-              <p className="mono">Dittoing · {clock}</p>
-              {state.todos.length > 0 && (
-                <ul className="steps" aria-label="Plan">
-                  {state.todos.map((t) => (
-                    <li key={t.content} className={t.status}>
-                      <Icon name={TODO_ICON[t.status]} />
-                      {t.content}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
+          )}
           <QuestionCard reply={reply} />
         </div>
       </div>
@@ -144,10 +164,10 @@ function Composer({ reply, done, onStop }: { reply: Reply; done: boolean; onStop
             Add image
           </button>
           <span className="spacer" />
-          {reply.question && (
+          {(reply.question || done) && (
             <button type="submit" className="btn primary" disabled={!reply.ready || !text.trim()}>
               <Icon name="arrow-up" />
-              Answer
+              {reply.question ? 'Answer' : 'Send'}
             </button>
           )}
           <button type="button" className="btn secondary" disabled={stop.sending || done} onClick={() => void stop.send(onStop)}>

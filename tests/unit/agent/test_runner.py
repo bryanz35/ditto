@@ -6,7 +6,7 @@ from langchain_core.messages import AIMessage
 from backend.agent import AgentRunner
 from backend.agent.runner import NO_ANSWER
 from backend.contracts.results import ToolError, ToolResult
-from backend.contracts.runner import AnswerRequest, EditRequest, RunRequest
+from backend.contracts.runner import AnswerRequest, EditRequest, NoSpec, RunRequest
 from backend.contracts.spec import ProjectSpec, UserContext
 from backend.tools.fakes import fake_toolbox
 from tests.unit.agent.conftest import (
@@ -82,6 +82,8 @@ async def test_run_writes_spec_firmware_and_plan_events(runs_dir, events):
     assert spec.rev == 2 and spec.prompt == PROMPT  # parts saved rev 1, enclosure rev 2
     plan = [e for e in events if e.stage == "plan"]
     assert any(e.data.get("todos") == TODOS for e in plan)
+    [reply] = [e for e in plan if e.data.get("chat") == "agent"]
+    assert reply.message == "Built your plant monitor."
     assert plan[-1].status == "passed"
     assert {(e.stage, e.status) for e in events} >= {
         ("validate", "passed"),
@@ -159,7 +161,7 @@ async def test_unanswered_question_times_out(events):
     assert NO_ANSWER in [m.content for m in orchestrator.seen[-1] if m.type == "tool"]
 
 
-async def test_failed_edit_raises_instead_of_passing(runs_dir, events):
+async def test_failed_edit_keeps_the_spec_and_says_why(runs_dir, events):
     orchestrator = run_script(
         AIMessage("", tool_calls=[task("parts-and-pins", "o5")]),
         AIMessage("Couldn't add it."),
@@ -170,16 +172,33 @@ async def test_failed_edit_raises_instead_of_passing(runs_dir, events):
     agent.run_stages.fail["validate"] = bad
     events.clear()
 
-    with pytest.raises(RuntimeError, match="no new spec"):
-        await agent.edit("r1", EditRequest(instruction="add a buzzer"), events.append)
+    spec = await agent.edit(
+        "r1", EditRequest(instruction="add a buzzer"), events.append
+    )
 
-    assert [(e.stage, e.status) for e in events][-2:] == [
-        ("validate", "failed"),
-        ("plan", "failed"),
+    assert spec == first
+    assert [(e.stage, e.status, e.data.get("chat")) for e in events][-3:] == [
+        ("validate", "failed", None),
+        ("plan", "running", "agent"),
+        ("plan", "passed", None),
     ]
+    assert events[-2].message == "Couldn't add it."
     assert agent.run_stages.calls.count("validate") == 2
     saved = ProjectSpec.model_validate_json((runs_dir / "r1/spec.json").read_text())
     assert saved == first  # the failed draft never reached spec.json
+
+
+async def test_a_run_that_ends_without_a_spec_says_why(runs_dir, events):
+    reply = "There's no joystick in the parts library: should I use four buttons?"
+    agent = runner(script(AIMessage(reply)))
+
+    with pytest.raises(NoSpec):
+        await agent.run(RunRequest(run_id="r1", prompt="a joystick"), events.append)
+
+    assert [(e.message, e.data.get("chat")) for e in events][-2:] == [
+        (reply, "agent"),
+        ("No validated spec yet", None),
+    ]
 
 
 def system_prompt(model) -> str:
