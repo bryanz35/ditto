@@ -16,3 +16,4 @@ you depend on appears here.
 | 6 | cf64363 | T12 | pins.h, PlatformIO project generation, lint (pins.h include, P2D_READY, no numeric pins), compile with parsed file:line:col errors. Golden compile verified by B-fw; on the Integrator machine Smart App Control blocks pio.exe (WinError 4551). Follow-up for B-fw (T23): compile_firmware raises OSError when pio can't be executed; should return a ToolResult error |
 | 6 | 205ea2e | T15 | Frontend shell: Vite + React app, run state from events, typed against src/contracts |
 | 6 | 0915335 | T19 | QA suite: integration pipeline (xfail per pending task), invariant helpers (pins.h/cutouts/BOM/spec_rev), e2e plant monitor + edits (live), evals skeleton. test_write_firmware_project_and_lint now XPASSes (T12 merged) |
+| 6 | f6a252a | CR#2 | pillow>=13 direct dep; P2D_TRANSCRIBE, P2D_TRANSCRIBE_MODEL, OPENAI_API_KEY in .env.example (T17). No contract change |
