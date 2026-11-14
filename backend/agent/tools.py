@@ -169,8 +169,10 @@ def make_tools(ctx: RunContext) -> dict[str, BaseTool]:
             )
 
     @tool
-    def write_firmware(main_cpp: str) -> str:
-        """Save src/main.cpp for the saved spec, then generate pins.h, lint and compile it."""
+    def write_firmware(main_cpp: str, behaviors: list[str] | None = None) -> str:
+        """Save src/main.cpp for the saved spec, then generate pins.h, lint and compile it.
+        Pass `behaviors` only when the user changed what the device does: it replaces the
+        spec's firmware.behaviors (saved if the firmware compiles)."""
         spec = ctx.load_spec()
         if spec is None:
             return (
@@ -179,7 +181,16 @@ def make_tools(ctx: RunContext) -> dict[str, BaseTool]:
         main = run_dir_for(ctx.run_id) / "firmware/src/main.cpp"
         main.parent.mkdir(parents=True, exist_ok=True)
         main.write_text(main_cpp)
-        return guarded(ctx, "firmware", ["firmware"], spec)
+        if behaviors is None or behaviors == spec.firmware.behaviors:
+            # No lock: the compile runs in parallel with the enclosure build.
+            return guarded(ctx, "firmware", ["firmware"], spec)
+        with ctx.lock:
+            spec = ctx.load_spec() or spec
+            firmware = spec.firmware.model_copy(update={"behaviors": behaviors})
+            spec = spec.model_copy(update={"rev": spec.rev + 1, "firmware": firmware})
+            return guarded(
+                ctx, "firmware", ["firmware"], spec, lambda: ctx.save_spec(spec)
+            )
 
     @tool
     def set_enclosure(

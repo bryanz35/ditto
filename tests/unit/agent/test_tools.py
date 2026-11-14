@@ -56,3 +56,16 @@ def test_schema_errors_count_as_attempts(events):
     reply = make_tools(ctx)["write_spec"].invoke({"spec_json": '{"title": "x"}'})
     assert reply.startswith("FAILED (attempt 1")
     assert events[-1].status == "failed" and events[-1].errors[0].code == "schema"
+
+
+def test_write_firmware_updates_behaviors(events):
+    ctx = _ctx(FakeStageRunner(), events)
+    tools = make_tools(ctx)
+    tools["write_spec"].invoke({"spec_json": fixture_spec_json()})
+    reply = tools["write_firmware"].invoke(
+        {"main_cpp": "// fw", "behaviors": ["beep twice when dry"]}
+    )
+    assert reply.startswith("PASSED")
+    spec = ctx.load_spec()
+    assert spec and (spec.rev, spec.firmware.behaviors) == (2, ["beep twice when dry"])
+    assert (ctx.spec_path.parent / "firmware/src/main.cpp").read_text() == "// fw"
