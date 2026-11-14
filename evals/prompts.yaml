@@ -1,0 +1,13 @@
+# Example prompts for the eval runs (T30 finishes this list). Entries with an empty prompt are skipped.
+- id: plant_monitor
+  prompt: >-
+    A plant monitor for my desk: show soil moisture, temperature and humidity on a small screen,
+    and beep when the soil gets too dry. Budget about $30.
+  user: {budget_usd: 30.0}
+- id: assistive_pill_reminder
+  prompt: >-
+    A pill reminder for my grandmother, who can't read small text: twice a day it beeps loudly
+    until she presses a big button to confirm she took her pills. Budget $25.
+  user: {budget_usd: 25.0}
+- id: makerspace
+  prompt: ""  # from the makerspace interview (H3)
