@@ -21,3 +21,4 @@ you depend on appears here.
 | 6 | 4f97b28 | CR#3 | Invariant helpers moved to backend/contracts/invariants.py (tests/integration/invariants.py re-exports). CONTRACT_VERSION 2. T21 switches its import; Q may switch to the new path |
 | 6 | b58c7f8 | T25 | Assembly preview: build_assembly writes cad/assembly.glb (enclosure + placed parts from the layout) |
 | 6 | bfdc238 | T17 | preprocess_input: images upright/flattened/capped at 1568 px; video -> up to 8 ffmpeg keyframes + transcript (P2D_TRANSCRIBE whisper/openai/off). Slow video test needs ffmpeg (not on the Integrator machine; follow-up: skip when ffmpeg is missing; ffmpeg is a system dependency make setup doesn't install) |
+| 6 | 2ab6ce1 | T18 | Parts library expanded to 19 parts (MPNs for pricing, snippets); prefetch test fixed via CR#1 |
