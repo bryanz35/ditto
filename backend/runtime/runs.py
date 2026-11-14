@@ -20,14 +20,14 @@ from functools import partial
 from pathlib import Path
 
 from backend.contracts.artifacts import ArtifactInfo, RunManifest
-from backend.contracts.base import Model
-from backend.contracts.events import Event, Stage, Status
+from backend.contracts.events import Event
 from backend.contracts.parts import load_library
 from backend.contracts.runner import (
     EditRequest,
     Emit,
     Runner,
     RunRequest,
+    RunSummary,
     StageRunner,
     run_dir_for,
     runs_root,
@@ -45,19 +45,6 @@ CANCELLED = "Cancelled by the user"
 
 class RunCancelled(Exception):
     """Raised by a cancelled pipeline's emit, so a stage thread stops at its next event."""
-
-
-# shortcut: until contract request T39-run-summary lands; then import it from contracts/runner.py
-class RunSummary(Model):
-    """One item of GET /runs (newest first by ts)."""
-
-    run_id: str
-    title: str = ""
-    """spec.title; "" until the runner saves spec.json."""
-    stage: Stage
-    status: Status
-    ts: float
-    spec_rev: int
 
 
 def read_events(run_id: str, after: int = 0) -> list[Event]:

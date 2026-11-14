@@ -11,11 +11,16 @@ from pydantic import ValidationError
 from sse_starlette import EventSourceResponse
 
 from backend.app.routers.files import existing_run_dir
-from backend.contracts.runner import AnswerRequest, EditRequest, RunRequest, run_dir_for
+from backend.contracts.runner import (
+    AnswerRequest,
+    EditRequest,
+    RunRequest,
+    RunSummary,
+    run_dir_for,
+)
 from backend.contracts.spec import UserContext
 from backend.runtime.runs import (
     RunEngine,
-    RunSummary,
     engine_from_env,
     list_runs,
     read_events,
