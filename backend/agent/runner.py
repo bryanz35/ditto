@@ -21,6 +21,7 @@ from backend.agent.orchestrator import (
     build_agent,
     house_rules,
     model_spec,
+    reference_files,
 )
 from backend.agent.tools import RunContext, make_tools
 from backend.contracts.events import Event, Question, Stage, Todo
@@ -130,7 +131,10 @@ class AgentRunner:
     async def _drive(self, ctx: RunContext, content: str | list) -> None:
         """Send one user message; stream the agent, forwarding todo updates, and answer its
         questions until it ends."""
-        files = {AGENTS_MD: create_file_data(house_rules())}
+        files = {AGENTS_MD: create_file_data(house_rules())} | {
+            path: create_file_data(src.read_text())
+            for path, src in reference_files().items()
+        }
         payload: dict | Command = {
             "messages": [{"role": "user", "content": content}],
             "files": files,

@@ -1,0 +1,841 @@
+{
+  "rev": 7,
+  "text_rev": 0,
+  "skills": {
+    "beginner": [
+      {
+        "id": "print",
+        "n": 1,
+        "kind": "print",
+        "refs": [],
+        "title": "Print the case",
+        "text": "Send base.stl and lid.stl to a 3D printer. Ditto already checked they fit your printer. It takes about 2 hours, so start this first.",
+        "needs": [
+          {
+            "qty": 1,
+            "label": "base.stl"
+          },
+          {
+            "qty": 1,
+            "label": "lid.stl"
+          }
+        ],
+        "actions": [
+          {
+            "type": "print",
+            "targets": [
+              "base",
+              "lid"
+            ]
+          }
+        ],
+        "focus": [
+          "base",
+          "lid"
+        ]
+      },
+      {
+        "id": "place:mcu",
+        "n": 2,
+        "kind": "place",
+        "refs": [
+          "mcu"
+        ],
+        "title": "Place the ESP32 board",
+        "text": "Set the ESP32 board on its 4 posts, with the USB port facing the hole in the wall. The brain. It runs your timer code, and has Wi-Fi if you want it later.",
+        "needs": [
+          {
+            "qty": 1,
+            "label": "ESP32 board"
+          }
+        ],
+        "actions": [
+          {
+            "type": "place",
+            "targets": [
+              "mcu"
+            ]
+          }
+        ],
+        "focus": [
+          "mcu"
+        ]
+      },
+      {
+        "id": "screw:mcu",
+        "n": 3,
+        "kind": "screw",
+        "refs": [
+          "mcu"
+        ],
+        "title": "Screw the ESP32 board down",
+        "text": "Add 4 small screws. Turn clockwise until snug. Too tight can crack the plastic posts.",
+        "needs": [
+          {
+            "qty": 4,
+            "label": "M2.5 screws"
+          }
+        ],
+        "actions": [
+          {
+            "type": "screw",
+            "targets": [
+              "mcu.s1",
+              "mcu.s2",
+              "mcu.s3",
+              "mcu.s4"
+            ]
+          }
+        ],
+        "focus": [
+          "mcu"
+        ]
+      },
+      {
+        "id": "place:buzz1",
+        "n": 4,
+        "kind": "place",
+        "refs": [
+          "buzz1"
+        ],
+        "title": "Place the beeper",
+        "text": "Set the beeper on its 2 posts. Beeps when a focus session ends.",
+        "needs": [
+          {
+            "qty": 1,
+            "label": "beeper"
+          }
+        ],
+        "actions": [
+          {
+            "type": "place",
+            "targets": [
+              "buzz1"
+            ]
+          }
+        ],
+        "focus": [
+          "buzz1"
+        ]
+      },
+      {
+        "id": "screw:buzz1",
+        "n": 5,
+        "kind": "screw",
+        "refs": [
+          "buzz1"
+        ],
+        "title": "Screw the beeper down",
+        "text": "Add 2 small screws. Turn clockwise until snug. Too tight can crack the plastic posts.",
+        "needs": [
+          {
+            "qty": 2,
+            "label": "M2.5 screws"
+          }
+        ],
+        "actions": [
+          {
+            "type": "screw",
+            "targets": [
+              "buzz1.s1",
+              "buzz1.s2"
+            ]
+          }
+        ],
+        "focus": [
+          "buzz1"
+        ]
+      },
+      {
+        "id": "place:oled1",
+        "n": 6,
+        "kind": "place",
+        "refs": [
+          "oled1"
+        ],
+        "title": "Place the screen",
+        "text": "Set the screen on its 4 posts. Shows the countdown big enough to read from across the desk.",
+        "needs": [
+          {
+            "qty": 1,
+            "label": "screen"
+          }
+        ],
+        "actions": [
+          {
+            "type": "place",
+            "targets": [
+              "oled1"
+            ]
+          }
+        ],
+        "focus": [
+          "oled1"
+        ]
+      },
+      {
+        "id": "screw:oled1",
+        "n": 7,
+        "kind": "screw",
+        "refs": [
+          "oled1"
+        ],
+        "title": "Screw the screen down",
+        "text": "Add 4 small screws. Turn clockwise until snug. Too tight can crack the plastic posts.",
+        "needs": [
+          {
+            "qty": 4,
+            "label": "M2.5 screws"
+          }
+        ],
+        "actions": [
+          {
+            "type": "screw",
+            "targets": [
+              "oled1.s1",
+              "oled1.s2",
+              "oled1.s3",
+              "oled1.s4"
+            ]
+          }
+        ],
+        "focus": [
+          "oled1"
+        ]
+      },
+      {
+        "id": "wire:buzz1",
+        "n": 8,
+        "kind": "wire",
+        "refs": [
+          "buzz1"
+        ],
+        "title": "Connect the beeper",
+        "text": "Push each wire onto its pin until it clicks. Match the colors below. Each color has one job, so you can check your work at a glance.",
+        "needs": [
+          {
+            "qty": 2,
+            "label": "jumper wires"
+          }
+        ],
+        "actions": [
+          {
+            "type": "wire",
+            "targets": [
+              "w.buzz1.SIG",
+              "w.buzz1.GND"
+            ]
+          }
+        ],
+        "focus": [
+          "buzz1",
+          "mcu"
+        ]
+      },
+      {
+        "id": "wire:oled1",
+        "n": 9,
+        "kind": "wire",
+        "refs": [
+          "oled1"
+        ],
+        "title": "Connect the screen",
+        "text": "Push each wire onto its pin until it clicks. Match the colors below. Each color has one job, so you can check your work at a glance.",
+        "needs": [
+          {
+            "qty": 4,
+            "label": "jumper wires"
+          }
+        ],
+        "actions": [
+          {
+            "type": "wire",
+            "targets": [
+              "w.oled1.GND",
+              "w.oled1.VCC",
+              "w.oled1.SCL",
+              "w.oled1.SDA"
+            ]
+          }
+        ],
+        "focus": [
+          "oled1",
+          "mcu"
+        ]
+      },
+      {
+        "id": "flash",
+        "n": 10,
+        "kind": "flash",
+        "refs": [
+          "mcu"
+        ],
+        "title": "Plug in & upload the code",
+        "text": "Plug the USB cable through the hole in the wall, then press Upload in Ditto. When the screen lights up, it worked!",
+        "needs": [
+          {
+            "qty": 1,
+            "label": "USB cable"
+          },
+          {
+            "qty": null,
+            "label": "Ditto \u2192 Upload"
+          }
+        ],
+        "actions": [
+          {
+            "type": "plug",
+            "targets": [
+              "usb"
+            ]
+          },
+          {
+            "type": "flash",
+            "targets": [
+              "mcu"
+            ]
+          }
+        ],
+        "focus": [
+          "usb",
+          "mcu"
+        ]
+      },
+      {
+        "id": "lid",
+        "n": 11,
+        "kind": "lid",
+        "refs": [
+          "lid"
+        ],
+        "title": "Close the lid",
+        "text": "Lay the lid on top with the window over the screen, then add the 4 corner screws.",
+        "needs": [
+          {
+            "qty": 1,
+            "label": "lid (printed)"
+          },
+          {
+            "qty": 4,
+            "label": "M2.5 screws"
+          }
+        ],
+        "actions": [
+          {
+            "type": "place",
+            "targets": [
+              "lid"
+            ]
+          },
+          {
+            "type": "screw",
+            "targets": [
+              "lid.s1",
+              "lid.s2",
+              "lid.s3",
+              "lid.s4"
+            ]
+          }
+        ],
+        "focus": [
+          "lid"
+        ]
+      }
+    ],
+    "intermediate": [
+      {
+        "id": "print",
+        "n": 1,
+        "kind": "print",
+        "refs": [],
+        "title": "Print the case",
+        "text": "Print base.stl and lid.stl in PLA at 0.2 mm layers. No supports needed.",
+        "needs": [
+          {
+            "qty": 1,
+            "label": "base.stl"
+          },
+          {
+            "qty": 1,
+            "label": "lid.stl"
+          }
+        ],
+        "actions": [
+          {
+            "type": "print",
+            "targets": [
+              "base",
+              "lid"
+            ]
+          }
+        ],
+        "focus": [
+          "base",
+          "lid"
+        ]
+      },
+      {
+        "id": "mount:mcu",
+        "n": 2,
+        "kind": "mount",
+        "refs": [
+          "mcu"
+        ],
+        "title": "Mount the ESP32 board",
+        "text": "Seat the ESP32 board on its 4 standoffs, USB toward the cutout, then 4\u00d7 M2.5 screws, snug only.",
+        "needs": [
+          {
+            "qty": 1,
+            "label": "ESP32 board"
+          },
+          {
+            "qty": 4,
+            "label": "M2.5 screws"
+          }
+        ],
+        "actions": [
+          {
+            "type": "place",
+            "targets": [
+              "mcu"
+            ]
+          },
+          {
+            "type": "screw",
+            "targets": [
+              "mcu.s1",
+              "mcu.s2",
+              "mcu.s3",
+              "mcu.s4"
+            ]
+          }
+        ],
+        "focus": [
+          "mcu"
+        ]
+      },
+      {
+        "id": "mount:buzz1",
+        "n": 3,
+        "kind": "mount",
+        "refs": [
+          "buzz1"
+        ],
+        "title": "Mount the beeper",
+        "text": "Seat the beeper on its 2 standoffs, then 2\u00d7 M2.5 screws, snug only.",
+        "needs": [
+          {
+            "qty": 1,
+            "label": "beeper"
+          },
+          {
+            "qty": 2,
+            "label": "M2.5 screws"
+          }
+        ],
+        "actions": [
+          {
+            "type": "place",
+            "targets": [
+              "buzz1"
+            ]
+          },
+          {
+            "type": "screw",
+            "targets": [
+              "buzz1.s1",
+              "buzz1.s2"
+            ]
+          }
+        ],
+        "focus": [
+          "buzz1"
+        ]
+      },
+      {
+        "id": "mount:oled1",
+        "n": 4,
+        "kind": "mount",
+        "refs": [
+          "oled1"
+        ],
+        "title": "Mount the screen",
+        "text": "Seat the screen on its 4 standoffs, then 4\u00d7 M2.5 screws, snug only.",
+        "needs": [
+          {
+            "qty": 1,
+            "label": "screen"
+          },
+          {
+            "qty": 4,
+            "label": "M2.5 screws"
+          }
+        ],
+        "actions": [
+          {
+            "type": "place",
+            "targets": [
+              "oled1"
+            ]
+          },
+          {
+            "type": "screw",
+            "targets": [
+              "oled1.s1",
+              "oled1.s2",
+              "oled1.s3",
+              "oled1.s4"
+            ]
+          }
+        ],
+        "focus": [
+          "oled1"
+        ]
+      },
+      {
+        "id": "wire:buzz1",
+        "n": 5,
+        "kind": "wire",
+        "refs": [
+          "buzz1"
+        ],
+        "title": "Connect the beeper",
+        "text": "Female\u2013female jumpers, colors as listed:",
+        "needs": [
+          {
+            "qty": 2,
+            "label": "jumper wires"
+          }
+        ],
+        "actions": [
+          {
+            "type": "wire",
+            "targets": [
+              "w.buzz1.SIG",
+              "w.buzz1.GND"
+            ]
+          }
+        ],
+        "focus": [
+          "buzz1",
+          "mcu"
+        ]
+      },
+      {
+        "id": "wire:oled1",
+        "n": 6,
+        "kind": "wire",
+        "refs": [
+          "oled1"
+        ],
+        "title": "Connect the screen",
+        "text": "Female\u2013female jumpers, colors as listed:",
+        "needs": [
+          {
+            "qty": 4,
+            "label": "jumper wires"
+          }
+        ],
+        "actions": [
+          {
+            "type": "wire",
+            "targets": [
+              "w.oled1.GND",
+              "w.oled1.VCC",
+              "w.oled1.SCL",
+              "w.oled1.SDA"
+            ]
+          }
+        ],
+        "focus": [
+          "oled1",
+          "mcu"
+        ]
+      },
+      {
+        "id": "flash",
+        "n": 7,
+        "kind": "flash",
+        "refs": [
+          "mcu"
+        ],
+        "title": "Plug in & upload the code",
+        "text": "Connect USB and press Upload. The screen shows 25:00 when it boots.",
+        "needs": [
+          {
+            "qty": 1,
+            "label": "USB cable"
+          },
+          {
+            "qty": null,
+            "label": "Ditto \u2192 Upload"
+          }
+        ],
+        "actions": [
+          {
+            "type": "plug",
+            "targets": [
+              "usb"
+            ]
+          },
+          {
+            "type": "flash",
+            "targets": [
+              "mcu"
+            ]
+          }
+        ],
+        "focus": [
+          "usb",
+          "mcu"
+        ]
+      },
+      {
+        "id": "lid",
+        "n": 8,
+        "kind": "lid",
+        "refs": [
+          "lid"
+        ],
+        "title": "Close the lid",
+        "text": "Close the lid (window over the screen) and fit 4\u00d7 M2.5 at the corners.",
+        "needs": [
+          {
+            "qty": 1,
+            "label": "lid (printed)"
+          },
+          {
+            "qty": 4,
+            "label": "M2.5 screws"
+          }
+        ],
+        "actions": [
+          {
+            "type": "place",
+            "targets": [
+              "lid"
+            ]
+          },
+          {
+            "type": "screw",
+            "targets": [
+              "lid.s1",
+              "lid.s2",
+              "lid.s3",
+              "lid.s4"
+            ]
+          }
+        ],
+        "focus": [
+          "lid"
+        ]
+      }
+    ],
+    "expert": [
+      {
+        "id": "print",
+        "n": 1,
+        "kind": "print",
+        "refs": [],
+        "title": "Print the case",
+        "text": "base.stl + lid.stl \u00b7 PLA \u00b7 0.2 mm \u00b7 no supports.",
+        "needs": [
+          {
+            "qty": 1,
+            "label": "base.stl"
+          },
+          {
+            "qty": 1,
+            "label": "lid.stl"
+          }
+        ],
+        "actions": [
+          {
+            "type": "print",
+            "targets": [
+              "base",
+              "lid"
+            ]
+          }
+        ],
+        "focus": [
+          "base",
+          "lid"
+        ]
+      },
+      {
+        "id": "mount:all",
+        "n": 2,
+        "kind": "mount",
+        "refs": [
+          "mcu",
+          "buzz1",
+          "oled1"
+        ],
+        "title": "Mount all boards",
+        "text": "Seat each board on its standoffs, USB to the cutout. M2.5 screws, snug.",
+        "needs": [
+          {
+            "qty": 1,
+            "label": "ESP32 board"
+          },
+          {
+            "qty": 1,
+            "label": "beeper"
+          },
+          {
+            "qty": 1,
+            "label": "screen"
+          },
+          {
+            "qty": 10,
+            "label": "M2.5 screws"
+          }
+        ],
+        "actions": [
+          {
+            "type": "place",
+            "targets": [
+              "mcu",
+              "buzz1",
+              "oled1"
+            ]
+          },
+          {
+            "type": "screw",
+            "targets": [
+              "mcu.s1",
+              "mcu.s2",
+              "mcu.s3",
+              "mcu.s4",
+              "buzz1.s1",
+              "buzz1.s2",
+              "oled1.s1",
+              "oled1.s2",
+              "oled1.s3",
+              "oled1.s4"
+            ]
+          }
+        ],
+        "focus": [
+          "mcu",
+          "buzz1",
+          "oled1"
+        ]
+      },
+      {
+        "id": "wire:all",
+        "n": 3,
+        "kind": "wire",
+        "refs": [
+          "buzz1",
+          "oled1"
+        ],
+        "title": "Wire it up",
+        "text": "Female\u2013female jumpers per the pinout below.",
+        "needs": [
+          {
+            "qty": 6,
+            "label": "jumper wires"
+          }
+        ],
+        "actions": [
+          {
+            "type": "wire",
+            "targets": [
+              "w.oled1.GND",
+              "w.oled1.VCC",
+              "w.oled1.SCL",
+              "w.oled1.SDA",
+              "w.buzz1.SIG",
+              "w.buzz1.GND"
+            ]
+          }
+        ],
+        "focus": [
+          "oled1",
+          "mcu",
+          "buzz1"
+        ]
+      },
+      {
+        "id": "flash",
+        "n": 4,
+        "kind": "flash",
+        "refs": [
+          "mcu"
+        ],
+        "title": "Plug in & upload the code",
+        "text": "Flash over USB; expect 25:00 on boot.",
+        "needs": [
+          {
+            "qty": 1,
+            "label": "USB cable"
+          },
+          {
+            "qty": null,
+            "label": "Ditto \u2192 Upload"
+          }
+        ],
+        "actions": [
+          {
+            "type": "plug",
+            "targets": [
+              "usb"
+            ]
+          },
+          {
+            "type": "flash",
+            "targets": [
+              "mcu"
+            ]
+          }
+        ],
+        "focus": [
+          "usb",
+          "mcu"
+        ]
+      },
+      {
+        "id": "lid",
+        "n": 5,
+        "kind": "lid",
+        "refs": [
+          "lid"
+        ],
+        "title": "Close the lid",
+        "text": "Lid on, 4\u00d7 M2.5.",
+        "needs": [
+          {
+            "qty": 1,
+            "label": "lid (printed)"
+          },
+          {
+            "qty": 4,
+            "label": "M2.5 screws"
+          }
+        ],
+        "actions": [
+          {
+            "type": "place",
+            "targets": [
+              "lid"
+            ]
+          },
+          {
+            "type": "screw",
+            "targets": [
+              "lid.s1",
+              "lid.s2",
+              "lid.s3",
+              "lid.s4"
+            ]
+          }
+        ],
+        "focus": [
+          "lid"
+        ]
+      }
+    ]
+  }
+}

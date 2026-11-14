@@ -1,0 +1,726 @@
+{
+  "rev": 7,
+  "units": "mm",
+  "frame": "web_y_up",
+  "enclosure": {
+    "template": "box_lid",
+    "inner": {
+      "l": 100.0,
+      "w": 62.0,
+      "h": 36.0
+    },
+    "wall": 2.4,
+    "floor": 2.0,
+    "lid_thickness": 2.0,
+    "color": "#ffc83d",
+    "cutouts": [
+      {
+        "face": "left",
+        "for_ref": "mcu.usb",
+        "center": [
+          0.0,
+          10.1
+        ],
+        "size": [
+          12.0,
+          9.0
+        ]
+      }
+    ],
+    "lid_openings": [
+      {
+        "for_ref": "oled1",
+        "shape": "rect",
+        "center_xz": [
+          30.0,
+          -9.5
+        ],
+        "size_xz": [
+          24.0,
+          13.0
+        ],
+        "r": null
+      },
+      {
+        "for_ref": "buzz1",
+        "shape": "circle",
+        "center_xz": [
+          30.5,
+          19.0
+        ],
+        "size_xz": null,
+        "r": 1.1
+      },
+      {
+        "for_ref": "buzz1",
+        "shape": "circle",
+        "center_xz": [
+          33.7,
+          19.0
+        ],
+        "size_xz": null,
+        "r": 1.1
+      },
+      {
+        "for_ref": "buzz1",
+        "shape": "circle",
+        "center_xz": [
+          27.3,
+          19.0
+        ],
+        "size_xz": null,
+        "r": 1.1
+      },
+      {
+        "for_ref": "buzz1",
+        "shape": "circle",
+        "center_xz": [
+          30.5,
+          22.2
+        ],
+        "size_xz": null,
+        "r": 1.1
+      },
+      {
+        "for_ref": "buzz1",
+        "shape": "circle",
+        "center_xz": [
+          30.5,
+          15.8
+        ],
+        "size_xz": null,
+        "r": 1.1
+      }
+    ],
+    "lid_screw_holes": [
+      [
+        -47.0,
+        -28.0
+      ],
+      [
+        47.0,
+        -28.0
+      ],
+      [
+        -47.0,
+        28.0
+      ],
+      [
+        47.0,
+        28.0
+      ]
+    ],
+    "standoffs": [
+      [
+        -43.9,
+        -8.5,
+        7.0
+      ],
+      [
+        -43.9,
+        8.5,
+        7.0
+      ],
+      [
+        7.9,
+        -8.5,
+        7.0
+      ],
+      [
+        7.9,
+        8.5,
+        7.0
+      ],
+      [
+        18.6,
+        -21.9,
+        32.0
+      ],
+      [
+        41.4,
+        -21.9,
+        32.0
+      ],
+      [
+        18.6,
+        1.9,
+        32.0
+      ],
+      [
+        41.4,
+        1.9,
+        32.0
+      ],
+      [
+        36.5,
+        24.5,
+        7.0
+      ],
+      [
+        36.5,
+        13.5,
+        7.0
+      ]
+    ],
+    "meshes": {}
+  },
+  "objects": [
+    {
+      "ref": "base",
+      "kind": "printed",
+      "name": "Case base (3D-printed)",
+      "reason": "Designed around these exact boards: a post under every screw hole, a hole for the USB plug.",
+      "part_id": null,
+      "parent": null,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "local_to_world": null,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "explode": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "ref": "mcu",
+      "kind": "board",
+      "name": "ESP32 DevKitC",
+      "reason": "The brain. It runs your timer code, and has Wi-Fi if you want it later.",
+      "part_id": "esp32_devkitc",
+      "parent": "base",
+      "position": [
+        -45.5,
+        7.0,
+        14.0
+      ],
+      "local_to_world": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        -1.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        -45.5,
+        7.0,
+        14.0,
+        1.0
+      ],
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "explode": [
+        0.0,
+        28.0,
+        0.0
+      ]
+    },
+    {
+      "ref": "mcu.s1",
+      "kind": "screw",
+      "name": "M2.5 \u00d7 6 mm screw",
+      "reason": "Holds the ESP32 board on its post.",
+      "part_id": null,
+      "parent": "mcu",
+      "position": [
+        -43.9,
+        8.6,
+        -8.5
+      ],
+      "local_to_world": null,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "explode": [
+        0.0,
+        46.0,
+        0.0
+      ]
+    },
+    {
+      "ref": "mcu.s2",
+      "kind": "screw",
+      "name": "M2.5 \u00d7 6 mm screw",
+      "reason": "Holds the ESP32 board on its post.",
+      "part_id": null,
+      "parent": "mcu",
+      "position": [
+        -43.9,
+        8.6,
+        8.5
+      ],
+      "local_to_world": null,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "explode": [
+        0.0,
+        46.0,
+        0.0
+      ]
+    },
+    {
+      "ref": "mcu.s3",
+      "kind": "screw",
+      "name": "M2.5 \u00d7 6 mm screw",
+      "reason": "Holds the ESP32 board on its post.",
+      "part_id": null,
+      "parent": "mcu",
+      "position": [
+        7.9,
+        8.6,
+        -8.5
+      ],
+      "local_to_world": null,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "explode": [
+        0.0,
+        46.0,
+        0.0
+      ]
+    },
+    {
+      "ref": "mcu.s4",
+      "kind": "screw",
+      "name": "M2.5 \u00d7 6 mm screw",
+      "reason": "Holds the ESP32 board on its post.",
+      "part_id": null,
+      "parent": "mcu",
+      "position": [
+        7.9,
+        8.6,
+        8.5
+      ],
+      "local_to_world": null,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "explode": [
+        0.0,
+        46.0,
+        0.0
+      ]
+    },
+    {
+      "ref": "buzz1",
+      "kind": "board",
+      "name": "Passive buzzer module",
+      "reason": "Beeps when a focus session ends.",
+      "part_id": "passive_buzzer",
+      "parent": "base",
+      "position": [
+        20.75,
+        7.0,
+        26.5
+      ],
+      "local_to_world": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        -1.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        20.75,
+        7.0,
+        26.5,
+        1.0
+      ],
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "explode": [
+        0.0,
+        34.0,
+        0.0
+      ]
+    },
+    {
+      "ref": "buzz1.s1",
+      "kind": "screw",
+      "name": "M2.5 \u00d7 6 mm screw",
+      "reason": "Holds the beeper on its post.",
+      "part_id": null,
+      "parent": "buzz1",
+      "position": [
+        36.5,
+        8.6,
+        24.5
+      ],
+      "local_to_world": null,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "explode": [
+        0.0,
+        52.0,
+        0.0
+      ]
+    },
+    {
+      "ref": "buzz1.s2",
+      "kind": "screw",
+      "name": "M2.5 \u00d7 6 mm screw",
+      "reason": "Holds the beeper on its post.",
+      "part_id": null,
+      "parent": "buzz1",
+      "position": [
+        36.5,
+        8.6,
+        13.5
+      ],
+      "local_to_world": null,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "explode": [
+        0.0,
+        52.0,
+        0.0
+      ]
+    },
+    {
+      "ref": "oled1",
+      "kind": "board",
+      "name": "0.96\" OLED screen",
+      "reason": "Shows the countdown big enough to read from across the desk.",
+      "part_id": "ssd1306_096_i2c",
+      "parent": "base",
+      "position": [
+        16.35,
+        32.0,
+        3.9
+      ],
+      "local_to_world": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        -1.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        16.35,
+        32.0,
+        3.9,
+        1.0
+      ],
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "explode": [
+        44.0,
+        22.0,
+        0.0
+      ]
+    },
+    {
+      "ref": "oled1.s1",
+      "kind": "screw",
+      "name": "M2.5 \u00d7 6 mm screw",
+      "reason": "Holds the screen on its post.",
+      "part_id": null,
+      "parent": "oled1",
+      "position": [
+        18.6,
+        33.2,
+        -21.9
+      ],
+      "local_to_world": null,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "explode": [
+        44.0,
+        40.0,
+        0.0
+      ]
+    },
+    {
+      "ref": "oled1.s2",
+      "kind": "screw",
+      "name": "M2.5 \u00d7 6 mm screw",
+      "reason": "Holds the screen on its post.",
+      "part_id": null,
+      "parent": "oled1",
+      "position": [
+        41.4,
+        33.2,
+        -21.9
+      ],
+      "local_to_world": null,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "explode": [
+        44.0,
+        40.0,
+        0.0
+      ]
+    },
+    {
+      "ref": "oled1.s3",
+      "kind": "screw",
+      "name": "M2.5 \u00d7 6 mm screw",
+      "reason": "Holds the screen on its post.",
+      "part_id": null,
+      "parent": "oled1",
+      "position": [
+        18.6,
+        33.2,
+        1.9
+      ],
+      "local_to_world": null,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "explode": [
+        44.0,
+        40.0,
+        0.0
+      ]
+    },
+    {
+      "ref": "oled1.s4",
+      "kind": "screw",
+      "name": "M2.5 \u00d7 6 mm screw",
+      "reason": "Holds the screen on its post.",
+      "part_id": null,
+      "parent": "oled1",
+      "position": [
+        41.4,
+        33.2,
+        1.9
+      ],
+      "local_to_world": null,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "explode": [
+        44.0,
+        40.0,
+        0.0
+      ]
+    },
+    {
+      "ref": "lid",
+      "kind": "printed",
+      "name": "Lid (3D-printed)",
+      "reason": "A window over the screen and small holes so you can hear the beeper.",
+      "part_id": null,
+      "parent": null,
+      "position": [
+        0.0,
+        38.0,
+        0.0
+      ],
+      "local_to_world": null,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "explode": [
+        0.0,
+        47.7,
+        0.0
+      ]
+    },
+    {
+      "ref": "lid.s1",
+      "kind": "screw",
+      "name": "M2.5 \u00d7 6 mm screw",
+      "reason": "Holds the lid on.",
+      "part_id": null,
+      "parent": "lid",
+      "position": [
+        -47.0,
+        40.0,
+        -28.0
+      ],
+      "local_to_world": null,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "explode": [
+        0.0,
+        69.7,
+        0.0
+      ]
+    },
+    {
+      "ref": "lid.s2",
+      "kind": "screw",
+      "name": "M2.5 \u00d7 6 mm screw",
+      "reason": "Holds the lid on.",
+      "part_id": null,
+      "parent": "lid",
+      "position": [
+        47.0,
+        40.0,
+        -28.0
+      ],
+      "local_to_world": null,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "explode": [
+        0.0,
+        69.7,
+        0.0
+      ]
+    },
+    {
+      "ref": "lid.s3",
+      "kind": "screw",
+      "name": "M2.5 \u00d7 6 mm screw",
+      "reason": "Holds the lid on.",
+      "part_id": null,
+      "parent": "lid",
+      "position": [
+        -47.0,
+        40.0,
+        28.0
+      ],
+      "local_to_world": null,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "explode": [
+        0.0,
+        69.7,
+        0.0
+      ]
+    },
+    {
+      "ref": "lid.s4",
+      "kind": "screw",
+      "name": "M2.5 \u00d7 6 mm screw",
+      "reason": "Holds the lid on.",
+      "part_id": null,
+      "parent": "lid",
+      "position": [
+        47.0,
+        40.0,
+        28.0
+      ],
+      "local_to_world": null,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "explode": [
+        0.0,
+        69.7,
+        0.0
+      ]
+    },
+    {
+      "ref": "usb",
+      "kind": "cable",
+      "name": "USB cable",
+      "reason": "Powers the timer and uploads the code. Already in your inventory.",
+      "part_id": null,
+      "parent": null,
+      "position": [
+        -47.0,
+        10.1,
+        0.0
+      ],
+      "local_to_world": null,
+      "axis": [
+        -1.0,
+        0.0,
+        0.0
+      ],
+      "explode": [
+        -34.0,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "print_layout": {
+    "bed_mm": [
+      256.0,
+      256.0
+    ],
+    "items": [
+      {
+        "ref": "base",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "flipped": false
+      },
+      {
+        "ref": "lid",
+        "position": [
+          0.0,
+          0.0,
+          78.8
+        ],
+        "flipped": false
+      }
+    ]
+  }
+}

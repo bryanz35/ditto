@@ -50,13 +50,13 @@ export function Overview({
   const manifest = useJson<EnclosureManifest>(urlOf('manifest'))
   const prints = printsOf(spec, manifest, urlOf)
   const assembly = urlOf('assembly_glb')
-  const [view, setView] = useState<View>('Exploded')
+  const [view, setView] = useState<View>('Assembled')
   const [reset, setReset] = useState(0)
   const [open, setOpen] = useState<string | null>(null) // part_id of the expanded row
   // one part's stores, or 'all': the cheapest store for every part still to buy
   const [buying, setBuying] = useState<BomLine | 'all' | null>(null)
   const exploded = assembly !== null && view === 'Exploded'
-  const shown = exploded ? 'assembly_glb' : prints.length ? 'manifest' : 'base_stl'
+  const shown = assembly ? 'assembly_glb' : prints.length ? 'manifest' : 'base_stl'
   const openLine = bom?.lines.find((l) => l.part_id === open) ?? null
 
   const checks = state.stages.checks
@@ -76,8 +76,13 @@ export function Overview({
               base={prints.length ? null : urlOf('base_stl')}
               lid={prints.length ? null : urlOf('lid_stl')}
               prints={prints}
-              assembly={exploded ? assembly : null}
-              selected={exploded && openLine ? { ref: openLine.refs[0], label: openLine.name } : null}
+              assembly={assembly}
+              spec={spec}
+              wiring={wiring}
+              exploded={exploded}
+              selected={assembly && openLine ? { ref: openLine.refs[0], label: openLine.name } : null}
+                                          leftInset={392}
+              bottomInset={112}
               onSelect={(ref) => setOpen(bom?.lines.find((l) => l.refs.includes(ref))?.part_id ?? null)}
             />
           </Suspense>
@@ -92,7 +97,7 @@ export function Overview({
           </button>
         </div>
         <p className="viewport-hint mono">
-          Drag to turn · Scroll to zoom{exploded && ' · Click a part to find it in the list'}
+          Drag to turn · Scroll to zoom{assembly && ' · Hover to pull it apart · Click a part to find it in the list'}
         </p>
         {staleOf(shown) && (
           <p className="stale-note viewport-stale">

@@ -1,0 +1,743 @@
+// The device in the 3D view: case, parts, wires, and their animations (overview explode, build steps).
+// Built from assembly.glb (case, lid, and one box per inside part, named by ref) plus the spec and
+// wiring.json: each box becomes a part model (parts.ts), each wiring row a jumper wire.
+// Frame: the enclosure's (mm, Z up); z = 0 is the cavity floor.
+import {
+  Box3,
+  BoxGeometry,
+  CatmullRomCurve3,
+  ConeGeometry,
+  CylinderGeometry,
+  DoubleSide,
+  EdgesGeometry,
+  Group,
+  LineBasicMaterial,
+  LineSegments,
+  Mesh,
+  MeshBasicMaterial,
+  MeshStandardMaterial,
+  Plane,
+  TubeGeometry,
+  Vector2,
+  Vector3,
+  type Material,
+  type Object3D,
+} from 'three'
+import type { ProjectSpec, Wiring, WiringRow } from '../contracts'
+import { buildPart, categoryOf, LIBRARY, pinsOf, type Category, type PartModel } from './parts'
+
+/** The bits of a build step the scene animates (guide.ts's Step has them). */
+export interface SceneStep {
+  kind: 'Print' | 'Place' | 'Wiring' | 'Code' | 'Close'
+  ref: string | null
+}
+
+// index.css --color-wire-*, by guide.ts's WIRE_COLOURS (black is lifted a little to read on the dark view)
+const WIRE_HEX: Record<WiringRow['pin_type'], string> = {
+  power: '#e5534b',
+  gnd: '#2a2b30',
+  i2c_scl: '#eab308',
+  i2c_sda: '#3b82f6',
+  analog: '#22c55e',
+  gpio: '#f97316',
+  gpio_in: '#f97316',
+  gpio_out: '#f97316',
+  spi_sck: '#a855f7',
+  spi_mosi: '#a855f7',
+  spi_miso: '#a855f7',
+  spi_cs: '#a855f7',
+  uart_tx: '#f5f5f5',
+  uart_rx: '#f5f5f5',
+  i2s_bclk: '#14b8a6',
+  i2s_ws: '#14b8a6',
+  i2s_din: '#14b8a6',
+  i2s_dout: '#14b8a6',
+  config: '#8b8b8b',
+}
+const ACCENT = '#b78ad0'
+const CASE = '#55555d'
+const CASE_EDGE = '#8d8d96'
+const LID_DROP = 45
+
+interface PartEntry {
+  ref: string
+  partId: string
+  inside: boolean
+  model: PartModel
+  holder: Group
+  home: Vector3
+  explode: Vector3
+  size: Vector3
+  outline: LineSegments<EdgesGeometry, LineBasicMaterial>
+}
+
+interface WireEntry {
+  row: WiringRow
+  group: Group
+  tube: Mesh<TubeGeometry>
+  count: number
+  ends: [Mesh, Mesh]
+}
+
+const ease = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3)
+const clamp01 = (t: number) => Math.min(1, Math.max(0, t))
+
+export class Device {
+  /** The device: case, lid, parts and wires (the camera frames this). */
+  readonly root = new Group()
+  /** Step props that come and go (USB cable, printer nozzle, arrow): not clickable, not framed. */
+  readonly extras = new Group()
+  /** Invisible box around the assembled and exploded device: hovering it explodes the overview. */
+  readonly proxy: Mesh
+  /** Invisible box the overview's camera frames: the device, and its parts exploded (not the lid). */
+  readonly frame: Mesh
+  readonly parts = new Map<string, PartEntry>()
+  private wires: WireEntry[] = []
+  private base: Mesh
+  private baseMat: MeshStandardMaterial
+  private lid: Group | null = null
+  private lidMat: MeshStandardMaterial | null = null
+  private lidHome = new Vector3()
+  private lidExplode = new Vector3()
+  private lidScrews: Group[] = []
+  private usb: Group | null = null
+  private usbDir = new Vector3()
+  private usbHome = new Vector3()
+  private lidTopZ = 0
+  private nozzle: Group
+  private arrow: Group
+  private arrowMat: MeshBasicMaterial
+  private clip = new Plane(new Vector3(0, 0, -1), 1e4)
+  private caseBox = new Box3()
+  private mcuRef: string | null = null
+  /** Underside of the case: where the floor grid goes (the cavity floor is z = 0). */
+  readonly groundZ: number
+  private owned: (Material | { dispose: () => void })[] = []
+
+  // state
+  private mode: 'overview' | 'build' = 'overview'
+  private explodeTarget = 0
+  private explode = 0
+  private hovering = false
+  private hoverRef: string | null = null
+  private selectedRef: string | null = null
+  private step: SceneStep | null = null
+  private placed = new Set<string>()
+  private wired = new Set<string>()
+  private stepClock = 0
+
+  constructor(glb: Object3D, spec: ProjectSpec | null, wiring: Wiring | null) {
+    glb.updateMatrixWorld(true)
+    const rows = wiring?.rows ?? []
+    const instances = spec ? [...(spec.mcu ? [spec.mcu] : []), ...spec.parts] : []
+    const partIdOf = new Map(instances.map((p) => [p.ref, p.part_id]))
+    const custom = new Map((spec?.custom_parts ?? []).map((p) => [p.id, p]))
+    const catOf = (id: string): Category => (LIBRARY[id] ? categoryOf(id) : (custom.get(id)?.category ?? 'sensor'))
+    this.mcuRef = spec?.mcu?.ref ?? null
+
+    // case
+    const meshIn = (name: string) => {
+      let found: Mesh | undefined
+      glb.getObjectByName(name)?.traverse((o) => {
+        if (!found && o instanceof Mesh) found = o
+      })
+      return found
+    }
+    const baseNode = meshIn('base')
+    const lidNode = meshIn('lid')
+    this.baseMat = new MeshStandardMaterial({
+      color: CASE,
+      roughness: 0.8,
+      side: DoubleSide,
+      clippingPlanes: [this.clip],
+    })
+    this.base = new Mesh(baseNode ? baseNode.geometry.clone() : new BoxGeometry(1, 1, 1), this.baseMat)
+    if (baseNode) this.base.applyMatrix4(baseNode.matrixWorld)
+    this.base.add(
+      new LineSegments(
+        new EdgesGeometry(this.base.geometry, 30),
+        new LineBasicMaterial({
+          color: CASE_EDGE,
+          transparent: true,
+          opacity: 0.5,
+          clippingPlanes: [this.clip],
+        }),
+      ),
+    )
+    this.root.add(this.base)
+    this.caseBox.setFromObject(this.base)
+    this.groundZ = this.caseBox.min.z
+    const caseTop = this.caseBox.max.z
+    if (lidNode) {
+      // the lid STL is in its closed position; assembly.glb only lifts its node
+      this.lidMat = new MeshStandardMaterial({
+        color: CASE,
+        roughness: 0.8,
+        side: DoubleSide,
+        transparent: true,
+        opacity: 0.3,
+        depthWrite: false,
+      })
+      const lid = new Mesh(lidNode.geometry.clone(), this.lidMat)
+      lid.add(
+        new LineSegments(
+          new EdgesGeometry(lid.geometry, 30),
+          new LineBasicMaterial({
+            color: CASE_EDGE,
+            transparent: true,
+            opacity: 0.45,
+          }),
+        ),
+      )
+      this.lid = new Group()
+      this.lid.add(lid)
+      this.root.add(this.lid)
+      const lb = new Box3().setFromObject(lid)
+      this.lidTopZ = lb.max.z
+      for (const [sx, sy] of [
+        [1, 1],
+        [-1, 1],
+        [1, -1],
+        [-1, -1],
+      ]) {
+        const s = screw(this.std('#b9bec6', 0.75))
+        s.position.set(sx > 0 ? lb.max.x - 4 : lb.min.x + 4, sy > 0 ? lb.max.y - 4 : lb.min.y + 4, lb.max.z)
+        this.lid.add(s)
+        this.lidScrews.push(s)
+      }
+    }
+
+    // inside parts: one box per ref in assembly.glb
+    const boxes: {
+      ref: string
+      partId: string
+      center: Vector3
+      size: Vector3
+    }[] = []
+    glb.traverse((o) => {
+      if (!(o instanceof Mesh) || o === baseNode || o === lidNode || boxes.some((b) => b.ref === o.name)) return
+      const geo = o.geometry
+      geo.computeBoundingBox()
+      const bb = geo.boundingBox as Box3
+      const partId = (o.userData.part_id as string | undefined) ?? partIdOf.get(o.name)
+      if (!partId) return
+      boxes.push({
+        ref: o.name,
+        partId,
+        center: o.localToWorld(bb.getCenter(new Vector3())),
+        size: bb.getSize(new Vector3()),
+      })
+    })
+    if (!this.mcuRef) this.mcuRef = boxes.find((b) => catOf(b.partId) === 'mcu')?.ref ?? null
+    const mcuBox = boxes.find((b) => b.ref === this.mcuRef)
+    const caseCenter = this.caseBox.getCenter(new Vector3())
+
+    const add = (ref: string, partId: string, center: Vector3, size: Vector3, inside: boolean, toward: Vector2) => {
+      const used = rows.filter((r) => r.part_ref === ref).map((r) => r.part_pin)
+      const mcuUsed = ref === this.mcuRef ? rows.map((r) => r.mcu_pin) : []
+      const lib = LIBRARY[partId]
+      const pins =
+        custom.has(partId) && !lib
+          ? [...(custom.get(partId)?.pins.map((p) => p.name) ?? []), ...used]
+          : pinsOf(partId, [...used, ...mcuUsed])
+      const model = buildPart(partId, catOf(partId), size, toward, [...new Set(pins)])
+      const holder = new Group()
+      holder.position.copy(center)
+      holder.add(model.root)
+      holder.userData.ref = ref
+      const outline = new LineSegments(
+        new EdgesGeometry(new BoxGeometry(size.x + 2, size.y + 2, size.z + 2)),
+        new LineBasicMaterial({
+          color: ACCENT,
+          transparent: true,
+          opacity: 1,
+          depthTest: false,
+        }),
+      )
+      outline.renderOrder = 10
+      outline.visible = false
+      outline.raycast = () => {}
+      holder.add(outline)
+      this.root.add(holder)
+      this.parts.set(ref, {
+        ref,
+        partId,
+        inside,
+        model,
+        holder,
+        home: center.clone(),
+        explode: new Vector3(),
+        size,
+        outline,
+      })
+    }
+
+    const towardMcu = (c: Vector3) =>
+      mcuBox ? new Vector2(mcuBox.center.x - c.x, mcuBox.center.y - c.y).normalize() : new Vector2(0, -1)
+    const towardWall = (c: Vector3) => {
+      const d = [
+        [c.x - this.caseBox.min.x, -1, 0],
+        [this.caseBox.max.x - c.x, 1, 0],
+        [c.y - this.caseBox.min.y, 0, -1],
+        [this.caseBox.max.y - c.y, 0, 1],
+      ].sort((a, b) => a[0] - b[0])[0]
+      return new Vector2(d[1], d[2])
+    }
+    for (const b of boxes)
+      add(b.ref, b.partId, b.center, b.size, true, b.ref === this.mcuRef ? towardWall(b.center) : towardMcu(b.center))
+
+    // parts outside the case (mounting: external) have no box: lay them on the floor behind it, pins
+    // towards the case (behind, they don't hide the inside from the default camera)
+    let y = this.caseBox.max.y + 12
+    for (const p of spec?.parts ?? []) {
+      if (this.parts.has(p.ref)) continue
+      const def = custom.get(p.part_id)
+      const mm = LIBRARY[p.part_id]?.mm ?? (def ? [def.board_mm.l, def.board_mm.w, def.board_mm.h] : [25, 20, 8])
+      const size = new Vector3(Math.max(mm[0], mm[1]), Math.min(mm[0], mm[1]), mm[2])
+      const center = new Vector3(caseCenter.x, y + size.y / 2, this.caseBox.min.z + size.z / 2)
+      y += size.y + 10
+      add(p.ref, p.part_id, center, size, false, new Vector2(0, -1))
+    }
+
+    // exploded view: each part lifts (in order, the board lowest) and spreads out from the middle
+    let rank = 0
+    let top = 0
+    for (const e of [...this.parts.values()].sort((a, b) =>
+      a.ref === this.mcuRef ? -1 : b.ref === this.mcuRef ? 1 : 0,
+    )) {
+      if (!e.inside) {
+        e.explode.set(18, 0, 8)
+        continue
+      }
+      const spread = new Vector3(e.home.x - caseCenter.x, e.home.y - caseCenter.y, 0).multiplyScalar(0.45)
+      e.explode.set(spread.x, spread.y, 26 + 11 * rank++)
+      top = Math.max(top, e.explode.z + e.size.z)
+    }
+    this.lidExplode.set(0, 0, top + 18)
+
+    // wires: a jumper per wiring row, from the board's pin to the part's pin
+    const mcu = this.mcuRef ? this.parts.get(this.mcuRef) : undefined
+    const taken = new Set<string>()
+    const worldPin = (e: PartEntry, at: Vector3) => at.clone().add(e.home)
+    const byPart = new Map<string, number>()
+    for (const row of rows) {
+      const part = this.parts.get(row.part_ref)
+      if (!part || !mcu) continue
+      const pp = part.model.pins.find((p) => p.name === row.part_pin)
+      if (!pp) continue
+      const to = worldPin(part, pp.at)
+      // "GND" may be any of several header pins: take the nearest one still free
+      const cands = mcu.model.pins
+        .map((p, i) => ({ p, i, w: worldPin(mcu, p.at) }))
+        .filter((c) => c.p.name === row.mcu_pin)
+        .sort(
+          (a, b) =>
+            Number(taken.has(`${a.i}`)) - Number(taken.has(`${b.i}`)) || a.w.distanceTo(to) - b.w.distanceTo(to),
+        )
+      const from = cands[0]?.w ?? mcu.home.clone().setZ(mcu.home.z + mcu.size.z / 2)
+      if (cands[0]) taken.add(`${cands[0].i}`)
+      const k = byPart.get(row.part_ref) ?? 0
+      byPart.set(row.part_ref, k + 1)
+      this.wires.push(this.buildWire(row, from, to, k, part.inside ? caseTop - 1.2 : null))
+    }
+
+    // USB cable for the code step: plug from the board's socket out through the nearest wall
+    if (mcu?.model.usb) {
+      const at = mcu.model.usb.at.clone().add(mcu.home)
+      const dir = mcu.model.usb.dir.clone()
+      this.usbDir.copy(dir)
+      const wall =
+        dir.x > 0.5
+          ? this.caseBox.max.x - at.x
+          : dir.x < -0.5
+            ? at.x - this.caseBox.min.x
+            : dir.y > 0.5
+              ? this.caseBox.max.y - at.y
+              : at.y - this.caseBox.min.y
+      const g = new Group()
+      const metal = new Mesh(new BoxGeometry(wall + 2, 7, 2.4), this.std('#c9ccd2', 0.6))
+      metal.position.set((wall + 2) / 2, 0, 0)
+      const boot = new Mesh(new BoxGeometry(13, 11, 7), this.std('#2b2d31'))
+      boot.position.set(wall + 2 + 6.5, 0, 0)
+      const groundZ = this.caseBox.min.z - at.z + 1.6
+      const pts = [
+        [wall + 13, 0, 0],
+        [wall + 22, 0, 0],
+        [wall + 34, 4, groundZ * 0.5],
+        [wall + 50, 10, groundZ],
+        [wall + 70, 14, groundZ],
+      ].map(([x, y, z]) => new Vector3(x, y, z))
+      const cable = new Mesh(new TubeGeometry(new CatmullRomCurve3(pts), 60, 1.6, 10), this.std('#2b2d31'))
+      g.add(metal, boot, cable)
+      g.position.copy(at)
+      this.usbHome.copy(at)
+      g.rotation.z = Math.atan2(dir.y, dir.x)
+      g.visible = false
+      this.usb = g
+      this.extras.add(g)
+    }
+
+    // helpers: the printer nozzle (print step) and the arrow over a part being placed
+    this.nozzle = new Group()
+    const tip = new Mesh(new ConeGeometry(2.2, 4, 18).rotateX(-Math.PI / 2), this.std('#d4a640', 0.6))
+    tip.position.z = 2
+    const head = new Mesh(new BoxGeometry(12, 12, 9), this.std('#c9ccd2', 0.5))
+    head.position.z = 8.5
+    this.nozzle.add(tip, head)
+    this.nozzle.visible = false
+    this.arrowMat = new MeshBasicMaterial({
+      color: ACCENT,
+      transparent: true,
+      depthTest: false,
+    })
+    this.owned.push(this.arrowMat)
+    this.arrow = new Group()
+    const cone = new Mesh(new ConeGeometry(4, 7, 24).rotateX(-Math.PI / 2), this.arrowMat)
+    cone.position.z = 3.5
+    const shaft = new Mesh(new CylinderGeometry(1.5, 1.5, 11, 16).rotateX(Math.PI / 2), this.arrowMat)
+    shaft.position.z = 12.5
+    this.arrow.add(cone, shaft)
+    this.arrow.renderOrder = 11
+    this.arrow.visible = false
+    this.extras.add(this.nozzle, this.arrow)
+    this.extras.traverse((c) => (c.raycast = () => {}))
+
+    // camera frame: assembled and exploded extents together; the hover target adds the raised lid
+    const all = new Box3().setFromObject(this.root)
+    for (const e of this.parts.values())
+      all.union(new Box3().setFromCenterAndSize(e.home.clone().add(e.explode), e.size))
+    this.frame = new Mesh(
+      new BoxGeometry(...all.getSize(new Vector3()).toArray()),
+      new MeshBasicMaterial({ visible: false }),
+    )
+    this.frame.position.copy(all.getCenter(new Vector3()))
+    this.frame.raycast = () => {}
+    this.owned.push(this.frame.material as Material, this.frame.geometry)
+    if (this.lid) all.expandByPoint(this.caseBox.max.clone().add(this.lidExplode))
+    this.proxy = new Mesh(
+      new BoxGeometry(...all.getSize(new Vector3()).toArray()),
+      new MeshBasicMaterial({ visible: false }),
+    )
+    this.proxy.position.copy(all.getCenter(new Vector3()))
+    this.owned.push(this.proxy.material as Material)
+
+    this.setOverview(false)
+  }
+
+  private std(color: string, metal = 0) {
+    const m = new MeshStandardMaterial({
+      color,
+      roughness: metal ? 0.35 : 0.6,
+      metalness: metal,
+    })
+    this.owned.push(m)
+    return m
+  }
+
+  private buildWire(row: WiringRow, from: Vector3, to: Vector3, k: number, cap: number | null): WireEntry {
+    const g = new Group()
+    const up = (p: Vector3, dz: number) => p.clone().add(new Vector3(0, 0, dz))
+    const p0 = up(from, 2)
+    const p4 = up(to, 2)
+    const spread = (k - 1.5) * 1.6
+    const side = new Vector3(-(p4.y - p0.y), p4.x - p0.x, 0).normalize().multiplyScalar(spread)
+    const lim = (z: number) => (cap === null ? z : Math.min(cap, z))
+    let pts: Vector3[]
+    if (cap !== null) {
+      const p1 = up(p0, 3)
+      p1.z = lim(p1.z)
+      const p3 = up(p4, 3)
+      p3.z = lim(p3.z)
+      const p2 = p0.clone().lerp(p4, 0.5).add(side)
+      p2.z = lim(Math.max(p1.z, p3.z) + 3 + Math.abs(spread))
+      pts = [p0, p1, p2, p3, p4]
+    } else {
+      // outside part: out through the cable hole in the wall between them (the guide's "feed the cable in")
+      const hole = this.wallCrossing(p0, p4)
+      const inside = hole.clone().lerp(p0, 0.25)
+      pts = [p0, up(p0, 3), inside.add(side), hole.add(side), up(p4, 6), p4]
+    }
+    const curve = new CatmullRomCurve3(pts, false, 'centripetal')
+    const tube = new Mesh(new TubeGeometry(curve, 90, 0.6, 8, false), this.std(WIRE_HEX[row.pin_type] ?? '#8b8b8b'))
+    const housing = (p: Vector3) => {
+      const m = new Mesh(new BoxGeometry(2.5, 2.5, 6), this.std('#151618'))
+      m.position.copy(p).setZ(p.z - 1)
+      return m
+    }
+    const ends: [Mesh, Mesh] = [housing(from), housing(to)]
+    g.add(tube, ...ends)
+    g.userData.wire = `${row.part_ref}.${row.part_pin}`
+    this.root.add(g)
+    return {
+      row,
+      group: g,
+      tube,
+      count: tube.geometry.index?.count ?? 0,
+      ends,
+    }
+  }
+
+  private wallCrossing(a: Vector3, b: Vector3) {
+    // where the straight line from the pin inside to the part outside leaves the case, at mid-wall height
+    const m = this.caseBox
+    let t = 1
+    for (const [p0, p1, lo, hi] of [
+      [a.x, b.x, m.min.x, m.max.x],
+      [a.y, b.y, m.min.y, m.max.y],
+    ]) {
+      if (p1 > hi) t = Math.min(t, (hi - p0) / (p1 - p0))
+      if (p1 < lo) t = Math.min(t, (lo - p0) / (p1 - p0))
+    }
+    return a
+      .clone()
+      .lerp(b, t)
+      .setZ(m.min.z + 0.6 * (m.max.z - m.min.z))
+  }
+
+  /** Overview: everything in place, lid see-through; `exploded` holds the parts apart. */
+  setOverview(exploded: boolean) {
+    this.mode = 'overview'
+    this.step = null
+    this.explodeTarget = exploded ? 1 : 0
+    this.lockExploded = exploded
+  }
+
+  private lockExploded = false
+
+  setHover(on: boolean) {
+    this.hovering = on
+  }
+
+  setHoverPart(ref: string | null) {
+    this.hoverRef = ref
+  }
+
+  setSelected(ref: string | null) {
+    this.selectedRef = ref
+  }
+
+  /** Build guide: the scene as it is during `steps[index]`, with that step's animation looping. */
+  setBuild(steps: SceneStep[], index: number) {
+    this.mode = 'build'
+    this.step = steps[index] ?? null
+    const before = steps.slice(0, index)
+    this.placed = new Set(before.filter((s) => s.kind === 'Place' && s.ref).map((s) => s.ref as string))
+    this.wired = new Set(before.filter((s) => s.kind === 'Wiring' && s.ref).map((s) => s.ref as string))
+    // a part no step places is just there
+    const mentioned = new Set(steps.filter((s) => s.kind === 'Place').map((s) => s.ref))
+    for (const ref of this.parts.keys()) if (!mentioned.has(ref)) this.placed.add(ref)
+    if (this.step && (this.step.kind === 'Code' || this.step.kind === 'Close')) {
+      for (const ref of this.parts.keys()) this.placed.add(ref)
+      for (const w of this.wires) this.wired.add(w.row.part_ref)
+    }
+    this.stepClock = 0
+    this.explode = 0
+    this.explodeTarget = 0
+  }
+
+  /** Restart the current step's animation. */
+  replay() {
+    this.stepClock = 0
+  }
+
+  /** Where a part's label goes: just over its top, wherever it is right now. */
+  anchorOf(ref: string): Vector3 | null {
+    const e = this.parts.get(ref)
+    if (!e || !e.holder.visible) return null
+    return e.holder.position.clone().setZ(e.holder.position.z + e.size.z / 2 + 3)
+  }
+
+  /** The part ref an object in the scene belongs to, if any. */
+  refOf(o: Object3D | null): string | null {
+    for (let n = o; n; n = n.parent) if (typeof n.userData.ref === 'string') return n.userData.ref
+    return null
+  }
+
+  update(dt: number) {
+    if (this.mode === 'overview') this.updateOverview(dt)
+    else this.updateBuild(dt)
+  }
+
+  private ghost(on: boolean) {
+    this.baseMat.transparent = on
+    this.baseMat.opacity = on ? 0.4 : 1
+    this.baseMat.depthWrite = !on
+  }
+
+  private drawWire(w: WireEntry, t: number) {
+    const n = Math.floor((w.count * clamp01(t)) / 3) * 3
+    w.tube.geometry.setDrawRange(0, n)
+    w.ends[0].visible = t > 0
+    w.ends[1].visible = t >= 0.98
+  }
+
+  private power(state: 'off' | 'upload' | 'on', p = 0) {
+    // screens show the upload's progress, like the spike (a real one stays dark until the code runs)
+    for (const e of this.parts.values()) e.model.setPower(state, p)
+  }
+
+  private updateOverview(dt: number) {
+    const target = this.lockExploded || this.hovering ? 1 : 0
+    this.explodeTarget = target
+    this.explode += (this.explodeTarget - this.explode) * (1 - Math.exp(-dt * 6))
+    const x = ease(this.explode)
+    this.clip.constant = 1e4
+    this.ghost(false)
+    this.nozzle.visible = false
+    this.arrow.visible = false
+    if (this.usb) this.usb.visible = false
+    for (const e of this.parts.values()) {
+      e.holder.visible = true
+      e.holder.rotation.z = 0
+      e.holder.position.copy(e.home).addScaledVector(e.explode, x)
+      e.outline.visible = e.ref === this.selectedRef || e.ref === this.hoverRef
+      e.outline.material.opacity = e.ref === this.selectedRef ? 1 : 0.5
+    }
+    for (const w of this.wires) {
+      w.group.visible = this.explode < 0.04
+      this.drawWire(w, 1)
+    }
+    if (this.lid && this.lidMat) {
+      this.lid.visible = true
+      this.lid.position.copy(this.lidHome).addScaledVector(this.lidExplode, x)
+      this.lidMat.opacity = 0.3
+      this.lidMat.transparent = true
+      this.lidMat.depthWrite = false
+      for (const s of this.lidScrews) {
+        s.visible = this.explode < 0.04
+        s.position.z = this.lidTopZ
+        s.rotation.z = 0
+      }
+    }
+    this.power('on')
+  }
+
+  private updateBuild(dt: number) {
+    const step = this.step
+    if (!step) return
+    this.stepClock += dt
+    const DUR: Record<SceneStep['kind'], number> = {
+      Print: 4,
+      Place: 1.2,
+      Wiring: Math.max(1, this.wires.filter((w) => w.row.part_ref === step.ref).length * 0.75),
+      Code: 3.2,
+      Close: 2.2,
+    }
+    const period = DUR[step.kind] + (step.kind === 'Code' ? 2.6 : 1.8)
+    const t = this.stepClock % period
+    const now = this.stepClock
+
+    this.clip.constant = 1e4
+    this.nozzle.visible = false
+    this.arrow.visible = false
+    this.ghost(step.kind === 'Place' || step.kind === 'Wiring' || step.kind === 'Code')
+
+    // parts: placed ones sit at home; the step's part drops in
+    for (const e of this.parts.values()) {
+      const current = step.kind === 'Place' && step.ref === e.ref
+      e.holder.visible = step.kind !== 'Print' && (this.placed.has(e.ref) || current)
+      e.holder.position.copy(e.home)
+      e.holder.rotation.z = 0
+      const focus = step.ref === e.ref && step.kind !== 'Code'
+      e.outline.visible = focus
+      e.outline.material.opacity = 0.55 + 0.45 * Math.abs(Math.sin(now * 2.4))
+      if (current) {
+        const k = ease(t / DUR.Place)
+        const lift = 40 * (1 - k)
+        if (e.inside) e.holder.position.z += lift
+        else e.holder.position.x += lift
+        e.holder.rotation.z = 0.4 * (1 - k)
+        this.arrow.visible = t < DUR.Place
+        this.arrowMat.opacity = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.5
+        this.arrow.position.set(
+          e.holder.position.x,
+          e.holder.position.y,
+          e.holder.position.z + e.size.z / 2 + 6 + 2 * Math.sin(now * 8),
+        )
+      }
+    }
+
+    // wires: earlier steps' are in; the step's own are pushed on one after another
+    const mine = this.wires.filter((w) => step.kind === 'Wiring' && w.row.part_ref === step.ref)
+    for (const w of this.wires) {
+      const i = mine.indexOf(w)
+      if (i >= 0) {
+        w.group.visible = true
+        this.drawWire(w, (t - i * 0.75) / 0.7)
+      } else {
+        w.group.visible = this.wired.has(w.row.part_ref)
+        this.drawWire(w, 1)
+      }
+    }
+
+    // USB and power
+    if (this.usb) {
+      this.usb.visible = step.kind === 'Code' || step.kind === 'Close'
+      const k = step.kind === 'Code' ? ease(t / 0.9) : 1
+      this.usb.position.copy(this.usbHome).addScaledVector(this.usbDir, 30 * (1 - k))
+    }
+    if (step.kind === 'Code') {
+      const p = clamp01((t - 1) / (DUR.Code - 1))
+      if (t < 1) this.power('off')
+      else if (p < 1) this.power('upload', p)
+      else this.power('on')
+    } else this.power(step.kind === 'Close' ? 'on' : 'off')
+
+    // lid
+    if (this.lid && this.lidMat) {
+      this.lid.visible = step.kind === 'Close'
+      this.lidMat.transparent = false
+      this.lidMat.opacity = 1
+      this.lidMat.depthWrite = true
+      const k = ease(t / 1.1)
+      this.lid.position.copy(this.lidHome).setZ(this.lidHome.z + LID_DROP * (1 - k))
+      this.lidScrews.forEach((s, i) => {
+        const ks = ease((t - 1.1 - i * 0.12) / 0.8)
+        s.visible = t > 1.1 + i * 0.12
+        s.position.z = this.lidTopZ + 8 * (1 - ks)
+        s.rotation.z = -ks * Math.PI * 6
+      })
+    }
+
+    // printing: the base grows layer by layer under the nozzle
+    if (step.kind === 'Print') {
+      const k = clamp01(t / DUR.Print)
+      const z0 = this.caseBox.min.z
+      const z1 = this.caseBox.max.z
+      this.clip.constant = z0 + (z1 - z0 + 0.5) * k
+      this.nozzle.visible = k < 1
+      const c = this.caseBox.getCenter(new Vector3())
+      const sx = (this.caseBox.max.x - this.caseBox.min.x) / 2
+      const sy = (this.caseBox.max.y - this.caseBox.min.y) / 2
+      this.nozzle.position.set(c.x + sx * Math.sin(now * 6.1), c.y + sy * Math.sin(now * 1.7), this.clip.constant + 0.2)
+    }
+  }
+
+  dispose() {
+    const geos = new Set<{ dispose: () => void }>()
+    for (const o of [this.root, this.extras, this.proxy]) {
+      o.traverse((c) => {
+        if (c instanceof Mesh || c instanceof LineSegments) {
+          geos.add(c.geometry)
+          const mats = Array.isArray(c.material) ? c.material : [c.material]
+          for (const m of mats) geos.add(m)
+        }
+      })
+    }
+    for (const e of this.parts.values()) for (const m of e.model.mats) geos.add(m)
+    for (const m of this.owned) geos.add(m)
+    for (const g of geos) g.dispose()
+  }
+}
+
+function screw(m: MeshStandardMaterial) {
+  const g = new Group()
+  const head = new Mesh(new CylinderGeometry(2.2, 2.2, 1.6, 20).rotateX(Math.PI / 2), m)
+  head.position.z = 0.8
+  const slot = new Mesh(new BoxGeometry(3.2, 0.55, 0.5), new MeshStandardMaterial({ color: '#3b3f45' }))
+  slot.position.z = 1.62
+  const slot2 = slot.clone()
+  slot2.rotation.z = Math.PI / 2
+  g.add(head, slot, slot2)
+  return g
+}

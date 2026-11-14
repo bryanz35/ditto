@@ -10,17 +10,22 @@ vi.mock('./Viewer3D', () => ({
     base,
     lid,
     assembly,
+    exploded,
+    build,
     selected,
     onSelect,
   }: {
     base: string | null
     lid: string | null
     assembly: string | null
+    exploded?: boolean
+    build?: { steps: { kind: string; ref: string | null }[]; index: number } | null
     selected: { ref: string; label: string } | null
     onSelect?: (ref: string) => void
   }) => (
     <div data-testid="viewer">
-      {base} {lid} {assembly} {selected && `label:${selected.ref}`}
+      {base} {lid} {assembly} {exploded && 'exploded'} {build && `step:${build.steps[build.index].kind}`}{' '}
+      {selected && `label:${selected.ref}`}
       <button type="button" onClick={() => onSelect?.('oled1')}>
         click oled1
       </button>
@@ -365,17 +370,18 @@ describe('Overview', () => {
     expect(within(all).queryByText(/BME280/)).toBeNull()
   })
 
-  it('switches between the exploded assembly and the closed case, and finds a clicked part in the list', async () => {
+  it('draws the assembly, explodes it on request, and finds a clicked part in the list', async () => {
     openRun().emit(lines)
     const viewer = await screen.findByTestId('viewer')
     expect(viewer.textContent).toContain('/api/runs/plant_monitor/files/cad/assembly.glb')
+    expect(viewer.textContent).not.toContain('exploded')
     fireEvent.click(screen.getByRole('button', { name: 'click oled1' }))
     const row = screen.getByRole('button', { name: /OLED/ }).closest('li')!
     expect(row.getAttribute('aria-expanded')).toBe('true')
     expect(viewer.textContent).toContain('label:oled1')
-    fireEvent.click(screen.getByRole('button', { name: 'Assembled' }))
-    expect(screen.getByTestId('viewer').textContent).not.toContain('assembly.glb')
-    expect(screen.getByTestId('viewer').textContent).toContain('/api/runs/plant_monitor/files/cad/lid.stl')
+    fireEvent.click(screen.getByRole('button', { name: 'Exploded' }))
+    expect(screen.getByTestId('viewer').textContent).toContain('assembly.glb')
+    expect(screen.getByTestId('viewer').textContent).toContain('exploded')
   })
 
   it('shows only the case when there is no assembly preview', async () => {
