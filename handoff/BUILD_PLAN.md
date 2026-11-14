@@ -130,7 +130,7 @@ flowchart LR
   T13 & T14 --> T37[T37 User profile]
   T16 --> T38[T38 Store offers]
   T22 --> T39[T39 Run list + cancel]
-  T20 --> T33[T33 Docs + Devpost]
+  T20 & T37 & T38 & T39 & T40 --> T33[T33 Docs + Devpost, last]
   T20 --> T34[T34 Stretch: tscircuit preview]
   T30 & T31 & T36 & T33 --> T35[T35 Release check]
   T25 & T26 -. if required by mode .-> T35
@@ -155,7 +155,7 @@ Put your fastest agents and closest human attention on T13, T11 and T20.
 | --- | --- | --- | --- | --- |
 | **I** Integrator | T00, T01, then merges, contract changes, T20 | main checkout | `main` | Person A |
 | **B-validate** | T10 → T21 | `../<repo>-T10-validators` | `feat/T10-validators`, `feat/T21-cross-checks` | Person C |
-| **B-agent** | T13 → T33 → T37 | `../<repo>-T13-agent` | `feat/T13-agent`, `feat/T33-docs` | Person A |
+| **B-agent** | T13 → T37 → T33 | `../<repo>-T13-agent` | `feat/T13-agent`, `feat/T33-docs` | Person A |
 | **B-cad** | T11 → T25 → T34 | `../<repo>-T11-cad` | `feat/T11-cad`, `feat/T25-assembly`, `feat/T34-tscircuit` | Person B |
 | **B-parts** | T18 → T26 | `../<repo>-T18-parts` | `feat/T18-parts`, `feat/T26-simulation` | Person B |
 | **B-fw** | T12 → T23 → T31 | `../<repo>-T12-firmware` | `feat/T12-firmware`, … | Person C |
@@ -201,7 +201,7 @@ the usual bottleneck by hour 14.
 | T30 | Evals and demo cache | 3 | T20, T21, T22, H3 | Q | R | I | Eval report | 4 h |
 | T31 | Showcase device (placeholder) | 3 | H2, T12, T14 (T26 in mode V) | B-fw | R | I | Slow compile + mode check (section 0) | 4–6 h |
 | T32 | ~~Inventory and explain UI~~ superseded by T36 | — | — | — | — | — | — | — |
-| T33 | Docs and Devpost | 3 | T20 | B-agent | R + human | humans | Links and commands work | 2 h |
+| T33 | Docs and Devpost (last) | 4 | T20, T37–T40 | B-agent | R + human | humans | Links and commands work | 2 h |
 | T34 | Stretch: tscircuit board preview | 3 | T20 | B-cad | R | B-web | Per card | opt. |
 | T36 | UI merge: Ditto V2 design (absorbs T32) | 3 | T16, T24 | B-web | R | Q | Vitest | 6 h |
 | T37 | User profile: skill level and name | 4 | T13, T14 | B-agent | R | B-web | Unit | 2 h |
@@ -650,7 +650,7 @@ inventory and explain UI. Its acceptance item moved to T36.
 
 ### T33 · Docs and Devpost
 
-- **Agent:** B-agent · **Depends on:** T20
+- **Agent:** B-agent · **Depends on:** T20, T37, T38, T39, T40 (docs come last, so they describe the finished product)
 - **Owns:** `README.md`, `docs/`
 - **Build:** README (what it does, target user, setup, example prompts, limits), `docs/ARCHITECTURE.md`
   (diagram and the alignment rules), Devpost draft with notes for the Physical AI, Amazon and deepagents tracks.

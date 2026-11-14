@@ -43,7 +43,7 @@ and permissions, answer questions, and do the few human-only tasks.
 
 | Person | Sessions they run (in order over the weekend) | Also responsible for |
 | --- | --- | --- |
-| **A** | Integrator (all weekend) · B-agent: T13 → T33 → T37 | Contract review at G0, hardware check (H0) |
+| **A** | Integrator (all weekend) · B-agent: T13 → T37 → T33 | Contract review at G0, hardware check (H0) |
 | **B** | B-cad: T11 → T25 → T34 · B-parts: T18 → T26 · Reviewer (all weekend) | Measuring parts (H1), printing (H4) |
 | **C** | B-api: T14 → T22 → T39 · B-fw: T12 → T23 → T31 · B-validate: T10 → T21 | Showcase device choice (H2) and wiring |
 | **D** | B-web: T15 → T24 → T36 → T40 · B-bom: T16 → T17 → T38 · QA: T19 → T30 | Makerspace interview (H3), demo video, Devpost |
@@ -250,7 +250,7 @@ For reference, the order is:
 | Agent | Tasks in order | Person |
 | --- | --- | --- |
 | Integrator | T00 → T01 → T20 (integration, in the main folder after `/clear`) | A |
-| B-agent | T13 → T33 → T37 | A |
+| B-agent | T13 → T37 → T33 | A |
 | B-cad | T11 → T25 → T34 (optional) | B |
 | B-parts | T18 → T26 | B |
 | Reviewer | reviews all weekend → T35 (release check, after `/clear`) | B |
