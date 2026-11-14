@@ -7,12 +7,12 @@ import { initialState, reduce, type RunState } from './state'
 export const fileUrl = (runId: string, path: string, version: number) =>
   `/api/runs/${encodeURIComponent(runId)}/files/${path}?v=${version}`
 
-/** `user` is the saved memory (owned parts, budget): the run plans around it. */
-export async function startRun(prompt: string, files: File[], user: UserContext | null): Promise<string> {
+/** `user` is the saved memory (owned parts, budget) and the chosen skill level: the run plans around it. */
+export async function startRun(prompt: string, files: File[], user: Partial<UserContext>): Promise<string> {
   const body = new FormData()
   body.append('prompt', prompt)
   for (const file of files) body.append('files', file)
-  if (user) body.append('user_context', JSON.stringify(user))
+  body.append('user_context', JSON.stringify(user))
   const res = await fetch('/api/runs', { method: 'POST', body })
   if (!res.ok) throw new Error(`Starting the run failed (${res.status}): ${await res.text()}`)
   return ((await res.json()) as { run_id: string }).run_id

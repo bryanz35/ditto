@@ -6,11 +6,21 @@ import { projectIcon, soon } from './ui'
 
 export type Page = 'home' | 'parts'
 
+/** "Ada Lovelace" -> "AL" */
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('')
+
 export function Shell({
   page,
   runId,
   recent,
   kit,
+  name,
   onPage,
   onOpen,
   children,
@@ -20,6 +30,8 @@ export function Shell({
   recent: Recent[]
   /** Parts in the saved inventory, null until the memory has loaded. */
   kit: number | null
+  /** UserContext.name from the memory, if the user gave one. */
+  name: string | null
   onPage: (page: Page) => void
   /** Opens a recent project, or the Start screen for null. */
   onOpen: (runId: string | null) => void
@@ -88,14 +100,11 @@ export function Shell({
         <span className="spacer" />
         <hr />
         <div className="account">
-          {/* shortcut: no user name in the API; T37 adds one */}
-          <span className="avatar" {...soon('T37')}>
-            ME
+          <span className="avatar" aria-hidden="true">
+            {name ? initials(name) : 'ME'}
           </span>
           <span className="who">
-            <span className="name" {...soon('T37')}>
-              Your kit
-            </span>
+            <span className="name">{name ?? 'Your kit'}</span>
             <span className="detail">{kit === null ? 'Parts you own' : `${kit} part${kit === 1 ? '' : 's'} in your kit`}</span>
           </span>
           <button type="button" className="icon-btn" aria-label="Account" {...soon(null)}>

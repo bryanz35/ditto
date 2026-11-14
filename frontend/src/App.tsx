@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Build } from './Build'
 import { answerQuestion, editRun, fileUrl, getMemory, putMemory, startRun, useJson, useReply, useRun } from './api'
 import type { ProjectSpec, UserContext } from './contracts'
 import { MyParts } from './MyParts'
@@ -28,7 +29,7 @@ export default function App() {
     setPage('home')
   }
   const start = async (prompt: string, files: File[]) => {
-    const id = await startRun(prompt, files, memory)
+    const id = await startRun(prompt, files, { ...memory, level: level.toLowerCase() as UserContext['level'] })
     note({ id, title: prompt.trim().slice(0, 60), prompt, files: files.map((f) => ({ name: f.name, size: f.size })), level, status: 'Planning…', at: Date.now() })
     open(id)
   }
@@ -43,7 +44,7 @@ export default function App() {
     await save({ ...now, owned: { ...now.owned, [partId]: (now.owned[partId] ?? 0) + 1 } })
   }
   const kit = memory && Object.values(memory.owned).reduce((a, b) => a + b, 0)
-  const shell = { page, runId, recent, kit, onPage: setPage, onOpen: open }
+  const shell = { page, runId, recent, kit, name: memory?.name ?? null, onPage: setPage, onOpen: open }
 
   if (page === 'parts') {
     return (
@@ -95,6 +96,7 @@ function Workspace({
 }) {
   const { state, connection, reconnect } = useRun(runId)
   const [details, setDetails] = useState(false)
+  const [building, setBuilding] = useState(false)
   const urlOf = (name: string) => {
     const a = state.artifacts[name]
     return a ? fileUrl(runId, a.path, a.seq) : null
@@ -138,6 +140,9 @@ function Workspace({
     <Details state={state} urlOf={urlOf} staleOf={staleOf} onClose={() => setDetails(false)} />
   )
 
+  if (planned && building) {
+    return <Build runId={runId} title={title} spec={spec} urlOf={urlOf} onBack={() => setBuilding(false)} onExit={onExit} />
+  }
   if (planned) {
     return (
       <>
@@ -150,6 +155,7 @@ function Workspace({
           reply={reply}
           onOwn={onOwn}
           onDetails={() => setDetails(true)}
+          onBuild={() => setBuilding(true)}
           onExit={onExit}
         />
         {banner}

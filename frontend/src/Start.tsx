@@ -4,7 +4,7 @@ import { useSend } from './api'
 import ditto from './assets/ditto.png'
 import { Icon, Segmented } from './Icon'
 import { LEVELS, type Level } from './recent'
-import { enterSends, soon } from './ui'
+import { enterSends } from './ui'
 
 export function Start({
   level,
@@ -68,8 +68,7 @@ export function Start({
             <span className="vdivider" />
             <span className="level">
               I am a
-              {/* shortcut: the level is kept with the project but not sent; T37 adds UserContext.level */}
-              <Segmented label="Skill level" options={LEVELS} value={level} onChange={onLevel} title={soon('T37').title} />
+              <Segmented label="Skill level" options={LEVELS} value={level} onChange={onLevel} />
             </span>
             <span className="spacer" />
             <button type="submit" className="btn primary" disabled={sending || !prompt.trim()}>
