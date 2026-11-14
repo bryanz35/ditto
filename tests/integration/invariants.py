@@ -220,7 +220,7 @@ def check_bom(bom: Bom, spec: ProjectSpec, lib: PartLibrary) -> list[str]:
     budget = spec.user.budget_usd
     if bom.budget_usd != budget:
         problems.append(f"bom: budget_usd {bom.budget_usd}, spec says {budget}")
-    over = budget is not None and bom.total_usd > budget + TOL
+    over = budget is not None and bom.total_usd > budget + 1e-9  # one cent over is over
     if bom.over_budget != over:
         problems.append(
             f"bom: over_budget {bom.over_budget} with total {bom.total_usd} and budget {budget}"

@@ -56,9 +56,11 @@ def main_cpp() -> str:
     return (RUN / "firmware" / "src" / "main.cpp").read_text()
 
 
-def assert_artifacts(result, names: set[str], out_dir: Path) -> dict[str, Path]:
-    """The tool succeeded and wrote the named artifacts inside out_dir."""
-    assert result.ok, result.errors
+def assert_artifacts(
+    result, names: set[str], out_dir: Path, ok: bool = True
+) -> dict[str, Path]:
+    """The tool returned `ok` and wrote the named artifacts inside out_dir."""
+    assert result.ok is ok, result.errors
     assert names <= set(result.artifacts), result.artifacts
     paths = {name: Path(result.artifacts[name]) for name in names}
     for name, path in paths.items():
@@ -70,14 +72,12 @@ def assert_artifacts(result, names: set[str], out_dir: Path) -> dict[str, Path]:
 # --- validate (T10) --------------------------------------------------------------------------------
 
 
-@xfail("T10 (validators)")
 def test_validate_plant_monitor(tools, lib, spec):
     result = tools.validate_spec(spec, lib)
     assert result.ok, result.errors
     assert [e for e in result.errors if e.severity == "error"] == []
 
 
-@xfail("T10 (validators)")
 @pytest.mark.parametrize("path", INVALID, ids=[p.stem for p in INVALID])
 def test_validate_invalid_spec_fails_with_its_code(tools, lib, path):
     result = tools.validate_spec(ProjectSpec.model_validate_json(path.read_text()), lib)
@@ -89,7 +89,6 @@ def test_validate_invalid_spec_fails_with_its_code(tools, lib, path):
 # --- layout and enclosure (T11), assembly (T25) -----------------------------------------------------
 
 
-@xfail("T11 (layout)")
 def test_compute_layout(tools, lib, spec, tmp_path):
     outputs = []
     for run in ("a", "b"):
@@ -117,7 +116,6 @@ ENCLOSURE_FILES = {"base_stl", "base_step", "lid_stl", "lid_step", "manifest"}
 
 
 @pytest.mark.slow
-@xfail("T11 (enclosure)")
 def test_build_enclosure(tools, lib, spec, tmp_path):
     layout = real_layout(tools, lib, spec, tmp_path)
     result = tools.build_enclosure(spec, layout, lib, tmp_path)
@@ -129,7 +127,6 @@ def test_build_enclosure(tools, lib, spec, tmp_path):
 
 
 @pytest.mark.slow
-@xfail("T11 (enclosure check)")
 def test_check_enclosure_generic_printer(tools, lib, spec, tmp_path):
     layout = real_layout(tools, lib, spec, tmp_path)
     assert tools.build_enclosure(spec, layout, lib, tmp_path).ok
@@ -217,22 +214,21 @@ def no_network():
         yield
 
 
-def price(tools, lib, spec, out: Path) -> Bom:
+def price(tools, lib, spec, out: Path, ok: bool = True) -> Bom:
+    """ok=False: over budget is a failed check, but the BOM is still written."""
     result = tools.price_bom(spec, lib, None, out)
-    path = assert_artifacts(result, {"bom_json"}, out)["bom_json"]
+    path = assert_artifacts(result, {"bom_json"}, out, ok)["bom_json"]
     bom = Bom.model_validate_json(path.read_text())
     assert Bom.model_validate(result.data) == bom
     assert inv.check_bom(bom, spec, lib) == []
     return bom
 
 
-@xfail("T16 (pricing)")
 def test_price_bom(tools, lib, spec, tmp_path, no_network):
     bom = price(tools, lib, spec, tmp_path)
     assert all(line.unit_price_usd is not None for line in bom.lines), bom.lines
 
 
-@xfail("T16 (pricing)")
 def test_price_bom_owned_part_is_free(tools, lib, spec, tmp_path, no_network):
     spec.user.owned = {"bme280_breakout": 1}
     bom = price(tools, lib, spec, tmp_path)
@@ -240,16 +236,15 @@ def test_price_bom_owned_part_is_free(tools, lib, spec, tmp_path, no_network):
     assert (line.owned_qty, line.line_total_usd) == (1, 0.0)
 
 
-@xfail("T16 (pricing)")
 def test_price_bom_budget_boundary(tools, lib, spec, tmp_path, no_network):
     total = price(tools, lib, spec, tmp_path / "a").total_usd
     spec.user.budget_usd = total
     assert price(tools, lib, spec, tmp_path / "b").over_budget is False
     spec.user.budget_usd = total - 0.01
-    assert price(tools, lib, spec, tmp_path / "c").over_budget is True
+    assert price(tools, lib, spec, tmp_path / "c", ok=False).over_budget is True
 
 
-# --- cross-checks (T21) and the whole chain (T14) --------------------------------------------------
+# --- cross-checks (T21) and the whole chain through run_stages --------------------------------------------------
 
 
 @xfail("T21 (cross-checks)")
@@ -260,7 +255,7 @@ def test_cross_checks_accept_fixture_run(tools, lib, spec, tmp_path):
 
 
 @pytest.mark.slow
-@xfail("every tool behind run_stages: T10, T11, T12, T16, T21, T25, T26")
+@xfail("the remaining tools behind run_stages: T12, T21, T25, T26")
 def test_full_chain_through_run_stages(
     tools, lib, spec, tmp_path, monkeypatch, no_network
 ):
