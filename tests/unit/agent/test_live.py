@@ -32,3 +32,31 @@ async def test_plant_monitor_spec_passes_validation(events):
         pytest.skip("validate_spec isn't implemented yet (T10)")
     assert result.ok, result.errors
     assert any(e.data.get("todos") for e in events if e.stage == "plan")
+
+
+async def test_level_changes_explanations(capsys):
+    """T37: the same prompt at beginner and expert gives visibly different reasons."""
+    if not (os.environ.get("P2D_MODEL") and os.environ.get("ANTHROPIC_API_KEY")):
+        pytest.skip("needs P2D_MODEL and ANTHROPIC_API_KEY in .env")
+    prompt = json.loads(FIXTURE_SPEC.read_text())["prompt"]
+    reasons = {}
+    for level in ("beginner", "expert"):
+        runner = AgentRunner(
+            fake_toolbox(), None, FakeStageRunner(), question_timeout_s=1
+        )
+        user = UserContext(budget_usd=30, level=level)
+        spec = await runner.run(
+            RunRequest(run_id=f"live-{level}", prompt=prompt, user=user), lambda e: None
+        )
+        assert spec.user.level == level
+        reasons[level] = [p.reason for p in [spec.mcu, *spec.parts]] + [
+            c.reason for c in spec.connections if c.reason
+        ]
+        with capsys.disabled():
+            print(f"\n--- {level} ---", *reasons[level], sep="\n")
+
+    def mean_len(texts: list[str]) -> float:
+        return sum(map(len, texts)) / len(texts)
+
+    assert reasons["beginner"] != reasons["expert"]
+    assert mean_len(reasons["beginner"]) > mean_len(reasons["expert"])
