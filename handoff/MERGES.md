@@ -36,3 +36,4 @@ you depend on appears here.
 13:35 e3798ca T38 store offers: price_bom fills BomLine.offers (one per seller, cheapest first)
 13:56 44480c8 T40 build guide: Start building opens step-by-step guide; T37 level/name connected. T38/T39 placeholders still soon(): B-web follow-up branch (RUNBOOK wave 4 step 4)
 14:02 db72d42 T39 run list + cancel: GET /runs (RunSummary), POST /runs/{id}/cancel; replays keep cad/manifest.json
+14:10 16a0d80 T40 follow-up (feat/T40-hookups): T38 offers + Buy all, T39 Stop + server-side Recent connected; approved per human, merged off-board (T40 already marked merged)
