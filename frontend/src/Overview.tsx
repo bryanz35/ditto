@@ -5,7 +5,7 @@ import { useJson, useSend, type Reply } from './api'
 import type { Bom, BomLine, BomOffer, EnclosureManifest, Event, ProjectSpec, Wiring } from './contracts'
 import { Icon, Segmented } from './Icon'
 import { Badge, QuestionCard, type UrlOf } from './panels'
-import { chatTurns, statusLine, type RunState } from './state'
+import { chatTurns, statusLine, turnUsage, type RunState } from './state'
 import { partIcon, printsOf, soon, usd } from './ui'
 
 // three.js is big; load it only when the overview first renders.
@@ -150,6 +150,7 @@ export function Overview({
           turns={turns}
           pending={reply.pending}
           status={working ? statusLine(state, spec?.title ?? null) : null}
+          usage={working ? turnUsage(state) : null}
           shown={chatShown}
           onFold={() => setChatShown(!chatShown)}
         />
@@ -472,12 +473,14 @@ function ChatPanel({
   turns,
   pending,
   status,
+  usage,
   shown,
   onFold,
 }: {
   turns: Event[]
   pending: string | null
   status: string | null
+  usage: { since: number; tokens: number | null } | null
   shown: boolean
   onFold: () => void
 }) {
@@ -485,6 +488,12 @@ function ChatPanel({
   useEffect(() => {
     if (log.current) log.current.scrollTop = log.current.scrollHeight
   }, [turns.length, pending, status, shown])
+  const [now, setNow] = useState(() => Date.now() / 1000)
+  useEffect(() => {
+    if (!usage) return
+    const id = setInterval(() => setNow(Date.now() / 1000), 1000)
+    return () => clearInterval(id)
+  }, [usage])
   if (turns.length === 0 && pending === null) return null
   return (
     <section className={`chat-panel${shown ? '' : ' folded'}`}>
@@ -512,6 +521,12 @@ function ChatPanel({
             <li className="working" role="status">
               <span className="sprite" aria-hidden="true" />
               {status}
+              {usage && (
+                <span className="mono usage">
+                  {elapsed(now - usage.since)}
+                  {usage.tokens !== null && ` · ${tokenCount(usage.tokens)} tokens`}
+                </span>
+              )}
             </li>
           )}
         </ol>
@@ -576,3 +591,11 @@ function Dock({ reply, onSend, onBuild }: { reply: Reply; onSend: () => void; on
     </div>
   )
 }
+
+/** 75 -> "1m 15s" */
+const elapsed = (s: number) => {
+  const t = Math.max(0, Math.floor(s))
+  return t < 60 ? `${t}s` : `${Math.floor(t / 60)}m ${t % 60}s`
+}
+/** 12345 -> "12.3k" */
+const tokenCount = (n: number) => (n < 1000 ? `${n}` : `${(n / 1000).toFixed(1)}k`)

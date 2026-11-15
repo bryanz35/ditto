@@ -133,6 +133,16 @@ export function isStale(state: RunState, name: string): boolean {
 export const chatTurns = (state: RunState): Event[] =>
   state.log.filter((e) => e.data.chat === 'user' || e.data.chat === 'agent')
 
+/** The agent's current turn, for the chat status line: when the user's latest message arrived
+ * (Unix s) and the tokens the agent has used on it so far (data.tokens), or null if none yet. */
+export function turnUsage(state: RunState): { since: number; tokens: number | null } | null {
+  const turn = chatTurns(state).at(-1)
+  if (turn?.data.chat !== 'user') return null
+  const last = state.log.findLast((e) => e.seq > turn.seq && e.data.tokens)
+  const t = last?.data.tokens as { input: number; output: number } | undefined
+  return { since: turn.ts, tokens: t ? t.input + t.output : null }
+}
+
 const GENERIC = ['Dittoing…', 'Planning…', 'Thinking it through…']
 // Plain words for a stage, for "Fixing a problem with the …".
 const NOUN: Partial<Record<Stage, string>> = {
