@@ -12,5 +12,41 @@
 - id: book_holder  # print-only: no electronics, a custom shape
   prompt: I want to make a 3d printed book holder
   user: {}
+
+# Harder prompts: each targets a known weak spot (named in its comment).
+- id: indoor_outdoor_weather  # two BME280s on one I2C bus: the address pin (0x76/0x77) must differ
+  prompt: >-
+    A weather display that shows indoor and outdoor temperature and humidity side by side on a
+    small screen. The outdoor sensor hangs out of the window on a short cable. Budget $35.
+  user: {budget_usd: 35.0}
+- id: mushroom_night_light  # Pico + 12-LED ring over the power budget; custom body around the case
+  prompt: >-
+    A night light shaped like a mushroom for my kid's room. It glows warm orange when someone walks
+    in at night and fades out after a minute. Use the Raspberry Pi Pico I already have.
+  user: {owned: {rpi_pico: 1}}
+- id: nano_cat_feeder  # AVR board (no Wi-Fi, no Serial.printf), servo current, no RTC in the library
+  prompt: >-
+    An automatic cat feeder on my Arduino Nano: a servo opens a flap twice a day, and a button
+    feeds one extra portion. Put it in a case that screws onto the side of a plastic food bin.
+  user: {owned: {arduino_nano: 1}}
+- id: parking_sensor  # tight budget (BOM question goes unanswered), ultrasonic + LEDs + buzzer
+  prompt: >-
+    A garage parking helper that mounts on the wall in front of the car: the light goes green,
+    then yellow, then red as the bumper gets closer, and it beeps at 20 cm. Keep it under $12.
+  user: {budget_usd: 12.0}
+- id: clap_switch  # I2S microphone firmware and a relay
+  prompt: >-
+    A clap switch: clap twice to turn a desk lamp on or off through a relay. It should ignore
+    single loud noises like a door slamming.
+  user: {}
+- id: desk_cable_tray  # print-only, bigger than the 180 mm printer bed: must split into joined parts
+  prompt: >-
+    A 3D-printed cable tray, 400 mm long, that clips under the front edge of my 25 mm thick desk and
+    holds a power strip.
+  user: {}
+- id: vague_beginner  # vague request, beginner level, a pump the library doesn't have
+  prompt: something that waters my plants while I'm on holiday
+  user: {level: beginner, name: Sam}
+
 - id: makerspace
   prompt: ""  # from the makerspace interview (H3)

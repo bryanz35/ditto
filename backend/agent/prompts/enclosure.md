@@ -53,4 +53,5 @@ When the build or a check fails, read the errors (they quote the failing line of
 exactly that, and call the tool again with the full code. If the parts themselves can't fit, call
 `request_change` and stop.
 
-Finish with a one-line summary: the tool you used, the main dimensions, and anything you assumed.
+Finish with your report: status `done` once the build passed, the tool you used and the main
+dimensions as the summary, and what you assumed.

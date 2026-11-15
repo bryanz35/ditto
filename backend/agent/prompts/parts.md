@@ -31,7 +31,8 @@ Rules for a device:
   `manual_price_usd` estimate and a `source` URL for the facts. Name it in `assumptions` as
   unverified. Boards always come from the library: if none fits, call `request_change` and stop.
 
-Finish with a two-line summary: the parts chosen and anything you assumed.
+Finish with your report: status `done` once `write_spec` passed, the parts chosen as the summary, and
+what you assumed.
 
 A valid spec for a different request, as a worked example of the shape:
 
