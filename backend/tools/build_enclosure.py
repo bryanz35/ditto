@@ -12,7 +12,7 @@ from pathlib import Path
 from backend.contracts.artifacts import CutoutRecord, EnclosureManifest
 from backend.contracts.parts import PartLibrary
 from backend.contracts.results import ToolError, ToolResult
-from backend.contracts.spec import Layout, ProjectSpec
+from backend.contracts.spec import Layout, ProjectSpec, mounting
 from backend.tools.layout import LIP_MM, _r, inside_parts
 
 CABLE_HOLE_MM = 6.0
@@ -45,9 +45,7 @@ def enclosure_manifest(
                     size_mm=f.size_mm,
                 )
             )
-    external = sorted(
-        p.ref for p in spec.instances if lib.get(p.part_id).mounting == "external"
-    )
+    external = sorted(p.ref for p in spec.instances if mounting(p, lib) == "external")
     for i, ref in enumerate(external):
         cutouts.append(
             CutoutRecord(

@@ -20,7 +20,7 @@ import trimesh
 from backend.contracts.artifacts import EnclosureManifest
 from backend.contracts.parts import PartDef, PartLibrary
 from backend.contracts.results import ToolError, ToolResult
-from backend.contracts.spec import Layout, ProjectSpec
+from backend.contracts.spec import Layout, ProjectSpec, mounting
 
 LID_LIFT_MM = 20.0
 CATEGORY_COLORS = {
@@ -60,7 +60,7 @@ def build_assembly(
     placed = sorted(p.ref for p in layout.placements)
     known = all(p.part_id in lib for p in insts.values())
     inside = (
-        sorted(r for r, p in insts.items() if lib.get(p.part_id).mounting == "inside")
+        sorted(r for r, p in insts.items() if mounting(p, lib) == "inside")
         if known
         else None
     )

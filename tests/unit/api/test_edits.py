@@ -126,6 +126,30 @@ def change_behaviour(spec: ProjectSpec) -> ProjectSpec:
     return spec.model_copy(update={"firmware": fw})
 
 
+class FailedDraftRunner(CountingRunner):
+    """An edit whose enclosure draft fails its checks, so nothing is saved."""
+
+    async def edit(self, run_id, request, emit):
+        self.model_calls += 1
+        spec = ProjectSpec.model_validate_json(
+            (run_dir_for(run_id) / "spec.json").read_text()
+        )
+        emit(
+            Event(
+                run_id=run_id, stage="enclosure", status="failed", spec_rev=spec.rev + 1
+            )
+        )
+        return spec
+
+
+async def test_failed_unsaved_draft_does_not_rerun_the_saved_stages(runs_dir):
+    events, _ = await run_then_edit(FailedDraftRunner(), runs_dir)
+
+    assert stale(events) == set()
+    assert stages_run(events) == {"checks"}
+    assert events[-1].status == "passed"
+
+
 async def test_stage_the_runner_already_passed_at_the_new_rev_is_skipped(runs_dir):
     runner = CountingRunner(change_behaviour, firmware_passed=True)
     events, _ = await run_then_edit(runner, runs_dir)
