@@ -7,7 +7,8 @@ viewer can place parts straight from the layout. Imported lazily: importing buil
 box_lid_shapes() also returns the bay (the closed box's outer solid), the keep-out (cavity, the
 lid's path and a tunnel out of every wall opening), which a custom body built around the bay must
 leave empty, and the lid's top plate, the only part of the lid a custom model may cut
-(backend/cad/run_model.py).
+(backend/cad/run_model.py). opening_paths() and path_exits() give the space each opening needs
+outside the case, which run_model keeps a custom device's extra parts out of.
 """
 
 from pathlib import Path
@@ -28,6 +29,16 @@ REACH_MM = 1000.0
 CABLE_REACH_MM = 15.0
 """A cable hole needs room for the cable to bend, not a plug's straight path: a stand built
 further out stays solid."""
+EXIT_MM = 1.0
+"""Thickness of the slabs path_exits() lays on the sides of a cable hole's path."""
+TOWARD_CASE = {
+    "top": (2, 0),
+    "front": (1, 1),
+    "back": (1, 0),
+    "left": (0, 1),
+    "right": (0, 0),
+}
+"""The side of an opening's path that touches the case: (axis, 0 for its min side or 1 for max)."""
 # Fixed, so the same spec gives the same STEP file.
 STEP_TIMESTAMP = "2000-01-01T00:00:00"
 
@@ -51,6 +62,46 @@ def _tunnel(c: CutoutRecord, L: float, W: float) -> Shape:
         return Pos(u, y, v) * Box(w, reach, h)
     x = -reach / 2 if c.face == "left" else L + reach / 2
     return Pos(x, u, v) * Box(reach, w, h)
+
+
+def _bay(L: float, W: float, H: float, wall: float) -> Shape:
+    return Pos(-wall, -wall, -wall) * Box(
+        L + 2 * wall, W + 2 * wall, H + 2 * wall, align=MIN
+    )
+
+
+def opening_paths(
+    cavity: tuple[float, float, float], wall: float, cutouts: list[CutoutRecord]
+) -> list[tuple[CutoutRecord, Shape]]:
+    """Outside the closed case, the space each opening needs clear: straight up from a lid opening,
+    straight out of a wall opening (a cable hole: its first CABLE_REACH_MM past the inner wall)."""
+    L, W, H = cavity
+    bay = _bay(L, W, H, wall)
+    paths = []
+    for c in cutouts:
+        if c.face == "top":
+            (u, v), (w, h) = c.center_mm, c.size_mm
+            path = Pos(u, v, H) * Box(w, h, REACH_MM, align=BOTTOM)
+        else:
+            path = _tunnel(c, L, W)
+        paths.append((c, path - bay))
+    return paths
+
+
+def path_exits(c: CutoutRecord, path: Shape) -> list[Shape]:
+    """EXIT_MM slabs on every side of an opening's path but the one against the case: a cable
+    leaves its hole's path through one of them."""
+    bb = path.bounding_box()
+    lo, hi = (bb.min.X, bb.min.Y, bb.min.Z), (bb.max.X, bb.max.Y, bb.max.Z)
+    slabs = []
+    for k in range(3):
+        for side in (0, 1):
+            if (k, side) == TOWARD_CASE[c.face]:
+                continue
+            a, b = list(lo), list(hi)
+            a[k], b[k] = (hi[k], hi[k] + EXIT_MM) if side else (lo[k] - EXIT_MM, lo[k])
+            slabs.append(Pos(*a) * Box(*(y - x for x, y in zip(a, b)), align=MIN))
+    return slabs
 
 
 def box_lid_shapes(
@@ -102,9 +153,7 @@ def box_lid_shapes(
             (u, v), (w, h) = c.center_mm, c.size_mm
             lid -= Pos(u, v, H) * Box(w, h, 2 * (wall + LIP_MM) + 2)
 
-    bay = Pos(-wall, -wall, -wall) * Box(
-        L + 2 * wall, W + 2 * wall, H + 2 * wall, align=MIN
-    )
+    bay = _bay(L, W, H, wall)
     keepout = Box(L, W, REACH_MM, align=MIN)  # the cavity, open upward
     keepout += Pos(-wall, -wall, H) * Box(  # the lid and the way it lifts off
         L + 2 * wall, W + 2 * wall, REACH_MM, align=MIN

@@ -202,12 +202,12 @@ def test_cable_hole_clears_room_for_the_cable_not_a_slot_through_the_stand(
 
     from backend.tools.layout import layout_parts
 
-    block = (  # 40 mm of stand behind the back wall
+    stand = (  # 40 mm of stand behind the back wall, up to the cable hole's centre (z H/2)
         "from build123d import *\nL, W, H = CAVITY_MM\nw = WALL_MM\n"
-        "body = Pos(-w, W + w - 1, -w) * Box(L + 2 * w, 40, H + w, "
+        "body = Pos(-w, W + w - 1, -w) * Box(L + 2 * w, 40, {top} + w, "
         "align=(Align.MIN,) * 3)"
     )
-    spec = device_with(block)
+    spec = device_with(stand.format(top="H / 2"))
     layout, _ = layout_parts(spec, lib)
     result = build_custom_model(spec, layout, lib, tmp_path)
     assert result.ok, result.errors
@@ -216,8 +216,16 @@ def test_cable_hole_clears_room_for_the_cable_not_a_slot_through_the_stand(
     )
     (u, v), W, w = cable["center_mm"], layout.cavity_mm[1], spec.enclosure.wall_mm
     base = import_step(tmp_path / "base.step")
-    assert not base.is_inside((u, W + w + 5, v))  # room behind the hole
-    assert base.is_inside((u, W + w + 30, v))  # the stand further back stays solid
+    assert not base.is_inside((u, W + w + 5, v - 1))  # room behind the hole
+    assert base.is_inside((u, W + w + 30, v - 1))  # the stand further back stays solid
+
+    # As tall as the case, the stand closes the hole's room in on every side: a dead end.
+    error = build_custom_model(
+        device_with(stand.format(top="H")), layout, lib, tmp_path
+    )
+    assert [e.code for e in error.errors] == ["not_assembled"]
+    assert "soil1's cable opening in the back wall" in error.errors[0].message
+    assert "walled in on every side by base" in error.errors[0].message
 
 
 @pytest.mark.slow
@@ -310,7 +318,12 @@ def test_device_parts_and_mounts_are_assembled_in_build_order(tmp_path, lib):
         (
             ("Pos(0, W + WALL_MM + 6, 10)", "Pos(-2, -2, -2)"),
             "not_assembled",
-            "overlap",
+            "in the assembled device, within x ",
+        ),
+        (
+            ('"knob": Pos(L / 2, W / 2,', '"knob": Pos(69.3, 29.5,'),  # on the screen
+            "not_assembled",
+            "knob blocks oled1's display_window opening in the lid",
         ),
     ],
 )
