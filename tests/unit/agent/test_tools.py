@@ -114,8 +114,11 @@ def test_print_only_project_gets_its_shape_from_write_model(events):
     assert "no electronics" in tools["write_firmware"].invoke({"main_cpp": "x"})
     assert "no electronics" in tools["price_bom"].invoke({})
 
+    assert "No saved model code" in tools["read_model"].invoke({})
+
     code = json.loads(BOOK)["enclosure"]["code"]
     assert tools["write_model"].invoke({"code": code}).startswith("PASSED")
+    assert tools["read_model"].invoke({}) == code
     spec = ctx.load_spec()
     assert (spec.rev, spec.enclosure.template, spec.enclosure.code) == (
         2,
