@@ -4,6 +4,7 @@ run_stages without the model, and carries every other artifact forward to the ne
 import asyncio
 import json
 from functools import partial
+from pathlib import Path
 
 from backend.contracts.events import Event
 from backend.contracts.invariants import check_events, check_run_dir, stages_run
@@ -301,3 +302,47 @@ async def test_new_run_reruns_only_what_a_later_rev_affects(runs_dir):
     assert stages_run(events, saved_at) == {"assembly", "checks"}
     assert check_events(events) == []
     assert [p for p in check_run_dir(run_dir_for("r1")) if "rev" in p] == []
+
+
+class FirmwareOnlyEdit(CountingRunner):
+    """The firmware sub-agent rewrote main.cpp without changing the spec (no new behaviours)."""
+
+    async def edit(self, run_id, request, emit):
+        self.model_calls += 1
+        path = run_dir_for(run_id) / "spec.json"
+        spec = ProjectSpec.model_validate_json(path.read_text())
+        emit(Event(run_id=run_id, stage="firmware", status="passed", spec_rev=spec.rev))
+        return spec
+
+
+async def test_firmware_rewritten_without_a_spec_change_reruns_the_simulation(runs_dir):
+    events, _ = await run_then_edit(FirmwareOnlyEdit(), runs_dir)
+
+    assert "simulate" in stages_run(events)
+    assert "firmware" not in stages_run(events)  # the sub-agent already compiled it
+
+
+def test_a_stage_that_passes_again_lists_only_its_new_files(runs_dir):
+    from backend.runtime.runs import _append
+
+    run_dir = run_dir_for("r1")
+    spec = Path(__file__).resolve().parents[3] / "fixtures/specs/plant_monitor.json"
+    save_spec(run_dir / "spec.json", ProjectSpec.model_validate_json(spec.read_text()))
+
+    def passed(seq, artifacts):
+        _append(
+            run_dir,
+            Event(
+                run_id="r1",
+                seq=seq,
+                stage="enclosure",
+                status="passed",
+                spec_rev=1,
+                artifacts=artifacts,
+            ),
+        )
+
+    passed(1, {"base_stl": "cad/base.stl", "knob_stl": "cad/knob.stl"})
+    passed(2, {"base_stl": "cad/base.stl"})  # the new shape has no knob
+    manifest = json.loads((run_dir / "manifest.json").read_text())
+    assert sorted(manifest["artifacts"]) == ["base_stl"]
