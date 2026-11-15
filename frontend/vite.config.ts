@@ -2,7 +2,7 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-// Ports come from .env.worktree via `make dev`, so every worktree runs its own pair.
+// Ports come from API_PORT / WEB_PORT via `make dev`.
 const apiPort = process.env.API_PORT ?? '8000'
 
 export default defineConfig({

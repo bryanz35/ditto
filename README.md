@@ -53,9 +53,9 @@ instead of failing the run.
 | `fixtures/` | Example specs and recorded runs used by tests and the fake runner. |
 | `tests/` | Unit, contract, integration and end-to-end tests. |
 | `evals/` | Prompt evals for the agent. |
-| `scripts/` | Dev tooling: worktree setup, the coordination board (`board.py`), price prefetch. |
+| `scripts/` | Price prefetch (`prefetch_prices.py`). |
 | `docs/PROJECT_PLAN.md` | The technical design. |
-| `handoff/` | Build plan, task graph, runbook and hardware availability for the team building this repo. |
+| `handoff/HARDWARE.md` | Parts and printer availability, which sets the demo mode. |
 
 ## Requirements
 
@@ -88,7 +88,7 @@ P2D_RUNNER=fake make dev    # replay a recorded run: no model calls, no keys nee
 
 `P2D_RUNNER` picks the runner: `real` (default, the agent), `fake` (the fixture run) or
 `replay:<run_dir>` (replay a previous run). Run output goes to `runs/` (override with `P2D_RUNS_DIR`).
-Ports come from `.env.worktree` when present (`API_PORT`, `WEB_PORT`). The web dev server proxies
+Override ports with `API_PORT` and `WEB_PORT`. The web dev server proxies
 `/api/*` to the API.
 
 ## Test and lint
@@ -102,5 +102,4 @@ make lint       # ruff, tsc, oxlint
 
 ## Contributing
 
-This repo is built by several agents in parallel, each in its own git worktree. Read `CLAUDE.md` first:
-it covers path ownership, frozen contracts, and the coordination board (`python3 scripts/board.py next`).
+Read `CLAUDE.md` first: it covers contracts, conventions and the PR checklist.

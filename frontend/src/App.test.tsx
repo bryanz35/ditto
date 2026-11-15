@@ -311,9 +311,33 @@ describe('Overview', () => {
       ['from-agent', 'Walls are 3 mm now.'],
     ])
     within(log).getByText('3 mm', { selector: 'strong' }) // Ditto's replies are markdown
-    // folds to its tab so it doesn't cover the model
+    // it sits under the parts list in the left panel; each folds to its header so the model has room
     fireEvent.click(screen.getByRole('button', { name: /Conversation/ }))
     expect(screen.queryByRole('list', { name: 'Conversation' })).toBeNull()
+    const parts = screen.getByRole('region', { name: 'Parts list' })
+    fireEvent.click(within(parts).getByRole('button', { name: /Parts list/ }))
+    expect(within(parts).queryByText('Total to buy')).toBeNull()
+  })
+
+  it('shows a sent message at once, opens the conversation and shows Ditto at work until it replies', async () => {
+    const chat = (seq: number, who: string, message: string) =>
+      JSON.stringify({ ...JSON.parse(lines[0]), seq, message, data: { chat: who } })
+    const last = JSON.parse(lines.at(-1)!).seq as number
+    const done = (seq: number) => JSON.stringify({ ...JSON.parse(lines.at(-1)!), seq })
+    const stream = openRun()
+    stream.emit([...lines, chat(last + 1, 'user', 'make the walls 3 mm'), chat(last + 2, 'agent', 'Done.'), done(last + 3)])
+    fireEvent.click(screen.getByRole('button', { name: /Conversation/ })) // folded
+    fireEvent.change(screen.getByLabelText('Change the design'), { target: { value: 'add a buzzer' } })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Send' })))
+    const log = screen.getByRole('list', { name: 'Conversation' }) // opened again
+    const users = () => [...log.querySelectorAll('.from-user')].map((li) => li.textContent)
+    expect(users()).toEqual(['make the walls 3 mm', 'add a buzzer'])
+    expect(within(log).getByRole('status').textContent).toBe('Dittoing…') // nothing specific to say yet
+    stream.emit([chat(last + 4, 'user', 'add a buzzer')]) // its own turn replaces the pending one
+    expect(users()).toEqual(['make the walls 3 mm', 'add a buzzer'])
+    expect(within(log).getByRole('status').textContent).toBe('Dittoing…')
+    stream.emit([chat(last + 5, 'agent', 'Added a buzzer on GPIO 4.')])
+    expect(within(log).queryByRole('status')).toBeNull()
   })
 
   it('opens once the plan is done, with the parts from the BOM and their roles from the spec', async () => {

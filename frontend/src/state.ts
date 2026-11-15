@@ -164,7 +164,7 @@ export function statusLine(state: RunState, project: string | null, tick = 0): s
   if (state.question) return 'Ditto has a question for you'
   const last = state.log.at(-1)
   const generic = GENERIC[tick % GENERIC.length]
-  if (!last || last.stage === 'done') return generic
+  if (!last || last.stage === 'done' || last.data.chat) return generic // a chat turn says nothing about the work
   const stage = state.stages[last.stage]!
   if (stage.status === 'failed' || (stage.status === 'running' && (stage.attempt ?? 1) > 1)) {
     return `Fixing a problem with the ${NOUN[last.stage] ?? last.stage}…`

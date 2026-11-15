@@ -147,6 +147,8 @@ export function useReply(
   // lastSeq when the edit was accepted: stay busy until its first event arrives
   const [sentAt, setSentAt] = useState<number | null>(null)
   const [answered, setAnswered] = useState<{ id: string; text: string } | null>(null)
+  // an edit's text from Send until the stream moves past lastSeq (its own chat turn comes first)
+  const [pending, setPending] = useState<{ text: string; seq: number } | null>(null)
   const { sending, error, send: run } = useSend()
   const question = state.question
   const open = question !== null && answered?.id !== question.id
@@ -157,13 +159,17 @@ export function useReply(
       if (ok) setAnswered({ id: question.id, text })
       return ok
     }
+    setPending({ text, seq: state.lastSeq })
     const ok = await run(() => onEdit(text))
     if (ok) setSentAt(state.lastSeq)
+    else setPending(null)
     return ok
   }
   return {
     question,
     answer: question && answered?.id === question.id ? answered.text : null,
+    /** The edit just sent, to show in the conversation before its event arrives. */
+    pending: pending?.seq === state.lastSeq ? pending.text : null,
     ready: !sending && (open || (question === null && idle)),
     sending,
     error,

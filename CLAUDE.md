@@ -1,9 +1,6 @@
 # CLAUDE.md — Prompt-to-Device
 
-Read this file fully before doing anything. Then read your task card in `handoff/BUILD_PLAN.md`, and the
-parts of `docs/PROJECT_PLAN.md` (the technical design) that your card mentions.
-Several Claude Code agents build this repo **at the same time**, each in its own git worktree.
-These rules exist so that parallel work merges cleanly. Follow them even when a shortcut looks harmless.
+`docs/PROJECT_PLAN.md` holds the technical design; `README.md` has the repo layout, setup and env vars.
 
 ## What we're building (one paragraph)
 
@@ -16,80 +13,13 @@ orchestrator delegates to sub-agents (parts and pins, firmware, enclosure). **Ev
 checked by plain code before the UI shows it.** The project spec (`ProjectSpec`) is the single source
 of truth: every other output is generated from it.
 
-## The coordination board: always know your next step
+## Rules
 
-You never have to guess what to do next or wait for a human to relay messages. Run:
-
-```
-python3 scripts/board.py next
-```
-
-It reads who you are from `.env.worktree` (the main checkout is the Integrator) and prints one ACTION
-with exact instructions: `START`, `WORK`, `SUBMIT`-related steps, `FIX_REVIEW`, `REVIEW`, `SIGNOFF`,
-`REBASE`, `QA_UPDATE`, `NOTE` (a fix or follow-up the Integrator sent you), `MERGE`, `DECIDE_CONTRACT`,
-`WAIT` or `DONE`.
-The board knows the dependency graph, who consumes whose output, every review verdict and sign-off
-(tied to the exact commit they were given for), and every merge.
-
-- **Run `next` at the start of a session, after every step you finish, and whenever you're unsure.**
-  Do the action it prints, then run it again.
-- **Record every change of state through the board, never by hand:** `board.py start`, `submit`,
-  `block --on <TASK>`, `unblock`, `request --file ... --summary ...`. The Reviewer runs `review`,
-  consumers run `signoff`, the Integrator runs `merged`, `done`, `decide`, `announce`. Each command
-  checks preconditions (for example, `submit` refuses unpushed or un-rebased work).
-- **Waiting is automatic.** Your human starts `/loop` in your session after approving your plan;
-  `.claude/loop.md` makes each wake-up run `next` and act on it, so you pick up review results,
-  sign-off requests and "rebase now" notices on your own.
-- The live state is on the `coord` git branch. Never check it out, edit it or merge it.
-- Humans see everything with `python3 scripts/board.py status`.
-
-## Golden rules
-
-1. **Work only on your task card.** Your task ID is in `.env.worktree` (`P2D_TASK`) and in your branch name.
-2. **Edit only the paths your task owns** (see the ownership map below and your card's "Owns" list).
-   Need a change elsewhere? Don't make it. Write it under **Requests** in your status file and work
-   around it locally (a fake or a stub behind the contract).
-3. **Contracts are frozen** after Gate G0 (`backend/contracts/`, `fixtures/`, `frontend/src/contracts/`).
-   To change one, write `handoff/contract-requests/<TASK>-<slug>.md` (what, why, who it affects) and keep going
-   with the current contract. The Integrator decides and lands contract changes on `main`.
-4. **Import across areas only through `backend/contracts/` and each tool module's single public function.**
+1. **Import across areas only through `backend/contracts/` and each tool module's single public function.**
    Never import another area's private helpers.
-5. **No network in unit tests.** Use fixtures and mocks. Mark slow tests `@pytest.mark.slow`
+2. **No network in unit tests.** Use fixtures and mocks. Mark slow tests `@pytest.mark.slow`
    (PlatformIO compiles, build123d builds) and tests that call real APIs `@pytest.mark.live`.
-6. **Never commit secrets.** Keys live in `.env` (copied from `.env.example`, symlinked into every worktree, gitignored).
-7. **Keep the board and your notes current.** State changes go through `scripts/board.py`; your status
-   file (`handoff/status/<TASK>.md`) holds your plan, progress notes and test commands, updated at every commit you'd
-   want a teammate to know about. It's how the Integrator and humans see progress without interrupting you.
-8. **Don't merge to `main`.** Push your branch, open a PR, and run `board.py submit`. Only the Integrator merges.
-
-## Ownership map
-
-| Path | Owner task | Notes |
-| --- | --- | --- |
-| `backend/contracts/`, `fixtures/` (except `fixtures/firmware/`), `frontend/src/contracts/`, `tests/contract/` | T01 (Integrator) | Frozen after G0 |
-| `backend/tools/toolbox.py`, `backend/tools/fakes.py`, `handoff/MERGES.md` | T01, T20 (Integrator) | |
-| `pyproject.toml`, `Makefile`, `frontend/package.json`, `scripts/` (except `prefetch_prices.py`), CI | T00 (Integrator) | Need a dependency? Request it |
-| `backend/tools/validate_spec.py`, `backend/tools/cross_checks.py` | T10, T21 | |
-| `backend/tools/layout.py`, `backend/tools/build_enclosure.py`, `backend/tools/check_enclosure.py`, `backend/cad/` (except `assembly.py`), `backend/parts/printers/` | T11 | |
-| `backend/cad/assembly.py` | T25 | Assembly preview (`assembly.glb`) |
-| `backend/tools/simulation.py` | T26 | Wokwi diagram + simulator run |
-| `handoff/HARDWARE.md` | Humans only | Parts/printer availability and demo mode |
-| `backend/tools/firmware.py`, `firmware_templates/`, `fixtures/firmware/` | T12 | pins header, project generation, compile, lint, golden firmware |
-| `backend/agent/` | T13, then T37 | orchestrator, sub-agents, prompts, tool wrappers |
-| `backend/app/main.py`, `backend/app/routers/runs.py`, `backend/app/routers/files.py`, `backend/runtime/` | T14, then T22, T39 | API, run engine, `deps.py`, replay runner, edit flow |
-| `frontend/` (except `src/contracts/`) | T15, T24, T36, T40 | |
-| `backend/tools/pricing.py`, `backend/memory/`, `backend/app/routers/memory.py`, `scripts/prefetch_prices.py`, `backend/parts/prices.json` | T16, then T38 | |
-| `backend/tools/preprocess_input.py` | T17 | |
-| `backend/parts/library/*.yaml`, `backend/parts/snippets/` | T18 (the 5 plant-monitor parts: T01) | |
-| `tests/integration/`, `tests/e2e/`, `evals/` | T19, T30 (QA) | Builders own `tests/unit/<area>/` |
-| `backend/app/routers/device.py`, `device/` | T31 | Showcase device is a placeholder until chosen |
-| `README.md`, `docs/` (except `docs/PROJECT_PLAN.md`) | T33 | |
-| `docs/PROJECT_PLAN.md`, `handoff/BUILD_PLAN.md`, `handoff/RUNBOOK.md`, `handoff/tasks.json`, `CLAUDE.md`, `.claude/loop.md` | Integrator + humans | The plan itself; `tasks.json` is the task graph the board reads |
-| `coord` branch (board state) | `scripts/board.py` only | Never edited, checked out or merged by hand |
-| `handoff/status/<TASK>.md` | that task | One file per task: no conflicts |
-| `handoff/contract-requests/<TASK>-*.md` | the requesting task | |
-
-Files are created as stubs in T00/T01 so that no two tasks ever create the same file.
+3. **Never commit secrets.** Keys live in `.env` (copied from `.env.example`, gitignored).
 
 ## Contracts
 
@@ -97,6 +27,9 @@ Files are created as stubs in T00/T01 so that no two tasks ever create the same 
 (coordinate frames) before touching geometry and `runner.py` (who runs what) before touching the run flow.
 Every tool returns a `ToolResult` and never raises for expected failures; error messages are read by an
 LLM, so make them specific and actionable.
+
+`frontend/src/contracts/` is generated: after changing a Pydantic model, run `make types` (never edit
+it by hand) and update `fixtures/` so the contract tests in `tests/contract/` still pass.
 
 ## Commands
 
@@ -107,12 +40,12 @@ LLM, so make them specific and actionable.
 | `make test-slow` | Adds PlatformIO compiles and CAD builds |
 | `make test-live` | Calls real APIs (needs `.env`; costs money: run sparingly) |
 | `make lint` | `ruff check`, `ruff format --check`, `tsc -b` (type check), `oxlint` |
-| `make types` | Regenerates `frontend/src/contracts/` from the Pydantic models (Integrator only) |
-| `make dev` | API on `$API_PORT` and web on `$WEB_PORT` from `.env.worktree` |
+| `make types` | Regenerates `frontend/src/contracts/` from the Pydantic models |
+| `make dev` | API on `$API_PORT` (default 8000) and web on `$WEB_PORT` (default 5173) |
 | `P2D_RUNNER=fake make dev` | API replays a recorded run (no model calls): for frontend work |
 
-Ports differ per worktree so several dev servers can run at once. The web dev server proxies `/api/*` to the
-API with the prefix stripped: the UI fetches `/api/runs/...`, the API serves `/runs/...`.
+The web dev server proxies `/api/*` to the API with the prefix stripped: the UI fetches `/api/runs/...`,
+the API serves `/runs/...`.
 
 ## Code conventions
 
@@ -123,43 +56,19 @@ API with the prefix stripped: the UI fetches `/api/runs/...`, the API serves `/r
   Import types only from `src/contracts/`.
 - Model name comes from `P2D_MODEL`; never hard-code it.
 - Generated firmware must `#include "pins.h"`, use only `PIN_*` macros for pin numbers, and print
-  `P2D_READY` on serial at the end of `setup()` (the T12 lint enforces both; the simulator waits for it).
+  `P2D_READY` on serial at the end of `setup()` (the firmware lint in `backend/tools/firmware.py`
+  enforces both; the simulator waits for it).
 
 ## Hardware may not be available
 
-We may have no parts or no 3D printer at the event (`handoff/HARDWARE.md`, section 0 of the build plan).
-Never make a test or acceptance criterion depend on physical hardware. Until `HARDWARE.md` is filled in,
-assume mode V: datasheet dimensions, the `generic` printer profile, simulation available.
+`handoff/HARDWARE.md` records whether we have parts and a printer, which sets the demo mode (P, E or
+V; see "Hardware availability" in `docs/PROJECT_PLAN.md`). `backend/contracts/hardware.py` reads it.
+Never make a test depend on physical hardware. Until it's filled in, assume mode V: datasheet
+dimensions, the `generic` printer profile, simulation available.
 
 ## Git and PRs
 
-- Branch: `feat/<TASK>-<slug>` (already created by `scripts/setup_worktrees.sh`). Small commits, conventional messages.
-- Before opening a PR: `git fetch` (if remote) and `git rebase main`, then `make lint test` (and `make test-slow` if your card says so).
-- PR description: what changed, how to test, which contract items you rely on, anything you stubbed, open requests.
-- When `main` gets a merge you depend on, rebase at your next stopping point. Worktrees share refs, so
-  `git rebase main` sees merges immediately; no fetch needed for local branches.
-
-## Status file format (`handoff/status/<TASK>.md`)
-
-Your task's *state* lives on the board, not here. This file is for notes a teammate or reviewer needs.
-
-```
-# <TASK> <title>
-Updated: <hour of hackathon or time>
-Plan:
-- ...
-Done:
-- ...
-Next:
-- ...
-Requests: <contract requests you filed with board.py request>
-How to test: <exact commands>
-```
-
-## Definition of done (every task)
-
-- Acceptance criteria on the card all met, each covered by a test where the card says so.
-- `make lint test` green after rebasing on `main`; slow tests green if the card lists them.
-- No edits outside owned paths; no contract edits.
-- Status file has exact test commands; `board.py submit` accepted the branch.
-- The board shows the review approved and every consumer signed off at your latest commit.
+- Branch from `main` as `feat/<slug>` or `fix/<slug>`. Small commits, conventional messages.
+- Before opening a PR: rebase on `main`, then `make lint test` (and `make test-slow` if you touched
+  firmware or CAD).
+- PR description: what changed, how to test, anything you stubbed.

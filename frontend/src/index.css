@@ -219,6 +219,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .chat-log li { max-width: 85%; font-size: 13px; line-height: 20px; color: var(--color-text-bright); overflow-wrap: anywhere; }
 .chat-log .from-user { white-space: pre-wrap; }
+.chat-log .working { display: flex; align-items: center; gap: var(--space-8); color: var(--color-text-secondary); }
+.chat-log .working .sprite { --size: 32px; }
 .chat-log .from-user { align-self: flex-end; padding: var(--space-6) var(--space-12); background: var(--color-surface-raised); border-radius: var(--radius-md); }
 .thinking { display: flex; align-items: flex-start; gap: var(--space-20); }
 /* Ditto sprite: a 4×4 sheet of 64 px frames, shown at 2× (128 px), 16 frames at 10 fps */
@@ -282,13 +284,20 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .pill .x { color: var(--color-status-warning); }
 .pill .loader { color: var(--color-accent-default); }
 .dock-scrim { position: absolute; left: 0; right: 0; bottom: 0; height: 180px; pointer-events: none; background: linear-gradient(rgba(30, 30, 30, 0), rgba(30, 30, 30, 0.92)); }
-.parts-card, .buy-panel {
+.side-panel, .buy-panel {
   position: absolute; top: 64px; width: 360px; display: flex; flex-direction: column; overflow: hidden;
   background: var(--color-surface-panel); border: 1px solid var(--color-border-default); border-radius: var(--radius-md);
 }
-.parts-card { left: 16px; bottom: 112px; max-height: 724px; }
-.parts-card > header { display: flex; align-items: center; padding: var(--space-12) var(--space-16) var(--space-2); }
-.parts-card h2, .buy-panel h2 { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--color-text-bright); flex: 1; }
+/* the parts list and, under it, the conversation share the left panel; each folds to its header */
+.side-panel { left: 16px; bottom: 112px; max-height: 724px; }
+.side-panel:not(:has(> :not(.folded))) { bottom: auto; }
+.parts-card, .chat-panel { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+/* while the conversation is open the parts list takes only the height it needs */
+.parts-card:has(+ .chat-panel:not(.folded)) { flex-grow: 0; }
+.chat-panel { flex-basis: 0; min-height: 200px; border-top: 1px solid var(--color-border-subtle); }
+.parts-card.folded, .chat-panel.folded { flex: none; min-height: 0; }
+.parts-card:not(.folded) > .fold-tab { padding-bottom: var(--space-2); }
+.buy-panel h2 { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--color-text-bright); flex: 1; }
 .parts-card .summary { padding: 0 var(--space-16) var(--space-12); font-size: 12px; line-height: 16px; color: var(--color-text-secondary); border-bottom: 1px solid var(--color-border-subtle); }
 .parts { flex: 1; display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: var(--space-8); list-style: none; overflow-y: auto; }
 .part-row { border-radius: var(--radius-sm); }
@@ -329,17 +338,11 @@ a.store:hover { background: var(--color-surface-control); }
 .store .name { color: var(--color-text-bright); }
 .store .price { font-weight: 600; color: var(--color-text-bright); }
 .buy-panel .footnote { padding: 0 var(--space-16) var(--space-12); text-align: left; }
-/* the conversation sits on the right, under the view toolbar and above the dock; folds to its header */
-.chat-panel {
-  position: absolute; top: 152px; right: 16px; bottom: 112px; width: 360px; display: flex; flex-direction: column; overflow: hidden;
-  background: var(--color-surface-panel); border: 1px solid var(--color-border-default); border-radius: var(--radius-md);
-}
-.chat-panel.folded { bottom: auto; }
-.chat-tab {
+.fold-tab {
   display: flex; align-items: center; gap: var(--space-8); width: 100%; padding: var(--space-12) var(--space-16);
   border: none; background: none; cursor: pointer; text-align: left; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--color-text-bright);
 }
-.chat-tab:hover { background: var(--color-surface-hover); }
+.fold-tab:hover { background: var(--color-surface-hover); }
 .overview-dock {
   position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); width: min(720px, calc(100% - 32px));
   display: flex; flex-direction: column; align-items: center; gap: var(--space-8);
@@ -491,10 +494,8 @@ a.btn { text-decoration: none; }
 /* ---------- narrow screens: the design is desktop-first ---------- */
 @media (max-width: 760px) {
   .sidebar { display: none; }
-  .parts-card { left: 8px; right: 8px; width: auto; bottom: auto; max-height: 45vh; }
+  .side-panel { left: 8px; right: 8px; width: auto; bottom: auto; max-height: 45vh; }
   .buy-panel { left: 8px; right: 8px; width: auto; top: 72px; z-index: 5; }
-  .chat-panel { left: 8px; right: 8px; width: auto; top: auto; max-height: 35vh; }
-  .chat-panel.folded { left: auto; bottom: 112px; }
   .view-toolbar, .viewport-hint { display: none; }
   .thread, .dock, .start { padding-left: var(--space-16); padding-right: var(--space-16); }
   .step-card { left: 8px; right: 8px; width: auto; }

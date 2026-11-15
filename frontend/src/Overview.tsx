@@ -53,6 +53,11 @@ export function Overview({
   const [view, setView] = useState<View>('Assembled')
   const [reset, setReset] = useState(0)
   const [open, setOpen] = useState<string | null>(null) // part_id of the expanded row
+  const [partsShown, setPartsShown] = useState(true)
+  const [chatShown, setChatShown] = useState(true)
+  const turns = chatTurns(state)
+  // from Send until Ditto answers: a reply, a question, or the end of the run
+  const working = reply.pending !== null || (!state.done && !state.question && turns.at(-1)?.data.chat === 'user')
   // one part's stores, or 'all': the cheapest store for every part still to buy
   const [buying, setBuying] = useState<BomLine | 'all' | null>(null)
   const exploded = assembly !== null && view === 'Exploded'
@@ -81,9 +86,12 @@ export function Overview({
               wiring={wiring}
               exploded={exploded}
               selected={assembly && openLine ? { ref: openLine.refs[0], label: openLine.name } : null}
-                                          leftInset={392}
+              leftInset={392}
               bottomInset={112}
-              onSelect={(ref) => setOpen(bom?.lines.find((l) => l.refs.includes(ref))?.part_id ?? null)}
+              onSelect={(ref) => {
+                setOpen(bom?.lines.find((l) => l.refs.includes(ref))?.part_id ?? null)
+                setPartsShown(true) // the clicked part's row must be visible
+              }}
             />
           </Suspense>
         ) : (
@@ -123,21 +131,31 @@ export function Overview({
       </header>
 
       <div className="dock-scrim" />
-      <PartsCard
-        bom={bom}
-        spec={spec}
-        wiring={wiring}
-        stale={staleOf('bom_json')}
-        open={open}
-        onOpen={(id) => setOpen(open === id ? null : id)}
-        onBuy={setBuying}
-        onBuyAll={() => setBuying('all')}
-        onOwn={onOwn}
-      />
+      <aside className="side-panel">
+        <PartsCard
+          bom={bom}
+          spec={spec}
+          wiring={wiring}
+          stale={staleOf('bom_json')}
+          shown={partsShown}
+          onFold={() => setPartsShown(!partsShown)}
+          open={open}
+          onOpen={(id) => setOpen(open === id ? null : id)}
+          onBuy={setBuying}
+          onBuyAll={() => setBuying('all')}
+          onOwn={onOwn}
+        />
+        <ChatPanel
+          turns={turns}
+          pending={reply.pending}
+          status={working ? statusLine(state, spec?.title ?? null) : null}
+          shown={chatShown}
+          onFold={() => setChatShown(!chatShown)}
+        />
+      </aside>
       {buying === 'all' && bom && <BuyAllPanel bom={bom} onClose={() => setBuying(null)} />}
       {buying && buying !== 'all' && <BuyPanel line={buying} onClose={() => setBuying(null)} />}
-      <ChatPanel turns={chatTurns(state)} />
-      <Dock reply={reply} onBuild={onBuild} />
+      <Dock reply={reply} onSend={() => setChatShown(true)} onBuild={onBuild} />
     </main>
   )
 }
@@ -147,6 +165,8 @@ function PartsCard({
   spec,
   wiring,
   stale,
+  shown,
+  onFold,
   open,
   onOpen,
   onBuy,
@@ -157,6 +177,8 @@ function PartsCard({
   spec: ProjectSpec | null
   wiring: Wiring | null
   stale: boolean
+  shown: boolean
+  onFold: () => void
   open: string | null
   onOpen: (partId: string) => void
   onBuy: (line: BomLine) => void
@@ -165,58 +187,64 @@ function PartsCard({
 }) {
   const owned = bom?.lines.filter((l) => l.owned_qty > 0).length ?? 0
   return (
-    <section className="parts-card" aria-label="Parts list">
-      <header>
-        <h2>Parts list</h2>
-        <span className="mono">{bom ? `${bom.lines.length} items` : ''}</span>
-      </header>
-      <p className="summary">
-        {bom ? (
-          <>
-            {usd(bom.total_usd)} to buy{owned > 0 && ` · you already have ${owned} part${owned > 1 ? 's' : ''}`}
-            {bom.over_budget && <Badge status="failed" />}
-          </>
-        ) : spec && !spec.mcu ? (
-          'Nothing to buy: print it and you’re done.'
-        ) : (
-          'No parts list yet.'
-        )}
-      </p>
-      {stale && (
-        <p className="stale-note summary">
-          <Badge status="stale" /> Out of date: the spec changed since this was priced.
-        </p>
-      )}
-      <ul className="parts">
-        {bom?.lines.map((line) => {
-          const parts = [spec?.mcu, ...(spec?.parts ?? [])].filter((p) => p && line.refs.includes(p.ref))
-          const rows = wiring?.rows.filter((r) => line.refs.includes(r.part_ref)) ?? []
-          return (
-            <PartRow
-              key={line.part_id}
-              line={line}
-              role={parts[0]?.role ?? null}
-              reason={parts[0]?.reason ?? null}
-              rows={rows}
-              open={open === line.part_id}
-              onOpen={() => onOpen(line.part_id)}
-              onBuy={() => onBuy(line)}
-              onOwn={() => onOwn(line.part_id)}
-            />
-          )
-        })}
-      </ul>
-      <footer>
-        <span className="total">
-          <span className="label">Total to buy</span>
-          <b>{bom ? usd(bom.total_usd) : '—'}</b>
-        </span>
+    <section className={`parts-card${shown ? '' : ' folded'}`} aria-label="Parts list">
+      <button type="button" className="fold-tab" aria-expanded={shown} onClick={onFold}>
+        <Icon name={shown ? 'chevron-down' : 'chevron-right'} />
+        Parts list
         <span className="spacer" />
-        <button type="button" className="btn secondary" disabled={!bom} onClick={onBuyAll}>
-          <Icon name="shopping-cart" />
-          Buy all
-        </button>
-      </footer>
+        <span className="mono">{bom ? `${bom.lines.length} items` : ''}</span>
+      </button>
+      {shown && (
+        <>
+          <p className="summary">
+            {bom ? (
+              <>
+                {usd(bom.total_usd)} to buy{owned > 0 && ` · you already have ${owned} part${owned > 1 ? 's' : ''}`}
+                {bom.over_budget && <Badge status="failed" />}
+              </>
+            ) : spec && !spec.mcu ? (
+              'Nothing to buy: print it and you’re done.'
+            ) : (
+              'No parts list yet.'
+            )}
+          </p>
+          {stale && (
+            <p className="stale-note summary">
+              <Badge status="stale" /> Out of date: the spec changed since this was priced.
+            </p>
+          )}
+          <ul className="parts">
+            {bom?.lines.map((line) => {
+              const parts = [spec?.mcu, ...(spec?.parts ?? [])].filter((p) => p && line.refs.includes(p.ref))
+              const rows = wiring?.rows.filter((r) => line.refs.includes(r.part_ref)) ?? []
+              return (
+                <PartRow
+                  key={line.part_id}
+                  line={line}
+                  role={parts[0]?.role ?? null}
+                  reason={parts[0]?.reason ?? null}
+                  rows={rows}
+                  open={open === line.part_id}
+                  onOpen={() => onOpen(line.part_id)}
+                  onBuy={() => onBuy(line)}
+                  onOwn={() => onOwn(line.part_id)}
+                />
+              )
+            })}
+          </ul>
+          <footer>
+            <span className="total">
+              <span className="label">Total to buy</span>
+              <b>{bom ? usd(bom.total_usd) : '—'}</b>
+            </span>
+            <span className="spacer" />
+            <button type="button" className="btn secondary" disabled={!bom} onClick={onBuyAll}>
+              <Icon name="shopping-cart" />
+              Buy all
+            </button>
+          </footer>
+        </>
+      )}
     </section>
   )
 }
@@ -437,21 +465,33 @@ function BuyAllPanel({ bom, onClose }: { bom: Bom; onClose: () => void }) {
   )
 }
 
-/** turns: the conversation about the design so far, newest at the bottom. Folds to a tab so the model stays visible. */
-function ChatPanel({ turns }: { turns: Event[] }) {
-  const [shown, setShown] = useState(true)
+/** turns: the conversation about the design so far, newest at the bottom, then the message just sent
+ * (pending) and Ditto at work on it (status). Sits under the parts list and folds to its header. */
+function ChatPanel({
+  turns,
+  pending,
+  status,
+  shown,
+  onFold,
+}: {
+  turns: Event[]
+  pending: string | null
+  status: string | null
+  shown: boolean
+  onFold: () => void
+}) {
   const log = useRef<HTMLOListElement>(null)
   useEffect(() => {
     if (log.current) log.current.scrollTop = log.current.scrollHeight
-  }, [turns.length, shown])
-  if (turns.length === 0) return null
+  }, [turns.length, pending, status, shown])
+  if (turns.length === 0 && pending === null) return null
   return (
     <section className={`chat-panel${shown ? '' : ' folded'}`}>
-      <button type="button" className="chat-tab" aria-expanded={shown} onClick={() => setShown(!shown)}>
+      <button type="button" className="fold-tab" aria-expanded={shown} onClick={onFold}>
         <Icon name={shown ? 'chevron-down' : 'chevron-right'} />
         Conversation
         <span className="spacer" />
-        <span className="mono">{turns.length}</span>
+        <span className="mono">{turns.length + (pending === null ? 0 : 1)}</span>
       </button>
       {shown && (
         <ol ref={log} className="chat-log" aria-label="Conversation">
@@ -466,16 +506,25 @@ function ChatPanel({ turns }: { turns: Event[] }) {
               </li>
             ),
           )}
+          {pending !== null && <li className="from-user">{pending}</li>}
+          {status && (
+            <li className="working" role="status">
+              <span className="sprite" aria-hidden="true" />
+              {status}
+            </li>
+          )}
         </ol>
       )}
     </section>
   )
 }
 
-function Dock({ reply, onBuild }: { reply: Reply; onBuild: () => void }) {
+function Dock({ reply, onSend, onBuild }: { reply: Reply; onSend: () => void; onBuild: () => void }) {
   const [text, setText] = useState('')
   const submit = async (value: string) => {
-    if (value.trim() && reply.ready && (await reply.send(value))) setText('')
+    if (!value.trim() || !reply.ready) return
+    onSend()
+    if (await reply.send(value)) setText('')
   }
   return (
     <div className="overview-dock">

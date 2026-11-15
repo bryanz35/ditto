@@ -1,7 +1,7 @@
 # Hardware availability
 
 Filled in by the humans at H0 (by hour 2). Agents read this file; only humans edit it.
-See section 0 of `handoff/BUILD_PLAN.md` for what each mode changes.
+See "Hardware availability" in `docs/PROJECT_PLAN.md` for what each mode changes.
 
 ```
 HAS_PARTS=unknown        # yes | no   (our own kit counts)
