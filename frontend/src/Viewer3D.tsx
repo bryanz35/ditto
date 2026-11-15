@@ -12,7 +12,7 @@ import { Suspense, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import type { BufferGeometry, Group, PerspectiveCamera } from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { STLLoader } from 'three/addons/loaders/STLLoader.js'
-import type { ProjectSpec, Wiring } from './contracts'
+import type { EnclosureManifest, ProjectSpec, Wiring } from './contracts'
 import { Device, type SceneStep } from './scene/device'
 import type { Print } from './ui'
 
@@ -94,6 +94,7 @@ function DeviceView({
   url,
   spec,
   wiring,
+  manifest,
   exploded,
   build,
   selected,
@@ -103,6 +104,7 @@ function DeviceView({
   url: string
   spec: ProjectSpec | null
   wiring: Wiring | null
+  manifest: EnclosureManifest | null
   exploded: boolean
   build: { steps: SceneStep[]; index: number } | null
   selected: { ref: string; label: string } | null
@@ -111,7 +113,7 @@ function DeviceView({
   children?: ReactNode
 }) {
   const gltf = useLoader(GLTFLoader, url)
-  const device = useMemo(() => new Device(gltf.scene, spec, wiring), [gltf, spec, wiring])
+  const device = useMemo(() => new Device(gltf.scene, spec, wiring, manifest), [gltf, spec, wiring, manifest])
   useEffect(() => {
     // dev builds: window.__device in the console, to poke at the scene (parts, wires, setBuild, ...)
     if (import.meta.env.DEV) (window as unknown as { __device?: Device }).__device = device
@@ -184,6 +186,7 @@ export default function Viewer3D({
   assembly,
   spec = null,
   wiring = null,
+  manifest = null,
   exploded = false,
   build = null,
   selected = null,
@@ -202,6 +205,8 @@ export default function Viewer3D({
   spec?: ProjectSpec | null
   /** For the device: one jumper wire per row. */
   wiring?: Wiring | null
+  /** For the device: cad/manifest.json, where the outside parts' cable holes are. */
+  manifest?: EnclosureManifest | null
   /** Overview: hold the parts apart (hovering the device also pulls them apart). */
   exploded?: boolean
   /** Build guide: show the device as it is during steps[index] and play that step. */
@@ -238,6 +243,7 @@ export default function Viewer3D({
             url={assembly}
             spec={spec}
             wiring={wiring}
+            manifest={manifest}
             exploded={exploded}
             build={build}
             selected={selected}

@@ -1,7 +1,7 @@
 // The device in the 3D view: case, parts, wires, and their animations (overview explode, build steps).
 // Built from assembly.glb (case, lid, a custom device's extra printed parts, and one box per inside or
 // mounted part, named by ref) plus the spec and wiring.json: each box becomes a part model (parts.ts),
-// each wiring row a jumper wire.
+// each wiring row a jumper wire, routed round the parts and the case (route.ts).
 // Frame: the enclosure's (mm, Z up); z = 0 is the cavity floor.
 import {
   Box3,
@@ -25,8 +25,9 @@ import {
   type Material,
   type Object3D,
 } from 'three'
-import type { ProjectSpec, Wiring, WiringRow } from '../contracts'
+import type { EnclosureManifest, ProjectSpec, Wiring, WiringRow } from '../contracts'
 import { buildPart, categoryOf, LIBRARY, pinsOf, type Category, type PartModel } from './parts'
+import { route, shell, solid, WIRE_R, type Route, type RouteOptions } from './route'
 
 /** The bits of a build step the scene animates (guide.ts's Step has them). */
 export interface SceneStep {
@@ -82,6 +83,8 @@ interface WireEntry {
   tube: Mesh<TubeGeometry>
   count: number
   ends: [Mesh, Mesh]
+  /** What the wire still runs into (route.ts found no clean path): [] normally. */
+  hits: string[]
 }
 
 const ease = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3)
@@ -134,7 +137,12 @@ export class Device {
   private wired = new Set<string>()
   private stepClock = 0
 
-  constructor(glb: Object3D, spec: ProjectSpec | null, wiring: Wiring | null) {
+  constructor(
+    glb: Object3D,
+    spec: ProjectSpec | null,
+    wiring: Wiring | null,
+    manifest: EnclosureManifest | null = null,
+  ) {
     glb.updateMatrixWorld(true)
     const rows = wiring?.rows ?? []
     const instances = spec ? [...(spec.mcu ? [spec.mcu] : []), ...spec.parts] : []
@@ -161,6 +169,9 @@ export class Device {
     })
     this.base = new Mesh(baseNode ? baseNode.geometry.clone() : new BoxGeometry(1, 1, 1), this.baseMat)
     if (baseNode) this.base.applyMatrix4(baseNode.matrixWorld)
+    this.base.name = 'base'
+    // what the wires must not pass through (named for route.ts's hit list)
+    const shells: Mesh[] = [this.base]
     this.base.add(
       new LineSegments(
         new EdgesGeometry(this.base.geometry, 30),
@@ -187,6 +198,8 @@ export class Device {
         depthWrite: false,
       })
       const lid = new Mesh(lidNode.geometry.clone(), this.lidMat)
+      lid.name = 'lid'
+      shells.push(lid)
       lid.add(
         new LineSegments(
           new EdgesGeometry(lid.geometry, 30),
@@ -227,6 +240,8 @@ export class Device {
         ),
       )
       this.root.add(m)
+      m.name = o.name.replace(/^print_/, '')
+      shells.push(m)
       this.printed.set(o.name.replace(/^print_/, ''), { mesh: m, home: m.position.clone(), box: new Box3().setFromObject(m) })
     })
 
@@ -354,7 +369,16 @@ export class Device {
     }
     this.lidExplode.set(0, 0, top + 18)
 
-    // wires: a jumper per wiring row, from the board's pin to the part's pin
+    // wires: a jumper per wiring row, from the board's pin to the part's pin, round whatever is between
+    this.root.updateMatrixWorld(true)
+    const obs = {
+      solids: [...this.parts.values()].map((e) => solid(e.ref, e.home, e.turn, e.size)),
+      shells: shells.map(shell),
+    }
+    const mounted = new Set(boxes.filter((b) => b.mounted).map((b) => b.ref))
+    const wall = manifest?.wall_mm ?? 2
+    // under the lid: the cavity's height (a custom body's own top can be far above where the parts are)
+    const ceiling = (manifest?.cavity_mm[2] ?? caseTop) - 1.5
     const mcu = this.mcuRef ? this.parts.get(this.mcuRef) : undefined
     const taken = new Set<string>()
     const worldPin = (e: PartEntry, at: Vector3) => at.clone().applyQuaternion(e.turn).add(e.home)
@@ -377,7 +401,33 @@ export class Device {
       if (cands[0]) taken.add(`${cands[0].i}`)
       const k = byPart.get(row.part_ref) ?? 0
       byPart.set(row.part_ref, k + 1)
-      this.wires.push(this.buildWire(row, from, to, k, part.inside ? caseTop - 1.2 : null))
+      const opts: RouteOptions = { spread: (k - 1.5) * 1.6, ceiling, own: [mcu.ref, part.ref] }
+      if (!part.inside) {
+        // an outside part (laid behind the case, or mounted on a custom device's prints): out through
+        // the cable hole build_enclosure cuts for it in the back wall
+        const c = manifest?.cutouts.find(
+          (c) => c.feature === 'cable' && c.face === 'back' && c.for_ref === row.part_ref,
+        )
+        const y = manifest ? manifest.cavity_mm[1] + wall / 2 : this.caseBox.max.y - wall / 2
+        const out = new Vector3(0, 1, 0)
+        if (c) {
+          opts.hole = { at: new Vector3(c.center_mm[0], y, c.center_mm[1]), dir: out, depth: wall, size: c.size_mm[0] }
+        } else if (mounted.has(row.part_ref)) {
+          // no hole: it sits on the shell, so its cable goes through right there
+          opts.allow = obs.solids.find((s) => s.name === row.part_ref)?.aabb.clone().expandByScalar(3)
+          opts.ignore = [row.part_ref]
+        } else {
+          // an old manifest (or none): through the back wall about where build_enclosure puts the hole
+          const x = Math.min(this.caseBox.max.x - wall - 4, Math.max(this.caseBox.min.x + wall + 4, to.x))
+          opts.hole = { at: new Vector3(x, y, caseTop / 2), dir: out, depth: wall, size: 6 }
+          opts.allow = new Box3().setFromCenterAndSize(opts.hole.at, new Vector3(10, wall + 4, 10))
+          if (import.meta.env.DEV) console.warn(`[wires] no cable hole for ${row.part_ref} in cad/manifest.json`)
+        }
+      }
+      const r = route(from, to, obs, opts)
+      if (import.meta.env.DEV && r.hits.length)
+        console.warn(`[wires] ${this.mcuRef}.${row.mcu_pin} → ${row.part_ref}.${row.part_pin} clips ${r.hits.join(', ')}`)
+      this.wires.push(this.buildWire(row, from, to, r))
     }
 
     // USB cable for the code step: plug from the board's socket out through the nearest wall
@@ -473,31 +523,9 @@ export class Device {
     return m
   }
 
-  private buildWire(row: WiringRow, from: Vector3, to: Vector3, k: number, cap: number | null): WireEntry {
+  private buildWire(row: WiringRow, from: Vector3, to: Vector3, r: Route): WireEntry {
     const g = new Group()
-    const up = (p: Vector3, dz: number) => p.clone().add(new Vector3(0, 0, dz))
-    const p0 = up(from, 2)
-    const p4 = up(to, 2)
-    const spread = (k - 1.5) * 1.6
-    const side = new Vector3(-(p4.y - p0.y), p4.x - p0.x, 0).normalize().multiplyScalar(spread)
-    const lim = (z: number) => (cap === null ? z : Math.min(cap, z))
-    let pts: Vector3[]
-    if (cap !== null) {
-      const p1 = up(p0, 3)
-      p1.z = lim(p1.z)
-      const p3 = up(p4, 3)
-      p3.z = lim(p3.z)
-      const p2 = p0.clone().lerp(p4, 0.5).add(side)
-      p2.z = lim(Math.max(p1.z, p3.z) + 3 + Math.abs(spread))
-      pts = [p0, p1, p2, p3, p4]
-    } else {
-      // outside part: out through the cable hole in the wall between them (the guide's "feed the cable in")
-      const hole = this.wallCrossing(p0, p4)
-      const inside = hole.clone().lerp(p0, 0.25)
-      pts = [p0, up(p0, 3), inside.add(side), hole.add(side), up(p4, 6), p4]
-    }
-    const curve = new CatmullRomCurve3(pts, false, 'centripetal')
-    const tube = new Mesh(new TubeGeometry(curve, 90, 0.6, 8, false), this.std(WIRE_HEX[row.pin_type] ?? '#8b8b8b'))
+    const tube = new Mesh(new TubeGeometry(r.curve, 90, WIRE_R, 8, false), this.std(WIRE_HEX[row.pin_type] ?? '#8b8b8b'))
     const housing = (p: Vector3) => {
       const m = new Mesh(new BoxGeometry(2.5, 2.5, 6), this.std('#151618'))
       m.position.copy(p).setZ(p.z - 1)
@@ -513,24 +541,13 @@ export class Device {
       tube,
       count: tube.geometry.index?.count ?? 0,
       ends,
+      hits: r.hits,
     }
   }
 
-  private wallCrossing(a: Vector3, b: Vector3) {
-    // where the straight line from the pin inside to the part outside leaves the case, at mid-wall height
-    const m = this.caseBox
-    let t = 1
-    for (const [p0, p1, lo, hi] of [
-      [a.x, b.x, m.min.x, m.max.x],
-      [a.y, b.y, m.min.y, m.max.y],
-    ]) {
-      if (p1 > hi) t = Math.min(t, (hi - p0) / (p1 - p0))
-      if (p1 < lo) t = Math.min(t, (lo - p0) / (p1 - p0))
-    }
-    return a
-      .clone()
-      .lerp(b, t)
-      .setZ(m.min.z + 0.6 * (m.max.z - m.min.z))
+  /** What each wire ("ref.pin") still runs into: all [] when every wire found a clean path. */
+  wireClips(): Record<string, string[]> {
+    return Object.fromEntries(this.wires.map((w) => [`${w.row.part_ref}.${w.row.part_pin}`, w.hits]))
   }
 
   /** Overview: everything in place, lid see-through; `exploded` holds the parts apart. */

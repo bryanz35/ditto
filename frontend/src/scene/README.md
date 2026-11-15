@@ -18,6 +18,17 @@ The device in the overview and the build guide, ported from the 3D instruction s
 Debugging: `npm run dev`, open `/viewer.html` (the plant_monitor fixture) or `/viewer.html?run=<id>`
 (a real run through the API) and click through the steps. In dev builds `window.__device` is the scene.
 
+- `route.ts`: each wire's path. Straight up off the pin, across, down onto the other pin, taking the
+  lowest clear way: round a tall part when it can, over it (under the lid) when it can't. The parts at
+  a wire's own ends don't count near their pins (a low pin on a tall part). An outside part's wires
+  leave through its cable hole (cad/manifest.json) and go up over whatever lies between. Every
+  candidate is checked against the part boxes and the printed shells (case, lid, a custom device's
+  prints, through a BVH). `device.wireClips()` lists what each wire still hits (all `[]` normally);
+  dev builds log `[wires] ... clips ...` for the rest.
+
 Known shortcuts: pins are drawn pointing up so the wires read clearly (a DevKitC's point down);
 wires don't avoid each other beyond a small spread; outside parts lie behind the case, not at their
-cable hole; the explode offsets are a simple rule (board lowest, the rest stacked and spread).
+cable hole; the shell check follows a wire's centreline, not its full radius; on a custom body the
+cable's real way from the hole to a part (inside the body, along an arm) isn't known, so those wires
+can still clip it (dev builds say which); the explode offsets are a simple rule (board lowest, the rest
+stacked and spread).

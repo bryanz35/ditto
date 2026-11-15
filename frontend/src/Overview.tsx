@@ -85,6 +85,7 @@ export function Overview({
               assembly={assembly}
               spec={spec}
               wiring={wiring}
+              manifest={manifest}
               exploded={exploded}
               selected={assembly && openLine ? { ref: openLine.refs[0], label: openLine.name } : null}
               leftInset={392}

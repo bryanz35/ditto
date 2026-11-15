@@ -76,7 +76,7 @@ export function Build({
       </main>
     )
   }
-  return <Guide key={steps.map((s) => s.id).join()} {...{ runId, steps, prints, spec, wiring, urlOf, topbar, onBack }} />
+  return <Guide key={steps.map((s) => s.id).join()} {...{ runId, steps, prints, spec, wiring, enclosure, urlOf, topbar, onBack }} />
 }
 
 function Guide({
@@ -85,6 +85,7 @@ function Guide({
   prints,
   spec,
   wiring,
+  enclosure,
   urlOf,
   topbar,
   onBack,
@@ -95,6 +96,7 @@ function Guide({
   prints: Print[]
   spec: ProjectSpec | null
   wiring: Wiring | null
+  enclosure: EnclosureManifest | null
   urlOf: UrlOf
   topbar: (status: string) => ReactNode
   onBack: () => void
@@ -129,7 +131,8 @@ function Guide({
               assembly={assembly}
               spec={spec}
               wiring={wiring}
-                            build={{ steps, index }}
+              manifest={enclosure}
+              build={{ steps, index }}
               leftInset={392}
               selected={assembly && step.ref && step.kind !== 'Code' ? { ref: step.ref, label: step.noun ?? step.ref } : null}
             />

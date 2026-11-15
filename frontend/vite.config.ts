@@ -7,6 +7,8 @@ const apiPort = process.env.API_PORT ?? '8000'
 
 export default defineConfig({
   plugins: [react()],
+  // the device test reads the fixture's assembly.glb with ?inline
+  assetsInclude: ['**/*.glb'],
   server: {
     port: Number(process.env.WEB_PORT ?? 5173),
     strictPort: true,

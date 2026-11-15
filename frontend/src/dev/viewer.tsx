@@ -41,6 +41,7 @@ export function Playground() {
         assembly={glb}
         spec={spec}
         wiring={wiring}
+        manifest={manifest}
         exploded={exploded}
         build={at >= 0 ? { steps, index: at } : null}
         selected={step?.ref && step.kind !== 'Code' ? { ref: step.ref, label: step.noun ?? step.ref } : null}
