@@ -158,6 +158,7 @@ function Workspace({
           onOwn={onOwn}
           onDetails={() => setDetails(true)}
           onBuild={() => setBuilding(true)}
+          onStop={() => cancelRun(runId)}
           onExit={onExit}
         />
         {banner}

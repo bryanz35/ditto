@@ -448,6 +448,18 @@ describe('Overview', () => {
     expect(chip().disabled).toBe(false)
   })
 
+  it('turns Send into Stop while an edit runs, and stops it', async () => {
+    const stream = openRun()
+    stream.emit([...lines, ...editLines.slice(0, 1)])
+    expect(screen.queryByRole('button', { name: 'Send' })).toBeNull()
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Stop' })))
+    expect(lastCall('/api/runs/plant_monitor/cancel', 'POST')).toBeDefined()
+    expect(screen.queryByRole('alert')).toBeNull()
+    stream.emit(editLines.slice(1))
+    expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull()
+    screen.getByRole('button', { name: 'Send' })
+  })
+
   it('answers a question from the text box, never with a quick reply', async () => {
     const stream = openRun()
     stream.emit(lines)
