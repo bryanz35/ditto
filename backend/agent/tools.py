@@ -155,9 +155,8 @@ def guarded(
     def emit(e: Event) -> None:
         e = e.model_copy(update={"data": {**e.data, "attempt": attempt}})
         if draft and e.status == "passed" and e.artifacts:
-            held.append(
-                e
-            )  # its files are the draft's: announced only once the draft is saved
+            # its files are the draft's: announced only once the draft is saved
+            held.append(e)
         else:
             ctx.emit(e)
 
@@ -175,9 +174,8 @@ def guarded(
                 if saved.is_dir():
                     shutil.copytree(saved, cad)
     if not passed:
-        for (
-            e
-        ) in held:  # the stage passed, but its files were thrown away with the draft
+        # the stage passed, but its files were thrown away with the draft
+        for e in held:
             note = f"{e.message}; not kept, the rest of the draft failed"
             ctx.emit(e.model_copy(update={"artifacts": {}, "message": note}))
         ctx.failures[key] = attempt
