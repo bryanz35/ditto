@@ -2,8 +2,8 @@
 
 The parts are the ones cad/manifest.json lists in `prints` (base and lid when there's no manifest).
 Checks: each STL is watertight, one connected piece, and fits the printer's build volume
-(backend/parts/printers/<id>.yaml, any axis-aligned orientation); a print-only part has a flat face on
-the bed; the box walls are at least spec.enclosure.wall_mm; every placement is inside the cavity,
+(backend/parts/printers/<id>.yaml, any axis-aligned orientation); every part but a device's base and
+lid has a flat face on the bed; the box walls are at least spec.enclosure.wall_mm; every placement is inside the cavity,
 clear of the corner screw posts and of every other part (devices only: layout is None otherwise).
 
 Error codes: unknown_printer, missing_stl, not_watertight, loose_pieces, no_flat_base,
@@ -128,7 +128,6 @@ def check_enclosure(
     printer_id: str,
 ) -> ToolResult:
     errors = _placement_errors(spec, layout, lib) if layout else []
-    print_only = spec.mcu is None
     profile = PRINTERS_DIR / f"{printer_id}.yaml"
     volume = (
         sorted(yaml.safe_load(profile.read_text())["build_volume_mm"])
@@ -157,6 +156,7 @@ def check_enclosure(
             watertight = fits = False
             continue
         mesh = _load(path)
+        case = layout is not None and name in ("base", "lid")
         if not mesh.is_watertight:
             watertight = False
             errors.append(
@@ -164,7 +164,7 @@ def check_enclosure(
                     code="not_watertight",
                     message=f"{name}.stl has holes or open edges, so slicers may print it wrong",
                     hint="a cutout probably grazes an edge; change clearance_mm or wall_mm"
-                    if layout
+                    if case
                     else "overlap touching solids by at least 0.5 mm instead of meeting at "
                     "an edge, and avoid zero-thickness features",
                 )
@@ -175,13 +175,13 @@ def check_enclosure(
                     code="loose_pieces",
                     message=f"{name}.stl is {pieces} separate pieces that would print loose",
                     hint="make the body overlap BAY by at least 1 mm"
-                    if layout
+                    if case
                     else "overlap the pieces by at least 1 mm, or give each its own entry in "
                     "`parts`",
                     field="enclosure.code",
                 )
             )
-        if print_only and _bed_contact_mm2(mesh) < MIN_BED_CONTACT_MM2:
+        if not case and _bed_contact_mm2(mesh) < MIN_BED_CONTACT_MM2:
             errors.append(
                 ToolError(
                     code="no_flat_base",
@@ -201,12 +201,12 @@ def check_enclosure(
                     f"too big for {printer_id}'s {' x '.join(f'{v:g}' for v in volume)} mm "
                     f"build volume in any orientation",
                     hint="use fewer or smaller parts, or a printer with a larger bed"
-                    if layout
+                    if case
                     else "make it smaller or split it into parts that join (each its own "
                     "entry in `parts`)",
                 )
             )
-        if name == "base" and layout:
+        if case and name == "base":
             wall = spec.enclosure.wall_mm
             thinnest = min(
                 (float(mesh.extents[i]) - layout.cavity_mm[i]) / 2 for i in (0, 1)

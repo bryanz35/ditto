@@ -14,9 +14,8 @@ frontend/dist/
 *.stl
 !fixtures/**/*.stl
 
-# Secrets and per-worktree config
+# Secrets
 .env
-.env.worktree
 
 # Local tooling, not part of the project
 CLAUDE.local.md

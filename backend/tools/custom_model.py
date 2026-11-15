@@ -2,12 +2,14 @@
 
 The code is checked (allowed imports, no file or interpreter access), saved as cad/model.py and run by
 backend/cad/run_model.py in a separate process with a time and memory limit. Its docstring says what
-the code must define: `parts` for a print-only project, `body` around the case's BAY for a device
-(then base and lid keep their names, so the layout, assembly and build guide work unchanged).
+the code must define: `parts` for a print-only project; for a device `body` around the case's BAY,
+extra separately printed `parts` with where each goes (`assembled`), external parts placed on them
+(`mounts`), or both (base and lid keep their names, so the layout, assembly and build guide work
+unchanged). run_model checks that the assembled device holds together.
 check_enclosure then checks every printed part.
 
 Error codes: no_model, forbidden_code, model_error, bad_model_output, model_timeout, cad_build_failed,
-layout_mismatch.
+layout_mismatch, not_assembled; warning: unmounted_parts.
 """
 
 import ast
@@ -226,11 +228,17 @@ def build_custom_model(
         if mismatch := layout_error(spec, layout, lib):
             return mismatch
         manifest = enclosure_manifest(spec, layout, lib)
+        external = {}  # ref -> board size, for `mounts`
+        for p in spec.parts:
+            part = lib.get(p.part_id)
+            if part.mounting == "external":
+                external[p.ref] = [part.board_mm.l, part.board_mm.w, part.board_mm.h]
         job["box"] = {
             "cavity_mm": layout.cavity_mm,
             "wall_mm": manifest.wall_mm,
             "cutouts": [c.model_dump(mode="json") for c in manifest.cutouts],
             "standoffs": standoffs(spec, layout, lib),
+            "external": external,
         }
     model_py = out_dir / "model.py"
     model_py.write_text(code)
@@ -273,9 +281,29 @@ def build_custom_model(
         return _failed(out["code"], out["message"])
 
     prints = {n: tuple(v) for n, v in sorted(out["prints"].items())}
+    warnings = []
     if device:
-        outer = tuple(out["outer"])
-        manifest = manifest.model_copy(update={"prints": prints, "outer_mm": outer})
+        manifest = EnclosureManifest.model_validate(
+            manifest.model_dump()
+            | {
+                "prints": prints,
+                "outer_mm": out["outer"],
+                "assembled": out["assembled"],
+                "mounts": out["mounts"],
+                "build_order": out["order"],
+            }
+        )
+        if loose := sorted(set(job["box"]["external"]) - set(manifest.mounts)):
+            warnings.append(
+                ToolError(
+                    code="unmounted_parts",
+                    message=f"not mounted on any printed part, so shown beside the device: "
+                    f"{', '.join(loose)}. If a printed part holds one (a servo in an arm link, a "
+                    'sensor in a bracket), place it with `mounts = {"ref": Location}`',
+                    field="enclosure.code",
+                    severity="warning",
+                )
+            )
     else:
         biggest = max(prints.values(), key=lambda s: s[0] * s[1] * s[2])
         manifest = EnclosureManifest(
@@ -291,6 +319,7 @@ def build_custom_model(
     path.write_text(manifest.model_dump_json(indent=2) + "\n")
     return ToolResult(
         ok=True,
+        errors=warnings,
         artifacts={
             **out["artifacts"],
             "model_py": str(model_py),

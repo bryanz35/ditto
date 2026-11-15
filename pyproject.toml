@@ -27,7 +27,9 @@ dev = [
 ]
 
 [tool.ruff]
-extend-exclude = ["scripts/board.py"]  # board script ships verbatim with the handoff bundle (stdlib-only, own style)
+extend-exclude = [
+  "references",  # the user's past projects, read by the agent as reference material
+]
 
 [tool.ruff.lint]
 extend-ignore = ["RUF012"]  # Pydantic copies mutable field defaults; `= []` is safe on models

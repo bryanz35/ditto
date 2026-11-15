@@ -256,3 +256,27 @@ async def test_firmware_agent_sees_the_saved_specs_pin_macros(events):
     assert "pins.h for the saved spec defines exactly these macros" in system.content
     assert "- PIN_BUZZER1_SIG (GPIO" in system.content
     assert "PIN_ENV1_VCC" not in system.content  # power pins get no macro
+
+
+async def test_past_projects_reach_every_agent(events, tmp_path, monkeypatch):
+    project = tmp_path / "pack" / "projects" / "arm.md"
+    project.parent.mkdir(parents=True)
+    project.write_text("# Servo arm")
+    (tmp_path / "pack" / "fetch.py").write_text("")
+    monkeypatch.setattr("backend.agent.orchestrator.REFERENCES", tmp_path)
+    path = "/references/pack/projects/arm.md"
+    orchestrator = run_script()
+    orchestrator.messages = iter(
+        [call("read_file", {"file_path": path}, "o0"), *orchestrator.messages]
+    )
+    r = runner(orchestrator)
+
+    await r.run(RunRequest(run_id="r1", prompt=PROMPT), events.append)
+
+    listed = f"- `{path}`"
+    assert listed in system_prompt(orchestrator)  # via the AGENTS.md memory
+    for name in ("parts-and-pins", "firmware", "enclosure"):
+        assert listed in system_prompt(r.models[name])
+    assert "fetch.py" not in system_prompt(orchestrator)
+    read = orchestrator.seen[1][-1]
+    assert read.type == "tool" and "# Servo arm" in read.text

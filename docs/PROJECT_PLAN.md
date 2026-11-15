@@ -1,8 +1,7 @@
 # Project plan: Prompt-to-Device (technical reference for agents)
 
 This is the repo copy of the team's project plan doc, kept for Claude Code agents, which can't open the
-original. It holds the technical design. **Where this file and `handoff/BUILD_PLAN.md` or `CLAUDE.md`
-disagree on file paths or ownership, those two files win.** Paths below already follow the build plan.
+original. It holds the technical design. **Where this file and `CLAUDE.md` disagree, `CLAUDE.md` wins.**
 
 ## What we're building
 
@@ -64,7 +63,7 @@ enclosure, an exploded lid, and every part placed where the layout puts it) and 
 `diagram.json` generated from the spec, run with `wokwi-cli` until the firmware prints `P2D_READY`).
 Wokwi needs an API token (`WOKWI_CLI_TOKEN`) and internet access: firmware is uploaded to its servers
 for the run. Choose the showcase device from parts Wokwi supports, so a late change of mode never forces
-a new device. Full fallback table: section 0 of `handoff/BUILD_PLAN.md`.
+a new device.
 
 ## Architecture
 
@@ -194,8 +193,8 @@ and reruns, layout and geometry, pin numbers (`pins.h`), and pricing. The agent 
 
 The spec is the single source of truth. The agent fills it through structured output; plain code
 computes the BOM, check results, module layout and enclosure dimensions (from the library), never the
-model. After the freeze, change it only by adding optional fields. T01 adds `rev`, `Placement` and
-`Layout` (see `handoff/BUILD_PLAN.md`).
+model. Prefer adding optional fields over changing existing ones. The spec also carries `rev`,
+`Placement` and `Layout`.
 
 ```python
 # Sketch of backend/contracts/spec.py. The code is authoritative (it adds rev, Placement, Layout).

@@ -203,3 +203,86 @@ def test_device_body_that_misses_the_bay_is_loose(tmp_path, lib):
         e.code for e in check_enclosure(spec, layout, lib, tmp_path, "generic").errors
     ]
     assert codes == ["loose_pieces"]
+
+
+# A plain case with a knob on the lid and a clip behind it that holds the soil probe.
+CLIP_AND_KNOB = """from build123d import *
+L, W, H = CAVITY_MM
+MIN = (Align.MIN,) * 3
+knob = Cylinder(8, 12, align=(Align.CENTER, Align.CENTER, Align.MIN))
+parts = {"knob": knob, "clip": Pos(50, 0, 0) * Box(30, 10, 12, align=MIN)}
+assembled = {
+    "knob": Pos(L / 2, W / 2, H + WALL_MM),
+    "clip": Pos(10, W + WALL_MM, -WALL_MM) * Pos(-50, 0, 0),  # against the back wall
+}
+mounts = {"soil1": Pos(0, W + WALL_MM + 6, 10)}  # on the clip, 6 mm clear of the wall
+"""
+
+
+@pytest.mark.slow
+def test_device_parts_and_mounts_are_assembled_in_build_order(tmp_path, lib):
+    import trimesh
+
+    from backend.cad.assembly import build_assembly
+    from backend.tools.layout import layout_parts
+
+    spec = device_with(CLIP_AND_KNOB)
+    layout, _ = layout_parts(spec, lib)
+    result = build_custom_model(spec, layout, lib, tmp_path)
+    assert result.ok, result.errors
+    assert result.errors == []  # the only external part is mounted: no warning
+    manifest = result.data["manifest"]
+    assert set(manifest["prints"]) == {"base", "lid", "knob", "clip"}
+    w = spec.enclosure.wall_mm
+    L, W, _ = layout.cavity_mm
+    assert manifest["outer_mm"][0] == pytest.approx(L + 2 * w)  # the case only
+    assert manifest["build_order"] == ["clip", "knob", "soil1"]
+    assert manifest["assembled"]["clip"]["on"] == "base"
+    assert manifest["mounts"]["soil1"]["on"] == "clip"
+    checked = check_enclosure(spec, layout, lib, tmp_path, "generic")
+    assert checked.ok, checked.errors
+
+    assert build_assembly(spec, layout, lib, tmp_path).ok
+    scene = trimesh.load(tmp_path / "assembly.glb")
+    clip = scene.geometry["print_clip"].copy()
+    clip.apply_transform(scene.graph.get("print_clip")[0])
+    assert clip.bounds[0] == pytest.approx([10, W + w, -w])
+    probe = scene.graph.get("soil1")[0][:3, 3]  # the box's centre
+    assert probe == pytest.approx([49, W + w + 6 + 11.5, 13.5])
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("change", "code", "says"),
+    [
+        (("assembled = {",), "bad_model_output", "Missing: ['clip', 'knob']"),
+        (
+            ('"knob": Pos(L / 2', '"knob": Pos(L / 2 + 300'),
+            "not_assembled",
+            "knob doesn't attach to the device",
+        ),
+        (
+            ("+ 6, 10)}", "+ 6, 10), 'env1': Pos(0, 0, 0)}"),
+            "bad_model_output",
+            "['env1'] aren't",
+        ),
+        (
+            ("Pos(0, W + WALL_MM + 6, 10)", "Pos(-2, -2, -2)"),
+            "not_assembled",
+            "overlap",
+        ),
+    ],
+)
+def test_assembly_problems_are_explained(tmp_path, lib, change, code, says):
+    from backend.tools.layout import layout_parts
+
+    model = CLIP_AND_KNOB
+    if len(change) == 1:  # drop `assembled`
+        model = model[: model.index(change[0])] + model[model.index("mounts") :]
+    else:
+        model = model.replace(*change)
+    spec = device_with(model)
+    layout, _ = layout_parts(spec, lib)
+    error = build_custom_model(spec, layout, lib, tmp_path).errors[0]
+    assert error.code == code
+    assert says in error.message, error.message

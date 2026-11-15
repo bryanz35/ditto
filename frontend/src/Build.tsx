@@ -76,21 +76,25 @@ export function Build({
       </main>
     )
   }
-  return <Guide key={steps.map((s) => s.id).join()} {...{ runId, steps, prints, urlOf, topbar, onBack }} />
+  return <Guide key={steps.map((s) => s.id).join()} {...{ runId, steps, prints, spec, wiring, urlOf, topbar, onBack }} />
 }
 
 function Guide({
   runId,
   steps,
   prints,
+  spec,
+  wiring,
   urlOf,
   topbar,
   onBack,
 }: {
   runId: string
   steps: Step[]
-  /** A print-only project's parts, shown instead of the case. */
+  /** A print-only project's parts, shown instead of the case; a device's extras, beside it. */
   prints: Print[]
+  spec: ProjectSpec | null
+  wiring: Wiring | null
   urlOf: UrlOf
   topbar: (status: string) => ReactNode
   onBack: () => void
@@ -110,8 +114,8 @@ function Guide({
   const tick = (id: string) =>
     setProgress((p) => ({ ...p, wires: p.wires.includes(id) ? p.wires.filter((w) => w !== id) : [...p.wires, id] }))
 
-  // place and wire steps show the parts in place, the last step the closed box, the rest the bare case
-  const assembly = step.ref && step.kind !== 'Code' ? urlOf('assembly_glb') : null
+  // the device as it is during this step, playing the step's animation (scene/device.ts)
+  const assembly = urlOf('assembly_glb')
 
   return (
     <main className="overview build">
@@ -119,11 +123,15 @@ function Guide({
         {urlOf('base_stl') || prints.length ? (
           <Suspense fallback={<p className="empty center">Loading the 3D view…</p>}>
             <Viewer3D
-              base={prints.length ? null : urlOf('base_stl')}
+              base={spec && !spec.mcu ? null : urlOf('base_stl')}
               lid={step.kind === 'Close' ? urlOf('lid_stl') : null}
               prints={prints}
               assembly={assembly}
-              selected={assembly && step.ref ? { ref: step.ref, label: step.noun ?? step.ref } : null}
+              spec={spec}
+              wiring={wiring}
+                            build={{ steps, index }}
+              leftInset={392}
+              selected={assembly && step.ref && step.kind !== 'Code' ? { ref: step.ref, label: step.noun ?? step.ref } : null}
             />
           </Suspense>
         ) : (

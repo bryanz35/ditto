@@ -87,6 +87,18 @@ class CutoutRecord(Model):
     size_mm: tuple[float, float]
 
 
+class Pose(Model):
+    """Where a custom device's extra printed part or mounted external part sits once assembled
+    (written by build_custom_model)."""
+
+    on: str
+    """What it attaches to, put in before it: "base", "lid", an extra printed part's name or a
+    mounted part's ref."""
+    transform: list[float]
+    """4x4 row-major, into the enclosure frame: for a printed part, from the part as exported (its
+    print position); for a mounted part, from its box (x 0..l, y 0..w, z 0..h of its board_mm)."""
+
+
 class EnclosureManifest(Model):
     """cad/manifest.json, written by build_enclosure or build_custom_model: which opening serves which
     part feature, and which parts get printed."""
@@ -104,3 +116,11 @@ class EnclosureManifest(Model):
     exported. "base" and "lid" for a device."""
     unmeasured_refs: list[str] = []
     """Parts whose dims_source isn't "measured": the UI says "verify before printing"."""
+    assembled: dict[str, Pose] = {}
+    """A custom device's extra printed parts, by name."""
+    mounts: dict[str, Pose] = {}
+    """External parts that a printed part holds (a servo in an arm link), by ref. The others sit
+    beside the device."""
+    build_order: list[str] = []
+    """The names in `assembled` and refs in `mounts` in an order they can be put together: each
+    after the part it attaches to."""

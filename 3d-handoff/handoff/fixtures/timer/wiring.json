@@ -1,0 +1,205 @@
+{
+  "rev": 7,
+  "pins": [
+    {
+      "id": "mcu:J3:0",
+      "part_ref": "mcu",
+      "name": "GND",
+      "position": [
+        4.86,
+        14.6,
+        -12.7
+      ],
+      "dir": 1
+    },
+    {
+      "id": "oled1:H1:0",
+      "part_ref": "oled1",
+      "name": "GND",
+      "position": [
+        26.19,
+        26.0,
+        -22.2
+      ],
+      "dir": -1
+    },
+    {
+      "id": "mcu:J2:0",
+      "part_ref": "mcu",
+      "name": "3V3",
+      "position": [
+        4.86,
+        14.6,
+        12.7
+      ],
+      "dir": 1
+    },
+    {
+      "id": "oled1:H1:1",
+      "part_ref": "oled1",
+      "name": "VCC",
+      "position": [
+        28.73,
+        26.0,
+        -22.2
+      ],
+      "dir": -1
+    },
+    {
+      "id": "mcu:J3:2",
+      "part_ref": "mcu",
+      "name": "GPIO22",
+      "position": [
+        -0.22,
+        14.6,
+        -12.7
+      ],
+      "dir": 1
+    },
+    {
+      "id": "oled1:H1:2",
+      "part_ref": "oled1",
+      "name": "SCL",
+      "position": [
+        31.27,
+        26.0,
+        -22.2
+      ],
+      "dir": -1
+    },
+    {
+      "id": "mcu:J3:5",
+      "part_ref": "mcu",
+      "name": "GPIO21",
+      "position": [
+        -7.84,
+        14.6,
+        -12.7
+      ],
+      "dir": 1
+    },
+    {
+      "id": "oled1:H1:3",
+      "part_ref": "oled1",
+      "name": "SDA",
+      "position": [
+        33.81,
+        26.0,
+        -22.2
+      ],
+      "dir": -1
+    },
+    {
+      "id": "mcu:J2:8",
+      "part_ref": "mcu",
+      "name": "GPIO25",
+      "position": [
+        -15.46,
+        14.6,
+        12.7
+      ],
+      "dir": 1
+    },
+    {
+      "id": "buzz1:H1:0",
+      "part_ref": "buzz1",
+      "name": "SIG",
+      "position": [
+        22.25,
+        14.6,
+        17.73
+      ],
+      "dir": 1
+    },
+    {
+      "id": "mcu:J3:6",
+      "part_ref": "mcu",
+      "name": "GND",
+      "position": [
+        -10.38,
+        14.6,
+        -12.7
+      ],
+      "dir": 1
+    },
+    {
+      "id": "buzz1:H1:1",
+      "part_ref": "buzz1",
+      "name": "GND",
+      "position": [
+        22.25,
+        14.6,
+        20.27
+      ],
+      "dir": 1
+    }
+  ],
+  "wires": [
+    {
+      "ref": "w.oled1.GND",
+      "part_ref": "oled1",
+      "part_pin": "GND",
+      "mcu_pin": "GND",
+      "from_pin": "mcu:J3:0",
+      "to_pin": "oled1:H1:0",
+      "color": "#26282c",
+      "color_name": "black",
+      "kind": "jumper_ff"
+    },
+    {
+      "ref": "w.oled1.VCC",
+      "part_ref": "oled1",
+      "part_pin": "VCC",
+      "mcu_pin": "3V3",
+      "from_pin": "mcu:J2:0",
+      "to_pin": "oled1:H1:1",
+      "color": "#e53935",
+      "color_name": "red",
+      "kind": "jumper_ff"
+    },
+    {
+      "ref": "w.oled1.SCL",
+      "part_ref": "oled1",
+      "part_pin": "SCL",
+      "mcu_pin": "GPIO22",
+      "from_pin": "mcu:J3:2",
+      "to_pin": "oled1:H1:2",
+      "color": "#f6c20d",
+      "color_name": "yellow",
+      "kind": "jumper_ff"
+    },
+    {
+      "ref": "w.oled1.SDA",
+      "part_ref": "oled1",
+      "part_pin": "SDA",
+      "mcu_pin": "GPIO21",
+      "from_pin": "mcu:J3:5",
+      "to_pin": "oled1:H1:3",
+      "color": "#1e88e5",
+      "color_name": "blue",
+      "kind": "jumper_ff"
+    },
+    {
+      "ref": "w.buzz1.SIG",
+      "part_ref": "buzz1",
+      "part_pin": "SIG",
+      "mcu_pin": "GPIO25",
+      "from_pin": "mcu:J2:8",
+      "to_pin": "buzz1:H1:0",
+      "color": "#2e9e4f",
+      "color_name": "green",
+      "kind": "jumper_ff"
+    },
+    {
+      "ref": "w.buzz1.GND",
+      "part_ref": "buzz1",
+      "part_pin": "GND",
+      "mcu_pin": "GND",
+      "from_pin": "mcu:J3:6",
+      "to_pin": "buzz1:H1:1",
+      "color": "#26282c",
+      "color_name": "black",
+      "kind": "jumper_ff"
+    }
+  ]
+}

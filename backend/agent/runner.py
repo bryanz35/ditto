@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from deepagents.backends.utils import create_file_data
+from langchain_core.callbacks import UsageMetadataCallbackHandler
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
@@ -21,6 +22,7 @@ from backend.agent.orchestrator import (
     build_agent,
     house_rules,
     model_spec,
+    reference_files,
 )
 from backend.agent.tools import RunContext, make_tools
 from backend.contracts.events import Event, Question, Stage, Todo
@@ -130,7 +132,10 @@ class AgentRunner:
     async def _drive(self, ctx: RunContext, content: str | list) -> None:
         """Send one user message; stream the agent, forwarding todo updates, and answer its
         questions until it ends."""
-        files = {AGENTS_MD: create_file_data(house_rules())}
+        files = {AGENTS_MD: create_file_data(house_rules())} | {
+            path: create_file_data(src.read_text())
+            for path, src in reference_files().items()
+        }
         payload: dict | Command = {
             "messages": [{"role": "user", "content": content}],
             "files": files,
@@ -145,9 +150,16 @@ class AgentRunner:
             user,
             ctx.pin_macros,
         )
+        # Every event of this turn carries the turn's token count so far (data.tokens), sub-agents included.
+        usage = UsageMetadataCallbackHandler()
+        emit = ctx.emit
+        ctx.emit = lambda e: emit(
+            e.model_copy(update={"data": e.data | {"tokens": _tokens(usage)}})
+        )
         config = {
             "configurable": {"thread_id": ctx.run_id},
             "recursion_limit": 200,
+            "callbacks": [usage],
             # LangSmith (when LANGSMITH_TRACING is set): one trace per message, findable by run id.
             "run_name": "p2d",
             "metadata": {"p2d_run_id": ctx.run_id},  # "run_id" is LangGraph's own key
@@ -236,6 +248,15 @@ def _event(ctx: RunContext, stage: Stage, status, message: str, **kw) -> Event:
 
 def _plan(ctx: RunContext, status, message: str) -> None:
     ctx.emit(_event(ctx, "plan", status, message))
+
+
+def _tokens(usage: UsageMetadataCallbackHandler) -> dict[str, int]:
+    """Input and output tokens summed over every model the turn called."""
+    totals = usage.usage_metadata.values()
+    return {
+        "input": sum(u.get("input_tokens", 0) for u in totals),
+        "output": sum(u.get("output_tokens", 0) for u in totals),
+    }
 
 
 def _text(message) -> str:

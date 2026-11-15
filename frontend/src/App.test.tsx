@@ -10,17 +10,22 @@ vi.mock('./Viewer3D', () => ({
     base,
     lid,
     assembly,
+    exploded,
+    build,
     selected,
     onSelect,
   }: {
     base: string | null
     lid: string | null
     assembly: string | null
+    exploded?: boolean
+    build?: { steps: { kind: string; ref: string | null }[]; index: number } | null
     selected: { ref: string; label: string } | null
     onSelect?: (ref: string) => void
   }) => (
     <div data-testid="viewer">
-      {base} {lid} {assembly} {selected && `label:${selected.ref}`}
+      {base} {lid} {assembly} {exploded && 'exploded'} {build && `step:${build.steps[build.index].kind}`}{' '}
+      {selected && `label:${selected.ref}`}
       <button type="button" onClick={() => onSelect?.('oled1')}>
         click oled1
       </button>
@@ -306,9 +311,33 @@ describe('Overview', () => {
       ['from-agent', 'Walls are 3 mm now.'],
     ])
     within(log).getByText('3 mm', { selector: 'strong' }) // Ditto's replies are markdown
-    // folds to its tab so it doesn't cover the model
+    // it sits under the parts list in the left panel; each folds to its header so the model has room
     fireEvent.click(screen.getByRole('button', { name: /Conversation/ }))
     expect(screen.queryByRole('list', { name: 'Conversation' })).toBeNull()
+    const parts = screen.getByRole('region', { name: 'Parts list' })
+    fireEvent.click(within(parts).getByRole('button', { name: /Parts list/ }))
+    expect(within(parts).queryByText('Total to buy')).toBeNull()
+  })
+
+  it('shows a sent message at once, opens the conversation and shows Ditto at work until it replies', async () => {
+    const chat = (seq: number, who: string, message: string) =>
+      JSON.stringify({ ...JSON.parse(lines[0]), seq, message, data: { chat: who } })
+    const last = JSON.parse(lines.at(-1)!).seq as number
+    const done = (seq: number) => JSON.stringify({ ...JSON.parse(lines.at(-1)!), seq })
+    const stream = openRun()
+    stream.emit([...lines, chat(last + 1, 'user', 'make the walls 3 mm'), chat(last + 2, 'agent', 'Done.'), done(last + 3)])
+    fireEvent.click(screen.getByRole('button', { name: /Conversation/ })) // folded
+    fireEvent.change(screen.getByLabelText('Change the design'), { target: { value: 'add a buzzer' } })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Send' })))
+    const log = screen.getByRole('list', { name: 'Conversation' }) // opened again
+    const users = () => [...log.querySelectorAll('.from-user')].map((li) => li.textContent)
+    expect(users()).toEqual(['make the walls 3 mm', 'add a buzzer'])
+    expect(within(log).getByRole('status').textContent).toBe('Dittoing…') // nothing specific to say yet
+    stream.emit([chat(last + 4, 'user', 'add a buzzer')]) // its own turn replaces the pending one
+    expect(users()).toEqual(['make the walls 3 mm', 'add a buzzer'])
+    expect(within(log).getByRole('status').textContent).toMatch(/^Dittoing…\d/)
+    stream.emit([chat(last + 5, 'agent', 'Added a buzzer on GPIO 4.')])
+    expect(within(log).queryByRole('status')).toBeNull()
   })
 
   it('opens once the plan is done, with the parts from the BOM and their roles from the spec', async () => {
@@ -365,17 +394,18 @@ describe('Overview', () => {
     expect(within(all).queryByText(/BME280/)).toBeNull()
   })
 
-  it('switches between the exploded assembly and the closed case, and finds a clicked part in the list', async () => {
+  it('draws the assembly, explodes it on request, and finds a clicked part in the list', async () => {
     openRun().emit(lines)
     const viewer = await screen.findByTestId('viewer')
     expect(viewer.textContent).toContain('/api/runs/plant_monitor/files/cad/assembly.glb')
+    expect(viewer.textContent).not.toContain('exploded')
     fireEvent.click(screen.getByRole('button', { name: 'click oled1' }))
     const row = screen.getByRole('button', { name: /OLED/ }).closest('li')!
     expect(row.getAttribute('aria-expanded')).toBe('true')
     expect(viewer.textContent).toContain('label:oled1')
-    fireEvent.click(screen.getByRole('button', { name: 'Assembled' }))
-    expect(screen.getByTestId('viewer').textContent).not.toContain('assembly.glb')
-    expect(screen.getByTestId('viewer').textContent).toContain('/api/runs/plant_monitor/files/cad/lid.stl')
+    fireEvent.click(screen.getByRole('button', { name: 'Exploded' }))
+    expect(screen.getByTestId('viewer').textContent).toContain('assembly.glb')
+    expect(screen.getByTestId('viewer').textContent).toContain('exploded')
   })
 
   it('shows only the case when there is no assembly preview', async () => {

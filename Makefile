@@ -1,5 +1,4 @@
-# Commands are documented in CLAUDE.md. Ports come from .env.worktree (written by scripts/setup_worktrees.sh).
--include .env.worktree
+# Commands are documented in CLAUDE.md.
 API_PORT ?= 8000
 WEB_PORT ?= 5173
 export API_PORT WEB_PORT
