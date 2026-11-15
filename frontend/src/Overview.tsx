@@ -520,11 +520,13 @@ function ChatPanel({
           {status && (
             <li className="working" role="status">
               <span className="sprite" aria-hidden="true" />
-              {status}
+              <span className="status-text" title={status}>
+                {status}
+              </span>
               {usage && (
                 <span className="mono usage">
-                  {elapsed(now - usage.since)}
-                  {usage.tokens !== null && ` · ${tokenCount(usage.tokens)} tokens`}
+                  <span>{elapsed(now - usage.since)}</span>
+                  {usage.tokens !== null && <span>{tokenCount(usage.tokens)} tokens</span>}
                 </span>
               )}
             </li>
