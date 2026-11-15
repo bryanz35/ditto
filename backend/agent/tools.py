@@ -18,7 +18,7 @@ from langchain_core.tools import BaseTool, tool
 from pydantic import ValidationError
 
 from backend.contracts.events import Event, Stage
-from backend.contracts.parts import BoardDef, PartLibrary, pin_code
+from backend.contracts.parts import PARTS_DIR, BoardDef, PartLibrary, pin_code
 from backend.contracts.results import ToolError, ToolResult
 from backend.contracts.runner import Emit, StageRunner, run_dir_for, save_spec
 from backend.contracts.spec import EnclosureSpec, ProjectSpec, UserContext
@@ -83,7 +83,31 @@ class RunContext:
             about
             + "pins.h for the saved spec defines exactly these macros; use no others:\n"
             + ("\n".join(macros) or "(none)")
+            + self._examples(spec)
         )
+
+    def _examples(self, spec: ProjectSpec) -> str:
+        """Each part's libraries and known-good snippet (compiled by T23), so the model starts
+        from working library calls instead of guessing them."""
+        lib = self.lib.with_parts(spec.custom_parts)
+        out, seen = [], set()
+        for inst in spec.parts:
+            part = lib.parts.get(inst.part_id)
+            if part is None or part.id in seen:
+                continue
+            seen.add(part.id)
+            if part.pio_lib_deps:
+                out.append(
+                    f"{inst.ref} ({part.name}) libraries: {', '.join(part.pio_lib_deps)}"
+                )
+            snippet = PARTS_DIR / part.snippet if part.snippet else None
+            if snippet and snippet.is_file():
+                out.append(
+                    f"Known-good example for {inst.ref} ({part.name}). Its macros use the "
+                    "library's default ref: use the macro names listed above.\n"
+                    f"```cpp\n{snippet.read_text().strip()}\n```"
+                )
+        return "".join(f"\n\n{o}" for o in out)
 
     def next_rev(self) -> int:
         saved = self.load_spec()
@@ -93,7 +117,7 @@ class RunContext:
 def _limit(key: str) -> str:
     return (
         f"Retry limit reached: {key} failed {MAX_FAILURES} times. Don't call this tool again; "
-        "call request_change or report the failure in your final answer."
+        "call request_change, or return your report with status failed and the errors."
     )
 
 
@@ -298,8 +322,9 @@ def make_tools(ctx: RunContext) -> dict[str, BaseTool]:
         """Ask for a change outside your own section of the spec (e.g. a different pin or part).
         Don't make the change yourself."""
         return (
-            f"Change request for {field!r} recorded. Stop now and end your final answer with: "
-            f"CHANGE REQUEST {field}: {reason}. Options: {'; '.join(options)}"
+            f"Change request for {field!r} recorded. Stop now and return your report with status "
+            f"change_request and change_request = {{field: {field!r}, reason: {reason!r}, "
+            f"options: {options!r}}}."
         )
 
     @tool

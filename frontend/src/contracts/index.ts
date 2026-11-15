@@ -81,7 +81,7 @@ export interface BoardDef {
   mount_holes: MountHole[];
   /**
    * external: sits outside the case (soil probe, servo arm); the enclosure gets a cable hole
-   * instead of a placement.
+   * instead of a placement. The default: a spec's PartInstance.mounting overrides it.
    */
   mounting: "inside" | "external";
   mpn: string | null;
@@ -556,7 +556,7 @@ export interface Layout {
    */
   cavity_mm: [number, number, number];
   /**
-   * One per part mounted inside (`PartDef.mounting == "inside"`), the mcu included, sorted by
+   * One per part mounted inside (`mounting(p, lib) == "inside"`), the mcu included, sorted by
    * ref.
    */
   placements: Placement[];
@@ -618,7 +618,7 @@ export interface PartDef {
   mount_holes: MountHole[];
   /**
    * external: sits outside the case (soil probe, servo arm); the enclosure gets a cable hole
-   * instead of a placement.
+   * instead of a placement. The default: a spec's PartInstance.mounting overrides it.
    */
   mounting: "inside" | "external";
   mpn: string | null;
@@ -673,6 +673,12 @@ export interface PartInstance {
    * first). If the part has an i2c_address_pin, its wiring must select this address.
    */
   i2c_address: string | null;
+  /**
+   * Where this one sits, when not where the part usually does (PartDef.mounting): "external"
+   * for a sensor or camera on an arm, head or bracket, which gets a cable hole instead of a place
+   * in the case. None = the part's default. Never "external" for the mcu.
+   */
+  mounting: ("inside" | "external") | null;
   /**
    * Key into the parts library.
    */

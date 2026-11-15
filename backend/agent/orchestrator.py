@@ -8,6 +8,7 @@ orchestrator can't route around the specialists.
 import os
 from collections.abc import Callable
 from pathlib import Path
+from typing import Literal
 
 from deepagents import (
     GeneralPurposeSubagentProfile,
@@ -15,10 +16,16 @@ from deepagents import (
     create_deep_agent,
     register_harness_profile,
 )
-from langchain.agents.middleware import ModelRequest, TodoListMiddleware, dynamic_prompt
+from langchain.agents.middleware import (
+    ModelRequest,
+    ModelRetryMiddleware,
+    TodoListMiddleware,
+    dynamic_prompt,
+)
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.base import BaseCheckpointSaver
+from pydantic import BaseModel
 
 from backend.contracts.spec import UserContext
 
@@ -61,6 +68,40 @@ SUBAGENTS = {
     ),
 }
 ORCHESTRATOR_TOOLS = ["ask_user", "price_bom"]
+
+
+class ChangeRequest(BaseModel):
+    field: str
+    reason: str
+    options: list[str]
+
+
+class Report(BaseModel):
+    """What a specialist hands back to the orchestrator (as JSON, not prose)."""
+
+    status: Literal["done", "failed", "change_request"]
+    """done: its check passed and the result is saved. failed: still failing after its retries.
+    change_request: it needs a change outside its section (see change_request)."""
+    summary: str
+    """One or two lines: what was saved (parts chosen, what the firmware does, the shape and size)."""
+    assumptions: list[str] = []
+    still_failing: list[str] = []
+    """For "failed": the errors the last check returned."""
+    change_request: ChangeRequest | None = None
+
+
+PROFILE = HarnessProfile(
+    general_purpose_subagent=GeneralPurposeSubagentProfile(enabled=False),
+    # Agents act only through the checked tools. read_file stays: deepagents saves large tool
+    # results to a file and tells the model to read it back.
+    excluded_tools=frozenset(
+        {"ls", "write_file", "edit_file", "glob", "grep", "execute", "delete"}
+    ),
+    # Retries rate limits, overload and timeouts; a lasting failure raises to the run engine.
+    extra_middleware=lambda: [
+        ModelRetryMiddleware(max_retries=3, initial_delay=2.0, on_failure="error")
+    ],
+)
 
 
 def model_spec(model: ModelLike | None = None) -> ModelLike:
@@ -131,14 +172,11 @@ def build_agent(
 
         firmware_middleware = [with_pin_macros]
 
-    if isinstance(model, str):
-        # The profile is looked up by the main model's spec string; instances (fakes) keep the default.
-        register_harness_profile(
-            model,
-            HarnessProfile(
-                general_purpose_subagent=GeneralPurposeSubagentProfile(enabled=False)
-            ),
-        )
+    # Profiles are looked up by each agent's own model spec string; instances (fakes) keep the
+    # default.
+    for spec in [model_spec(m) for m in [model, *models.values()]]:
+        if isinstance(spec, str):
+            register_harness_profile(spec, PROFILE)
     subagents = [
         {
             "name": name,
@@ -148,6 +186,7 @@ def build_agent(
             "tools": [tools[t] for t in tool_names],
             "model": model_spec(models.get(name, model)),
             "middleware": firmware_middleware if name == "firmware" else [],
+            "response_format": Report,
         }
         for name, (prompt_name, description, tool_names) in SUBAGENTS.items()
     ]

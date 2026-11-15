@@ -197,7 +197,7 @@
         },
         "mounting": {
           "default": "inside",
-          "description": "external: sits outside the case (soil probe, servo arm); the enclosure gets a cable hole\ninstead of a placement.",
+          "description": "external: sits outside the case (soil probe, servo arm); the enclosure gets a cable hole\ninstead of a placement. The default: a spec's PartInstance.mounting overrides it.",
           "enum": [
             "inside",
             "external"
@@ -1164,7 +1164,7 @@
           "type": "array"
         },
         "placements": {
-          "description": "One per part mounted inside (`PartDef.mounting == \"inside\"`), the mcu included, sorted by\nref.",
+          "description": "One per part mounted inside (`mounting(p, lib) == \"inside\"`), the mcu included, sorted by\nref.",
           "items": {
             "$ref": "#/$defs/Placement"
           },
@@ -1286,7 +1286,7 @@
         },
         "mounting": {
           "default": "inside",
-          "description": "external: sits outside the case (soil probe, servo arm); the enclosure gets a cable hole\ninstead of a placement.",
+          "description": "external: sits outside the case (soil probe, servo arm); the enclosure gets a cable hole\ninstead of a placement. The default: a spec's PartInstance.mounting overrides it.",
           "enum": [
             "inside",
             "external"
@@ -1442,6 +1442,22 @@
           "default": null,
           "description": "For I2C parts: the address this instance uses, one of PartDef.i2c_addresses (None = the\nfirst). If the part has an i2c_address_pin, its wiring must select this address."
         },
+        "mounting": {
+          "anyOf": [
+            {
+              "enum": [
+                "inside",
+                "external"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Where this one sits, when not where the part usually does (PartDef.mounting): \"external\"\nfor a sensor or camera on an arm, head or bracket, which gets a cable hole instead of a place\nin the case. None = the part's default. Never \"external\" for the mcu."
+        },
         "part_id": {
           "description": "Key into the parts library.",
           "type": "string"
@@ -1472,7 +1488,8 @@
         "qty",
         "role",
         "reason",
-        "i2c_address"
+        "i2c_address",
+        "mounting"
       ],
       "title": "PartInstance",
       "type": "object"

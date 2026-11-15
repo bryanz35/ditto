@@ -4,9 +4,10 @@ The base is an open box with the cavity floor at z=0; the lid is a plate on top 
 hangs into the cavity. Both are exported where they sit when closed, so the assembly preview and the
 viewer can place parts straight from the layout. Imported lazily: importing build123d takes seconds.
 
-box_lid_shapes() also returns the bay (the closed box's outer solid) and the keep-out (cavity, the
+box_lid_shapes() also returns the bay (the closed box's outer solid), the keep-out (cavity, the
 lid's path and a tunnel out of every wall opening), which a custom body built around the bay must
-leave empty (backend/cad/run_model.py).
+leave empty, and the lid's top plate, the only part of the lid a custom model may cut
+(backend/cad/run_model.py).
 """
 
 from pathlib import Path
@@ -24,6 +25,9 @@ LIP_T_MM = 1.2
 LIP_GAP_MM = 0.2
 REACH_MM = 1000.0
 """How far the keep-out reaches past the box: further than any printable part."""
+CABLE_REACH_MM = 15.0
+"""A cable hole needs room for the cable to bend, not a plug's straight path: a stand built
+further out stays solid."""
 # Fixed, so the same spec gives the same STEP file.
 STEP_TIMESTAMP = "2000-01-01T00:00:00"
 
@@ -39,13 +43,14 @@ def _wall_cut(c: CutoutRecord, L: float, W: float, wall: float) -> Shape:
 
 
 def _tunnel(c: CutoutRecord, L: float, W: float) -> Shape:
-    """A wall opening extended far outward, so nothing built outside the wall blocks it."""
+    """A wall opening extended outward, so nothing built outside the wall blocks it."""
     (u, v), (w, h) = c.center_mm, c.size_mm
+    reach = CABLE_REACH_MM if c.feature == "cable" else REACH_MM
     if c.face in ("front", "back"):
-        y = -REACH_MM / 2 if c.face == "front" else W + REACH_MM / 2
-        return Pos(u, y, v) * Box(w, REACH_MM, h)
-    x = -REACH_MM / 2 if c.face == "left" else L + REACH_MM / 2
-    return Pos(x, u, v) * Box(REACH_MM, w, h)
+        y = -reach / 2 if c.face == "front" else W + reach / 2
+        return Pos(u, y, v) * Box(w, reach, h)
+    x = -reach / 2 if c.face == "left" else L + reach / 2
+    return Pos(x, u, v) * Box(reach, w, h)
 
 
 def box_lid_shapes(
@@ -54,7 +59,7 @@ def box_lid_shapes(
     cutouts: list[CutoutRecord],
     standoffs: list[tuple[float, float, float, float]],
 ) -> dict[str, Shape]:
-    """base, lid, bay and keepout (see the module docstring), in the enclosure frame.
+    """base, lid, plate, bay and keepout (see the module docstring), in the enclosure frame.
     standoffs: (x, y, height, hole diameter) of each part mount hole."""
     L, W, H = cavity
     P = CORNER_POST_MM
@@ -79,7 +84,8 @@ def box_lid_shapes(
         if c.face != "top":
             base -= _wall_cut(c, L, W, wall)
 
-    lid = Pos(-wall, -wall, H) * Box(L + 2 * wall, W + 2 * wall, wall, align=MIN)
+    plate = Pos(-wall, -wall, H) * Box(L + 2 * wall, W + 2 * wall, wall, align=MIN)
+    lid = plate
     # Lip strips stop short of the corner posts.
     g, t, s = LIP_GAP_MM, LIP_T_MM, P + LIP_GAP_MM
     for x, y, lx, ly in (
@@ -106,7 +112,7 @@ def box_lid_shapes(
     for c in cutouts:
         if c.face != "top":
             keepout += _tunnel(c, L, W)
-    return {"base": base, "lid": lid, "bay": bay, "keepout": keepout}
+    return {"base": base, "lid": lid, "plate": plate, "bay": bay, "keepout": keepout}
 
 
 def export_parts(shapes: dict[str, Shape], out_dir: Path) -> dict[str, str]:

@@ -1,4 +1,8 @@
-from backend.contracts.spec import Layout
+import pytest
+from pydantic import ValidationError
+
+from backend.contracts.invariants import check_cutouts, check_layout
+from backend.contracts.spec import Layout, ProjectSpec
 from backend.tools.build_enclosure import build_enclosure, enclosure_manifest
 from backend.tools.layout import layout_parts
 from tests.unit.cad.conftest import big_display_case, four_walls_case
@@ -61,3 +65,24 @@ def test_layout_for_another_spec_is_rejected(spec, lib, tmp_path):
     result = build_enclosure(spec, layout, lib, tmp_path)
     assert not result.ok and result.errors[0].code == "layout_mismatch"
     assert not list(tmp_path.iterdir())
+
+
+def test_a_part_the_spec_mounts_outside_gets_a_cable_hole_instead_of_a_place(spec, lib):
+    parts = [
+        p.model_copy(update={"mounting": "external"}) if p.ref == "oled1" else p
+        for p in spec.parts
+    ]
+    spec = spec.model_copy(update={"parts": parts})
+    layout, m = _manifest(spec, lib)
+    assert "oled1" not in {p.ref for p in layout.placements}
+    assert {(c.feature, c.face) for c in m.cutouts if c.for_ref == "oled1"} == {
+        ("cable", "back")
+    }
+    assert check_layout(layout, spec, lib) == []
+    assert check_cutouts(m, spec, lib) == []
+
+
+def test_the_mcu_cannot_be_mounted_outside(spec):
+    mcu = spec.mcu.model_copy(update={"mounting": "external"})
+    with pytest.raises(ValidationError, match="the mcu sits inside the case"):
+        ProjectSpec.model_validate(spec.model_dump() | {"mcu": mcu.model_dump()})

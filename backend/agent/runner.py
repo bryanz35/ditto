@@ -160,6 +160,9 @@ class AgentRunner:
             "configurable": {"thread_id": ctx.run_id},
             "recursion_limit": 200,
             "callbacks": [usage],
+            # LangSmith (when LANGSMITH_TRACING is set): one trace per message, findable by run id.
+            "run_name": "p2d",
+            "metadata": {"p2d_run_id": ctx.run_id},  # "run_id" is LangGraph's own key
         }
         todos = (await agent.aget_state(config)).values.get("todos")
         while True:

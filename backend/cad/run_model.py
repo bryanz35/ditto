@@ -3,24 +3,27 @@
     python -I run_model.py <repo root> <job.json>
 
 job.json: {"code": str, "out_dir": str, "result": str, and for a device "box": {"cavity_mm",
-"wall_mm", "cutouts", "standoffs", "external": {ref: [l, w, h]}}}. Writes STL and STEP files to
-out_dir and a JSON result: {"ok": true, "artifacts": {...}, "prints": {name: [x, y, z]},
-"outer": [x, y, z], "assembled": {name: pose}, "mounts": {ref: pose}, "order": [...]} (a pose is
-{"on", "transform"}, see contracts/artifacts.py Pose; outer: every
-part as exported; for a device, base and lid only, so the closed device) or {"ok": false,
-"code": ..., "message": ...}.
+"wall_mm", "cutouts", "standoffs", "external": {ref: [l, w, h]}, "inside": {ref: [x, y, z, l, w,
+h]}}}. Writes STL and STEP files to out_dir and a JSON result: {"ok": true, "artifacts": {...},
+"prints": {name: [x, y, z]}, "outer": [x, y, z], "assembled": {name: pose}, "mounts": {ref: pose},
+"order": [...]} (a pose is {"on", "transform"}, see contracts/artifacts.py Pose; outer: every part
+as exported; for a device, base and lid only, so the closed device) or {"ok": false, "code": ...,
+"message": ...}.
 
 The code runs with these names already defined (and anything it imports from build123d and math):
 - print-only: nothing extra. It must set `parts = {"name": shape, ...}`.
-- device: BAY (the closed case's outer solid, enclosure frame), CAVITY_MM (L, W, H), WALL_MM. It sets
+- device: BAY (the closed case's outer solid, enclosure frame), CAVITY_MM (L, W, H), WALL_MM,
+  EXTERNAL_MM ({ref: (l, w, h)}: the board_mm of each external part, for `mounts`). It sets
   `body` (a shape built around BAY), `parts` (separately printed pieces, as for print-only, never
   named base or lid), or both. Code makes base = box base + (body - keep-out) and keeps the box lid,
-  so the parts always fit, every opening stays clear and the lid still comes off. With `parts` it
-  must also set `assembled = {"name": Location}` (the move from the print bed to the part's place in
-  the device), and it may set `mounts = {"ref": Location}` to put an external part (its board_mm box,
-  x 0..l, y 0..w, z 0..h) in or on a printed part. Code then checks the assembled device: every
-  part and mounted box comes within TOUCH_MM of something that leads back to the case, and no two
-  overlap by more than OVERLAP_SHARE of the smaller one.
+  so the parts always fit, every opening stays clear and the lid still comes off. It may set
+  `lid_cut` (a shape): code cuts it from the lid's top plate only, so the lip still fits. With
+  `parts` it must also set `assembled = {"name": Location}` (the move from the print bed to the
+  part's place in the device), and it may set `mounts = {"ref": Location}` to put an external part
+  (its board_mm box, x 0..l, y 0..w, z 0..h) in or on a printed part. Code then checks the
+  assembled device: every part and mounted box comes within TOUCH_MM of something that leads back
+  to the case, and no two overlap, nor any of them and a part inside the case, by more than
+  OVERLAP_SHARE of the smaller.
   shortcut: the electronics always sit in one axis-aligned box bay; free placement (a tilted screen,
   parts spread through the body) needs model-proposed placements and collision checks.
 """
@@ -79,6 +82,7 @@ def main(root: str, job_path: str) -> None:
             "BAY": shapes["bay"],
             "CAVITY_MM": tuple(box["cavity_mm"]),
             "WALL_MM": box["wall_mm"],
+            "EXTERNAL_MM": {r: tuple(v) for r, v in box["external"].items()},
         }
     try:
         exec(compile(job["code"], "model.py", "exec"), env)  # noqa: S102 (checked by custom_model)
@@ -108,13 +112,14 @@ def main(root: str, job_path: str) -> None:
         )
     prints = parts
     if box:
-        body = env.get("body")
-        if body is None and not parts:
+        body, lid_cut = env.get("body"), env.get("lid_cut")
+        if body is None and not parts and lid_cut is None:
             return _fail(
                 result,
                 "bad_model_output",
                 "a device's model must set `body` (one build123d shape built around BAY), "
-                '`parts = {"name": shape, ...}` (separately printed pieces), or both',
+                '`parts = {"name": shape, ...}` (separately printed pieces), `lid_cut` (holes '
+                "through the lid), or any mix of them",
             )
         if body is not None and not isinstance(body, Shape):
             return _fail(
@@ -122,19 +127,32 @@ def main(root: str, job_path: str) -> None:
                 "bad_model_output",
                 f"`body` must be one build123d shape built around BAY; got {type(body).__name__}",
             )
+        if lid_cut is not None and not isinstance(lid_cut, Shape):
+            return _fail(
+                result,
+                "bad_model_output",
+                "`lid_cut` must be one build123d shape (the holes to cut through the lid); got "
+                f"{type(lid_cut).__name__}",
+            )
         try:
             base = (
                 shapes["base"]
                 if body is None
                 else shapes["base"] + (body - shapes["keepout"])
             )
+            lid = (
+                shapes["lid"]
+                if lid_cut is None
+                else shapes["lid"] - (lid_cut & shapes["plate"])
+            )
         except Exception:  # noqa: BLE001
             return _fail(
                 result,
                 "cad_build_failed",
-                f"joining body to the case failed: {traceback.format_exc()[-800:]}",
+                f"joining body to the case or cutting the lid failed: "
+                f"{traceback.format_exc()[-800:]}",
             )
-        prints = {"base": base, "lid": shapes["lid"], **parts}
+        prints = {"base": base, "lid": lid, **parts}
     empty = [n for n, s in prints.items() if s.volume <= 0]
     if empty:
         return _fail(
@@ -143,7 +161,9 @@ def main(root: str, job_path: str) -> None:
     assembled, mounts, order = {}, {}, []
     if box:
         try:
-            assembled, mounts, order = _assemble(prints, env, box.get("external", {}))
+            assembled, mounts, order = _assemble(
+                prints, env, box.get("external", {}), box.get("inside", {})
+            )
         except _Bad as e:
             return _fail(result, *e.args)
     try:
@@ -173,10 +193,13 @@ def main(root: str, job_path: str) -> None:
     result.write_text(json.dumps(out))
 
 
-def _assemble(prints: dict, env: dict, external: dict) -> tuple[dict, dict, list]:
+def _assemble(
+    prints: dict, env: dict, external: dict, inside: dict
+) -> tuple[dict, dict, list]:
     """A device's assembled poses (`assembled`, `mounts`) and a build order, after checking that
-    the assembled device holds together. Raises _Bad."""
-    from build123d import Align, Box, Location
+    the assembled device holds together and keeps clear of the electronics in the case (inside:
+    {ref: [x, y, z, l, w, h]}, each part's box from the layout). Raises _Bad."""
+    from build123d import Align, Box, Location, Pos
 
     extras = sorted(n for n in prints if n not in CASE)
     poses, held = env.get("assembled", {}), env.get("mounts", {})
@@ -185,13 +208,23 @@ def _assemble(prints: dict, env: dict, external: dict) -> tuple[dict, dict, list
             "bad_model_output", "`assembled` and `mounts` must be dicts of Locations"
         )
     if sorted(poses) != extras:
-        raise _Bad(
-            "bad_model_output",
-            "give every entry of `parts` its place in the assembled device, and nothing else: "
-            '`assembled = {"name": Pos(x, y, z) * Rot(a, b, c), ...}` moves the part from its print '
-            f"position to where it sits (enclosure frame). Missing: {sorted(set(extras) - set(poses))}; "
-            f"not in `parts`: {sorted(set(poses) - set(extras))}",
+        how = (
+            "`parts` are exported where you modelled them (print position); "
+            '`assembled = {"name": Pos(x, y, z) * Rot(a, b, c), ...}` moves each one to where it '
+            "sits on the device (enclosure frame)"
         )
+        wrong = []
+        if not poses:
+            wrong.append(
+                f"`assembled` isn't set, but every entry of `parts` needs one: {extras}"
+            )
+        if poses and (missing := sorted(set(extras) - set(poses))):
+            wrong.append(f"`assembled` has no entry for {missing}")
+        if extra := sorted(set(poses) - set(extras)):
+            wrong.append(
+                f"`assembled` has entries for {extra}, which aren't in `parts`"
+            )
+        raise _Bad("bad_model_output", f"{'; '.join(wrong)}. {how}")
     unknown = sorted(set(held) - set(external))
     if unknown:
         raise _Bad(
@@ -246,6 +279,22 @@ def _assemble(prints: dict, env: dict, external: dict) -> tuple[dict, dict, list
                 problems.append(
                     f"{a} and {b} overlap by {shared:.0f} mm³ in the assembled device; move one "
                     "of them, or cut a pocket for the other"
+                )
+    for ref, (x, y, z, l, w, h) in sorted(inside.items()):
+        board = Pos(x, y, z) * Box(l, w, h, align=(Align.MIN,) * 3)
+        bb = board.bounding_box()
+        for n in sorted(set(nodes) - set(CASE)):
+            if any(
+                getattr(bb.min, k) >= getattr(boxes[n].max, k)
+                or getattr(boxes[n].min, k) >= getattr(bb.max, k)
+                for k in "XYZ"
+            ):
+                continue
+            shared = (board & nodes[n]).volume
+            if shared > OVERLAP_SHARE * min(board.volume, nodes[n].volume):
+                problems.append(
+                    f"{n} overlaps {ref} inside the case by {shared:.0f} mm³ in the assembled "
+                    f"device ({ref} spans {_span(bb)}); keep it out of the cavity or move it"
                 )
     # breadth first from the case: each part attaches to the one that reached it
     on, order, i = {}, list(CASE), 0

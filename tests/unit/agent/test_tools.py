@@ -123,3 +123,14 @@ def test_print_only_project_gets_its_shape_from_write_model(events):
         code,
     )
     assert stages.calls == ["validate", "enclosure"]  # no layout without electronics
+
+
+def test_firmware_prompt_carries_part_snippets(events):
+    ctx = _ctx(FakeStageRunner(), events)
+    assert "Known-good" not in ctx.pin_macros()  # no spec yet
+    make_tools(ctx)["write_spec"].invoke({"spec_json": fixture_spec_json()})
+
+    macros = ctx.pin_macros()
+    assert "bme.begin(0x76" in macros  # bme280_breakout's snippet
+    assert "env1 (" in macros and "Adafruit BME280" in macros  # its pio_lib_deps
+    assert macros.count("Known-good example for env1") == 1
