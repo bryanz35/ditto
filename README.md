@@ -46,7 +46,7 @@ instead of failing the run.
 | `backend/cad/` | build123d geometry: the box-and-lid enclosure and the assembly preview (`assembly.glb`). |
 | `backend/parts/` | Part library (YAML per part), code snippets, printer profiles and cached prices. |
 | `backend/runtime/` | Run engine: executes stages, writes `runs/<id>/`, handles edits (re-runs only affected stages), replays recorded runs. |
-| `backend/app/` | FastAPI app: runs, run files, part memory (owned parts, budget) and device routes. |
+| `backend/app/` | FastAPI app: runs, run files and part memory (owned parts, budget) routes. |
 | `backend/memory/` | Persistent store for owned parts, budget and rejected choices. |
 | `firmware_templates/` | PlatformIO project templates the firmware tool fills in. |
 | `frontend/` | Vite + React + TypeScript UI with a 3D viewer (`@react-three/fiber`). Types come from `src/contracts/`, generated from the Pydantic models. |
