@@ -1,0 +1,33 @@
+# TowerPro MG90S metal-gear micro servo, 3-wire plug: brown GND, red VCC, orange PWM (50 Hz, 1-2 ms pulses).
+# Wire colours, 4.8-6 V and PWM timing: components101, https://components101.com/motors/mg90s-metal-gear-servo-motor
+# 22.8 x 12.2 x 28.5 mm, 1.8 kg-cm at 4.8 V, 2.2 kg-cm at 6.6 V: source (TowerPro page).
+# max_current_ma is the stall current, 750 mA +-10 % at 4.8 V, from the vendor datasheet copy at
+# https://www.tinytronics.nl/product_files/000263_Data_Sheet_of_MG90S_Analog_Servo_Motor.pdf
+# 3.3 V on the signal wire usually works (not stated in the datasheet). Same size as the SG90 with metal
+# gears, so it swaps in where an SG90 is too weak; l excludes the mounting tabs.
+id: servo_mg90s
+name: Metal-gear micro servo (TowerPro MG90S)
+category: motor
+logic_voltage: 3.3
+supply_voltage: [5.0]
+max_current_ma: 750
+pins:
+  - {name: GND, type: gnd}  # brown
+  - {name: VCC, type: power, voltage: 5.0}  # red
+  - {name: PWM, type: gpio_out}  # orange
+board_mm: {l: 22.8, w: 12.2, h: 28.5}
+mounting: external
+provisional: true
+dims_source: datasheet
+mount_holes: []
+features: []
+pio_lib_deps: ["madhephaestus/ESP32Servo"]
+snippet: snippets/servo_mg90s.cpp
+mpn: MG90S
+vendor_url: https://www.towerpro.com.tw/product/mg90s-3/
+manual_price_usd: null  # no price on the TowerPro page
+owned_alternatives: []
+wokwi_type: wokwi-servo
+wokwi_pins: {VCC: V+}  # Wokwi: PWM, V+, GND
+wokwi_attrs: {}
+source: https://www.towerpro.com.tw/product/mg90s-3/

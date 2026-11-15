@@ -57,7 +57,7 @@ export interface BoardDef {
   bus_pins: {
     [k: string]: string[];
   };
-  category: "mcu" | "sensor" | "display" | "light" | "input" | "output" | "power";
+  category: "mcu" | "sensor" | "display" | "light" | "input" | "output" | "motor" | "power";
   dims_source: "measured" | "datasheet" | "listing";
   features: Feature[];
   has_wifi: boolean;
@@ -596,7 +596,7 @@ export interface Placement {
  */
 export interface PartDef {
   board_mm: Dims;
-  category: "mcu" | "sensor" | "display" | "light" | "input" | "output" | "power";
+  category: "mcu" | "sensor" | "display" | "light" | "input" | "output" | "motor" | "power";
   dims_source: "measured" | "datasheet" | "listing";
   features: Feature[];
   /**

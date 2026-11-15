@@ -115,6 +115,7 @@
             "light",
             "input",
             "output",
+            "motor",
             "power"
           ],
           "type": "string"
@@ -1214,6 +1215,7 @@
             "light",
             "input",
             "output",
+            "motor",
             "power"
           ],
           "type": "string"

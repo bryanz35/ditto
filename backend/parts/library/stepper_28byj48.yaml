@@ -1,0 +1,42 @@
+# 28BYJ-48 5 V geared stepper on the ULN2003 driver board it is sold with. The MCU wires only to the
+# board: IN1-IN4 drive the four coils, and the board's "5-12V" header is VCC (+) and GND (-). The motor
+# plugs into the board's 5-pin socket (red common, orange, yellow, pink, blue coils).
+# Source (Kiatronics datasheet, copy at
+# https://microcontroller-course.web.cern.ch/Project_Material/resources/stepd-01-data-sheet-1143075.pdf):
+# 5 V, 4 phases, 1/64 gearing, 5.625 deg / 64 stride (4096 half-steps per turn), 50 ohm per coil,
+# pull-in rate > 600 Hz, 300 gf-cm pull-in torque. Drawing: body 28 mm across and 19 mm tall, shaft
+# 10 mm above it, ears with 4.2 mm holes 35 mm apart (42 mm across), wire cover 17 mm from the centre.
+# board_mm is the motor: l over the ears, w from the far side of the body to the wire cover, h with the shaft.
+# max_current_ma: two coils on at once at 5 V / 50 ohm (estimate, not in the datasheet).
+# The ULN2003 inputs take 3.3 V logic. The motor turns, so it sits outside the case; the driver board
+# (about 35 x 32 mm, not modelled) rides on the motor's 25 cm lead.
+# Wokwi's stepper is bipolar (driven by an A4988), so this part has no Wokwi model.
+id: stepper_28byj48
+name: Geared stepper motor 28BYJ-48 with ULN2003 driver board
+category: motor
+logic_voltage: 3.3
+supply_voltage: [5.0]
+max_current_ma: 200
+pins:
+  - {name: IN1, type: gpio_out}
+  - {name: IN2, type: gpio_out}
+  - {name: IN3, type: gpio_out}
+  - {name: IN4, type: gpio_out}
+  - {name: VCC, type: power, voltage: 5.0}
+  - {name: GND, type: gnd}
+board_mm: {l: 42.0, w: 31.0, h: 29.0}
+mounting: external
+provisional: true
+dims_source: datasheet
+mount_holes: []
+features: []
+pio_lib_deps: []
+snippet: snippets/stepper_28byj48.cpp
+mpn: 28BYJ-48
+vendor_url: null
+manual_price_usd: null
+owned_alternatives: []
+wokwi_type: null
+wokwi_pins: {}
+wokwi_attrs: {}
+source: https://www.mouser.com/datasheet/2/758/stepd-01-data-sheet-1143075.pdf
