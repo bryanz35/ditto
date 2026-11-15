@@ -1,4 +1,5 @@
 // Build guide: one step card at a time over the 3D view, a step tracker below (Figma 25:735, 28:900).
+import confetti from 'canvas-confetti'
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { useJson, useSend } from './api'
 import type { Bom, EnclosureManifest, Layout, ProjectSpec, Wiring } from './contracts'
@@ -107,12 +108,14 @@ function Guide({
   const step = steps[index]
   const done = progress.done.length
   const go = (i: number) => setProgress((p) => ({ ...p, at: steps[i].id }))
-  const finish = () =>
+  const finish = () => {
+    if (index === steps.length - 1) confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 }, disableForReducedMotion: true })
     setProgress((p) => ({
       ...p,
       done: p.done.includes(step.id) ? p.done : [...p.done, step.id],
       at: steps[Math.min(index + 1, steps.length - 1)].id,
     }))
+  }
   const tick = (id: string) =>
     setProgress((p) => ({ ...p, wires: p.wires.includes(id) ? p.wires.filter((w) => w !== id) : [...p.wires, id] }))
 
