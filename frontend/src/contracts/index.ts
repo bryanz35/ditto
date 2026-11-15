@@ -355,6 +355,17 @@ export interface EditRequest {
  */
 export interface EnclosureManifest {
   /**
+   * A custom device's extra printed parts, by name.
+   */
+  assembled: {
+    [k: string]: Pose;
+  };
+  /**
+   * The names in `assembled` and refs in `mounts` in an order they can be put together: each
+   * after the part it attaches to.
+   */
+  build_order: string[];
+  /**
    * (0, 0, 0) for a print-only project: there is no case.
    *
    * @minItems 3
@@ -362,6 +373,13 @@ export interface EnclosureManifest {
    */
   cavity_mm: [number, number, number];
   cutouts: CutoutRecord[];
+  /**
+   * External parts that a printed part holds (a servo in an arm link), by ref. The others sit
+   * beside the device.
+   */
+  mounts: {
+    [k: string]: Pose;
+  };
   /**
    * Outside size of the closed box, lid included; for a print-only project, of its biggest part.
    *
@@ -387,6 +405,25 @@ export interface EnclosureManifest {
    */
   unmeasured_refs: string[];
   wall_mm: number;
+}
+/**
+ * Where a custom device's extra printed part or mounted external part sits once assembled
+ * (written by build_custom_model).
+ *
+ * This interface was referenced by `P2DContracts`'s JSON-Schema
+ * via the `definition` "Pose".
+ */
+export interface Pose {
+  /**
+   * What it attaches to, put in before it: "base", "lid", an extra printed part's name or a
+   * mounted part's ref.
+   */
+  on: string;
+  /**
+   * 4x4 row-major, into the enclosure frame: for a printed part, from the part as exported (its
+   * print position); for a mounted part, from its box (x 0..l, y 0..w, z 0..h of its board_mm).
+   */
+  transform: number[];
 }
 /**
  * Openings come from the parts' library features (and a cable hole per external part).

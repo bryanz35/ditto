@@ -49,6 +49,7 @@ export function Overview({
   const wiring = useJson<Wiring>(urlOf('wiring_json'))
   const manifest = useJson<EnclosureManifest>(urlOf('manifest'))
   const prints = printsOf(spec, manifest, urlOf)
+  const printOnly = spec !== null && !spec.mcu
   const assembly = urlOf('assembly_glb')
   const [view, setView] = useState<View>('Assembled')
   const [reset, setReset] = useState(0)
@@ -61,7 +62,7 @@ export function Overview({
   // one part's stores, or 'all': the cheapest store for every part still to buy
   const [buying, setBuying] = useState<BomLine | 'all' | null>(null)
   const exploded = assembly !== null && view === 'Exploded'
-  const shown = assembly ? 'assembly_glb' : prints.length ? 'manifest' : 'base_stl'
+  const shown = assembly ? 'assembly_glb' : printOnly ? 'manifest' : 'base_stl'
   const openLine = bom?.lines.find((l) => l.part_id === open) ?? null
 
   const checks = state.stages.checks
@@ -78,8 +79,8 @@ export function Overview({
           <Suspense fallback={<p className="empty center">Loading the 3D view…</p>}>
             <Viewer3D
               key={reset}
-              base={prints.length ? null : urlOf('base_stl')}
-              lid={prints.length ? null : urlOf('lid_stl')}
+              base={printOnly ? null : urlOf('base_stl')}
+              lid={printOnly ? null : urlOf('lid_stl')}
               prints={prints}
               assembly={assembly}
               spec={spec}

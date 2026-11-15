@@ -263,7 +263,9 @@ def make_tools(ctx: RunContext) -> dict[str, BaseTool]:
         """Save build123d Python for the printed parts, then build and check them (watertight, one
         piece each, fits the printer, flat on the bed). Saved only if every check passes.
         Print-only project: the code sets `parts = {"name": shape}`. Device: the code sets `body`,
-        a shape built around the predefined BAY (the electronics' case); code joins it to the case.
+        a shape built around the predefined BAY (the electronics' case) that code joins to the case,
+        and/or `parts` for pieces printed separately (knob, arm link, clip), with `assembled` (where
+        each goes) and `mounts` (external parts the printed parts hold, such as servos).
         wall_mm: the case wall thickness for a device (keeps the current one when omitted)."""
         with ctx.lock:
             spec = ctx.load_spec()

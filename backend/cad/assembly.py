@@ -2,18 +2,23 @@
 
 Loads the base and lid STLs that build_enclosure wrote into the same out_dir (they are already in the
 enclosure frame, closed), raises the lid by LID_LIFT_MM for an exploded view, and adds each part as a
-box of its board_mm at its Placement. The scene stays in the enclosure frame (mm, z up, see
-backend/contracts/base.py), like the STLs. Nodes are named "base", "lid" and each part's ref; part
-meshes carry glTF extras (three.js userData) part_id, category, dims_source and unmeasured.
+box of its board_mm at its Placement. A custom device's extra printed parts and mounted external parts
+go where cad/manifest.json's `assembled` and `mounts` put them. The scene stays in the enclosure frame
+(mm, z up, see backend/contracts/base.py), like the STLs. Nodes are named "base", "lid", "print_<name>"
+for each extra printed part and each part's ref; part meshes carry glTF extras (three.js userData)
+part_id, category, dims_source and unmeasured (and mounted_on for a mounted part), printed parts
+printed: true.
 
 Error codes: layout_mismatch, enclosure_missing.
 """
 
 from pathlib import Path
 
+import numpy as np
 import trimesh
 
-from backend.contracts.parts import PartLibrary
+from backend.contracts.artifacts import EnclosureManifest
+from backend.contracts.parts import PartDef, PartLibrary
 from backend.contracts.results import ToolError, ToolResult
 from backend.contracts.spec import Layout, ProjectSpec
 
@@ -32,6 +37,20 @@ SHELL_COLOR = (220, 220, 215, 255)
 
 def _translate(x: float, y: float, z: float):
     return trimesh.transformations.translation_matrix((x, y, z))
+
+
+def _box(part: PartDef, l: float, w: float, h: float, **extra) -> trimesh.Trimesh:
+    """A part as a box of l x w x h centred on its origin, coloured and tagged for the viewer."""
+    box = trimesh.creation.box(extents=(l, w, h))
+    box.visual.face_colors = CATEGORY_COLORS[part.category]
+    box.metadata = {
+        "part_id": part.id,
+        "category": part.category,
+        "dims_source": part.dims_source,
+        "unmeasured": part.dims_source != "measured",
+        **extra,
+    }
+    return box
 
 
 def build_assembly(
@@ -59,8 +78,15 @@ def build_assembly(
         )
 
     out_dir = Path(out_dir).resolve()
+    path = out_dir / "manifest.json"
+    manifest = (
+        EnclosureManifest.model_validate_json(path.read_text())
+        if path.is_file()
+        else None
+    )
+    assembled = manifest.assembled if manifest else {}
     shells = {}
-    for name in ("base", "lid"):
+    for name in ("base", "lid", *sorted(assembled)):
         path = out_dir / f"{name}.stl"
         try:
             shells[name] = trimesh.load(path, file_type="stl", force="mesh")
@@ -81,29 +107,39 @@ def build_assembly(
     scene.metadata = {"spec_rev": spec.rev}
     for name, mesh in shells.items():
         mesh.visual.face_colors = SHELL_COLOR
-        mesh.metadata = {}  # drop the STL header, which would land in the glTF extras
-        lift = LID_LIFT_MM if name == "lid" else 0.0
-        scene.add_geometry(
-            mesh, node_name=name, geom_name=name, transform=_translate(0, 0, lift)
-        )
+        # drop the STL header, which would land in the glTF extras
+        mesh.metadata = {"printed": True} if name in assembled else {}
+        if name in assembled:
+            node = f"print_{name}"
+            transform = np.array(assembled[name].transform).reshape(4, 4)
+        else:
+            node, transform = (
+                name,
+                _translate(0, 0, LID_LIFT_MM if name == "lid" else 0.0),
+            )
+        scene.add_geometry(mesh, node_name=node, geom_name=node, transform=transform)
     for p in layout.placements:
         part = lib.get(insts[p.ref].part_id)
         l, w, h = part.board_mm.l, part.board_mm.w, part.board_mm.h
         if p.rot_deg in (90, 270):
             l, w = w, l
-        box = trimesh.creation.box(extents=(l, w, h))
-        box.visual.face_colors = CATEGORY_COLORS[part.category]
-        box.metadata = {
-            "part_id": part.id,
-            "category": part.category,
-            "dims_source": part.dims_source,
-            "unmeasured": part.dims_source != "measured",
-        }
         scene.add_geometry(
-            box,
+            _box(part, l, w, h),
             node_name=p.ref,
             geom_name=p.ref,
             transform=_translate(p.x_mm + l / 2, p.y_mm + w / 2, p.z_mm + h / 2),
+        )
+    for ref, mount in sorted((manifest.mounts if manifest else {}).items()):
+        if ref not in insts:
+            continue  # the spec dropped it since the enclosure was built
+        part = lib.get(insts[ref].part_id)
+        l, w, h = part.board_mm.l, part.board_mm.w, part.board_mm.h
+        place = np.array(mount.transform).reshape(4, 4)
+        scene.add_geometry(
+            _box(part, l, w, h, mounted_on=mount.on),
+            node_name=ref,
+            geom_name=ref,
+            transform=place @ _translate(l / 2, w / 2, h / 2),
         )
 
     out_dir.mkdir(parents=True, exist_ok=True)

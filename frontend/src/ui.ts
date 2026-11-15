@@ -48,16 +48,16 @@ export const projectIcon = iconFor([
 /** One printed part; `width` is its x size, for laying several out side by side. */
 export type Print = { url: string; width: number }
 
-/** A print-only project's printed parts (from cad/manifest.json); empty for a device, whose base
- * and lid the viewer draws as the case. */
+/** Printed parts besides a device's base and lid (from cad/manifest.json): every part of a
+ * print-only project, or a custom device's extras (a knob, a stand). */
 export const printsOf = (
   spec: ProjectSpec | null,
   manifest: EnclosureManifest | null,
   urlOf: (name: string) => string | null,
 ): Print[] =>
-  spec && !spec.mcu && manifest
-    ? Object.entries(manifest.prints).flatMap(([name, size]) => {
-        const url = urlOf(`${name}_stl`)
+  spec && manifest
+    ? Object.entries(manifest.prints ?? {}).flatMap(([name, size]) => {
+        const url = spec.mcu && (name === 'base' || name === 'lid') ? null : urlOf(`${name}_stl`)
         return url ? [{ url, width: size[0] }] : []
       })
     : []

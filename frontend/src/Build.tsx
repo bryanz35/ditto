@@ -91,7 +91,7 @@ function Guide({
 }: {
   runId: string
   steps: Step[]
-  /** A print-only project's parts, shown instead of the case. */
+  /** A print-only project's parts, shown instead of the case; a device's extras, beside it. */
   prints: Print[]
   spec: ProjectSpec | null
   wiring: Wiring | null
@@ -123,7 +123,7 @@ function Guide({
         {urlOf('base_stl') || prints.length ? (
           <Suspense fallback={<p className="empty center">Loading the 3D view…</p>}>
             <Viewer3D
-              base={prints.length ? null : urlOf('base_stl')}
+              base={spec && !spec.mcu ? null : urlOf('base_stl')}
               lid={step.kind === 'Close' ? urlOf('lid_stl') : null}
               prints={prints}
               assembly={assembly}

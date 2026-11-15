@@ -3,7 +3,7 @@ import type { Bom, EnclosureManifest, Layout, ProjectSpec, Wiring, WiringRow } f
 import type { IconName } from './Icon'
 import type { UrlOf } from './panels'
 
-export type StepKind = 'Print' | 'Place' | 'Wiring' | 'Code' | 'Close'
+export type StepKind = 'Print' | 'Place' | 'Assemble' | 'Wiring' | 'Code' | 'Close'
 
 export interface Need {
   qty: string
@@ -85,6 +85,8 @@ const and = (items: string[]) => (items.length > 1 ? `${items.slice(0, -1).join(
 // within the layout's clearance of a wall counts as against it
 const from = (mm: number, wall: string) => (mm < 2 ? `against the ${wall} wall` : `${Math.round(mm)} mm from the ${wall} wall`)
 const where = (face: string) => (face === 'top' ? 'the lid' : `the ${face} wall`)
+/** A printed part's name as words: "upper_arm" -> "upper arm". */
+const words = (name: string) => name.replaceAll('_', ' ')
 
 export function buildSteps({
   spec,
@@ -132,14 +134,18 @@ export function buildSteps({
   const steps: Step[] = []
   const unmeasured = enclosure?.unmeasured_refs ?? []
   const size = enclosure && ` Closed, the case is ${enclosure.outer_mm.map((v) => Math.round(v)).join(' × ')} mm.`
+  // A custom device's model can add pieces printed apart from the case (a knob, a stand).
+  const extras = Object.keys(enclosure?.prints ?? {})
+    .filter((n) => n !== 'base' && n !== 'lid')
+    .sort()
   steps.push(
     step({
       id: 'print',
       kind: 'Print',
       label: 'Print case',
-      title: 'Print the case',
-      body: `Send both files to your 3D printer. Start this first and do the next steps while it prints.${size ?? ''}`,
-      files: [...file('base_stl', '3D print file', 'box'), ...file('lid_stl', '3D print file', 'box')],
+      title: extras.length ? 'Print the case and parts' : 'Print the case',
+      body: `Send ${extras.length ? `every file (the case, then the ${and(extras.map(words))})` : 'both files'} to your 3D printer. Start this first and do the next steps while it prints.${size ?? ''}`,
+      files: ['base', 'lid', ...extras].flatMap((n) => file(`${n}_stl`, '3D print file', 'box')),
       needs: [
         { qty: '1×', what: '3D printer' },
         { qty: '', what: 'PLA filament (any colour)' },
@@ -178,8 +184,45 @@ export function buildSteps({
       }),
     )
   }
-  // Parts that sit outside (mounting: external) have no placement, only a cable hole.
-  for (const p of spec.parts.filter((p) => !layout.placements.some((q) => q.ref === p.ref))) {
+  // A custom device's extra printed parts and the parts mounted on them, in build order: each after
+  // what it attaches to.
+  const assembled = enclosure?.assembled ?? {}
+  const mounts = enclosure?.mounts ?? {}
+  const onto = (on: string) =>
+    on === 'base' ? 'case' : on === 'lid' ? 'lid' : assembled[on] ? words(on) : noun(on)
+  for (const id of enclosure?.build_order ?? []) {
+    if (assembled[id]) {
+      steps.push(
+        step({
+          id: `assemble-${id}`,
+          kind: 'Assemble',
+          label: `Fit ${words(id)}`,
+          title: `Fit the ${words(id)}`,
+          body: `Fit it onto the ${onto(assembled[id].on)} as the picture shows, with the screws or pegs its holes are made for.`,
+          ref: id,
+          noun: words(id),
+        }),
+      )
+    } else if (mounts[id]) {
+      const n = noun(id)
+      const hole = cutouts.find((c) => c.for_ref === id && c.feature === 'cable')
+      steps.push(
+        step({
+          id: `place-${id}`,
+          kind: 'Place',
+          label: `Mount ${n}`,
+          title: `Mount the ${n}`,
+          body:
+            `Fit it in the ${onto(mounts[id].on)} as the picture shows and screw it in.` +
+            (hole ? ` Run its cable to the hole in ${where(hole.face)} and through it, so its pins end up inside.` : ''),
+          ref: id,
+          needs: [{ qty: '1×', what: name(id), have: have(id) }],
+        }),
+      )
+    }
+  }
+  // Other parts that sit outside (mounting: external) have no placement, only a cable hole.
+  for (const p of spec.parts.filter((p) => !layout.placements.some((q) => q.ref === p.ref) && !mounts[p.ref])) {
     const n = noun(p.ref)
     const hole = cutouts.find((c) => c.for_ref === p.ref && c.feature === 'cable')
     steps.push(

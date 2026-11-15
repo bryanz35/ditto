@@ -1,6 +1,7 @@
 // The device in the 3D view: case, parts, wires, and their animations (overview explode, build steps).
-// Built from assembly.glb (case, lid, and one box per inside part, named by ref) plus the spec and
-// wiring.json: each box becomes a part model (parts.ts), each wiring row a jumper wire.
+// Built from assembly.glb (case, lid, a custom device's extra printed parts, and one box per inside or
+// mounted part, named by ref) plus the spec and wiring.json: each box becomes a part model (parts.ts),
+// each wiring row a jumper wire.
 // Frame: the enclosure's (mm, Z up); z = 0 is the cavity floor.
 import {
   Box3,
@@ -17,6 +18,7 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   Plane,
+  Quaternion,
   TubeGeometry,
   Vector2,
   Vector3,
@@ -28,7 +30,8 @@ import { buildPart, categoryOf, LIBRARY, pinsOf, type Category, type PartModel }
 
 /** The bits of a build step the scene animates (guide.ts's Step has them). */
 export interface SceneStep {
-  kind: 'Print' | 'Place' | 'Wiring' | 'Code' | 'Close'
+  kind: 'Print' | 'Place' | 'Assemble' | 'Wiring' | 'Code' | 'Close'
+  /** The part placed or wired (a ref), or the printed part fitted (its name). */
   ref: string | null
 }
 
@@ -66,6 +69,8 @@ interface PartEntry {
   model: PartModel
   holder: Group
   home: Vector3
+  /** How the part is turned where it sits (a mounted part can be on its side). */
+  turn: Quaternion
   explode: Vector3
   size: Vector3
   outline: LineSegments<EdgesGeometry, LineBasicMaterial>
@@ -92,6 +97,8 @@ export class Device {
   /** Invisible box the overview's camera frames: the device, and its parts exploded (not the lid). */
   readonly frame: Mesh
   readonly parts = new Map<string, PartEntry>()
+  /** A custom device's extra printed parts by name, where they sit once assembled. */
+  readonly printed = new Map<string, { mesh: Mesh; home: Vector3; box: Box3 }>()
   private wires: WireEntry[] = []
   private base: Mesh
   private baseMat: MeshStandardMaterial
@@ -123,6 +130,7 @@ export class Device {
   private selectedRef: string | null = null
   private step: SceneStep | null = null
   private placed = new Set<string>()
+  private fitted = new Set<string>()
   private wired = new Set<string>()
   private stepClock = 0
 
@@ -207,12 +215,29 @@ export class Device {
       }
     }
 
-    // inside parts: one box per ref in assembly.glb
+    // extra printed parts (glb nodes "print_<name>"), already where they sit once assembled
+    glb.traverse((o) => {
+      if (!(o instanceof Mesh) || !o.userData.printed) return
+      const m = new Mesh(o.geometry.clone(), this.baseMat)
+      m.applyMatrix4(o.matrixWorld)
+      m.add(
+        new LineSegments(
+          new EdgesGeometry(m.geometry, 30),
+          new LineBasicMaterial({ color: CASE_EDGE, transparent: true, opacity: 0.5, clippingPlanes: [this.clip] }),
+        ),
+      )
+      this.root.add(m)
+      this.printed.set(o.name.replace(/^print_/, ''), { mesh: m, home: m.position.clone(), box: new Box3().setFromObject(m) })
+    })
+
+    // inside parts and mounted ones: one box per ref in assembly.glb
     const boxes: {
       ref: string
       partId: string
       center: Vector3
       size: Vector3
+      turn: Quaternion
+      mounted: boolean
     }[] = []
     glb.traverse((o) => {
       if (!(o instanceof Mesh) || o === baseNode || o === lidNode || boxes.some((b) => b.ref === o.name)) return
@@ -226,13 +251,23 @@ export class Device {
         partId,
         center: o.localToWorld(bb.getCenter(new Vector3())),
         size: bb.getSize(new Vector3()),
+        turn: o.getWorldQuaternion(new Quaternion()),
+        mounted: typeof o.userData.mounted_on === 'string',
       })
     })
     if (!this.mcuRef) this.mcuRef = boxes.find((b) => catOf(b.partId) === 'mcu')?.ref ?? null
     const mcuBox = boxes.find((b) => b.ref === this.mcuRef)
     const caseCenter = this.caseBox.getCenter(new Vector3())
 
-    const add = (ref: string, partId: string, center: Vector3, size: Vector3, inside: boolean, toward: Vector2) => {
+    const add = (
+      ref: string,
+      partId: string,
+      center: Vector3,
+      size: Vector3,
+      inside: boolean,
+      toward: Vector2,
+      turn = new Quaternion(),
+    ) => {
       const used = rows.filter((r) => r.part_ref === ref).map((r) => r.part_pin)
       const mcuUsed = ref === this.mcuRef ? rows.map((r) => r.mcu_pin) : []
       const lib = LIBRARY[partId]
@@ -243,6 +278,7 @@ export class Device {
       const model = buildPart(partId, catOf(partId), size, toward, [...new Set(pins)])
       const holder = new Group()
       holder.position.copy(center)
+      holder.quaternion.copy(turn)
       holder.add(model.root)
       holder.userData.ref = ref
       const outline = new LineSegments(
@@ -266,6 +302,7 @@ export class Device {
         model,
         holder,
         home: center.clone(),
+        turn,
         explode: new Vector3(),
         size,
         outline,
@@ -283,8 +320,10 @@ export class Device {
       ].sort((a, b) => a[0] - b[0])[0]
       return new Vector2(d[1], d[2])
     }
-    for (const b of boxes)
-      add(b.ref, b.partId, b.center, b.size, true, b.ref === this.mcuRef ? towardWall(b.center) : towardMcu(b.center))
+    for (const b of boxes) {
+      const toward = b.ref === this.mcuRef ? towardWall(b.center) : b.mounted ? new Vector2(0, -1) : towardMcu(b.center)
+      add(b.ref, b.partId, b.center, b.size, !b.mounted, toward, b.turn)
+    }
 
     // parts outside the case (mounting: external) have no box: lay them on the floor behind it, pins
     // towards the case (behind, they don't hide the inside from the default camera)
@@ -318,7 +357,7 @@ export class Device {
     // wires: a jumper per wiring row, from the board's pin to the part's pin
     const mcu = this.mcuRef ? this.parts.get(this.mcuRef) : undefined
     const taken = new Set<string>()
-    const worldPin = (e: PartEntry, at: Vector3) => at.clone().add(e.home)
+    const worldPin = (e: PartEntry, at: Vector3) => at.clone().applyQuaternion(e.turn).add(e.home)
     const byPart = new Map<string, number>()
     for (const row of rows) {
       const part = this.parts.get(row.part_ref)
@@ -523,11 +562,15 @@ export class Device {
     const before = steps.slice(0, index)
     this.placed = new Set(before.filter((s) => s.kind === 'Place' && s.ref).map((s) => s.ref as string))
     this.wired = new Set(before.filter((s) => s.kind === 'Wiring' && s.ref).map((s) => s.ref as string))
-    // a part no step places is just there
+    this.fitted = new Set(before.filter((s) => s.kind === 'Assemble' && s.ref).map((s) => s.ref as string))
+    // a part no step places (or printed part no step fits) is just there
     const mentioned = new Set(steps.filter((s) => s.kind === 'Place').map((s) => s.ref))
     for (const ref of this.parts.keys()) if (!mentioned.has(ref)) this.placed.add(ref)
+    const fits = new Set(steps.filter((s) => s.kind === 'Assemble').map((s) => s.ref))
+    for (const name of this.printed.keys()) if (!fits.has(name)) this.fitted.add(name)
     if (this.step && (this.step.kind === 'Code' || this.step.kind === 'Close')) {
       for (const ref of this.parts.keys()) this.placed.add(ref)
+      for (const name of this.printed.keys()) this.fitted.add(name)
       for (const w of this.wires) this.wired.add(w.row.part_ref)
     }
     this.stepClock = 0
@@ -542,6 +585,11 @@ export class Device {
 
   /** Where a part's label goes: just over its top, wherever it is right now. */
   anchorOf(ref: string): Vector3 | null {
+    const p = this.printed.get(ref)
+    if (p && !this.parts.has(ref)) {
+      if (!p.mesh.visible) return null
+      return p.box.getCenter(new Vector3()).setZ(p.box.max.z + 3 + p.mesh.position.z - p.home.z)
+    }
     const e = this.parts.get(ref)
     if (!e || !e.holder.visible) return null
     return e.holder.position.clone().setZ(e.holder.position.z + e.size.z / 2 + 3)
@@ -586,9 +634,13 @@ export class Device {
     this.nozzle.visible = false
     this.arrow.visible = false
     if (this.usb) this.usb.visible = false
+    for (const p of this.printed.values()) {
+      p.mesh.visible = true
+      p.mesh.position.copy(p.home)
+    }
     for (const e of this.parts.values()) {
       e.holder.visible = true
-      e.holder.rotation.z = 0
+      e.holder.quaternion.copy(e.turn)
       e.holder.position.copy(e.home).addScaledVector(e.explode, x)
       e.outline.visible = e.ref === this.selectedRef || e.ref === this.hoverRef
       e.outline.material.opacity = e.ref === this.selectedRef ? 1 : 0.5
@@ -619,6 +671,7 @@ export class Device {
     const DUR: Record<SceneStep['kind'], number> = {
       Print: 4,
       Place: 1.2,
+      Assemble: 1.2,
       Wiring: Math.max(1, this.wires.filter((w) => w.row.part_ref === step.ref).length * 0.75),
       Code: 3.2,
       Close: 2.2,
@@ -637,7 +690,7 @@ export class Device {
       const current = step.kind === 'Place' && step.ref === e.ref
       e.holder.visible = step.kind !== 'Print' && (this.placed.has(e.ref) || current)
       e.holder.position.copy(e.home)
-      e.holder.rotation.z = 0
+      e.holder.quaternion.copy(e.turn)
       const focus = step.ref === e.ref && step.kind !== 'Code'
       e.outline.visible = focus
       e.outline.material.opacity = 0.55 + 0.45 * Math.abs(Math.sin(now * 2.4))
@@ -646,7 +699,7 @@ export class Device {
         const lift = 40 * (1 - k)
         if (e.inside) e.holder.position.z += lift
         else e.holder.position.x += lift
-        e.holder.rotation.z = 0.4 * (1 - k)
+        e.holder.rotateZ(0.4 * (1 - k))
         this.arrow.visible = t < DUR.Place
         this.arrowMat.opacity = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.5
         this.arrow.position.set(
@@ -654,6 +707,21 @@ export class Device {
           e.holder.position.y,
           e.holder.position.z + e.size.z / 2 + 6 + 2 * Math.sin(now * 8),
         )
+      }
+    }
+
+    // printed parts: fitted ones sit at home; the step's part drops onto what holds it
+    for (const [name, p] of this.printed) {
+      const current = step.kind === 'Assemble' && step.ref === name
+      p.mesh.visible = step.kind !== 'Print' && (this.fitted.has(name) || current)
+      p.mesh.position.copy(p.home)
+      if (current) {
+        const k = ease(t / DUR.Assemble)
+        p.mesh.position.z += 40 * (1 - k)
+        this.arrow.visible = t < DUR.Assemble
+        this.arrowMat.opacity = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.5
+        const c = p.box.getCenter(new Vector3())
+        this.arrow.position.set(c.x, c.y, p.box.max.z + 40 * (1 - k) + 6 + 2 * Math.sin(now * 8))
       }
     }
 

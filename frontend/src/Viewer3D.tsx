@@ -3,11 +3,13 @@
 // step (scene/device.ts). Without it, the enclosure STLs (enclosure frame, mm, Z up: see
 // backend/contracts/base.py); the lid is exported closed, so it is drawn see-through.
 // A print-only project has no case: its printed parts (each in print orientation at the origin) are
-// laid out side by side along x.
+// laid out side by side along x. A custom device's extra parts (an arm link, a knob) come in
+// assembly.glb where they sit once assembled; without it (or from an older run whose glb lacks them)
+// they sit in a row past the case's +x side, as they print.
 import { Bounds, GizmoHelper, GizmoViewport, Grid, Html, OrbitControls } from '@react-three/drei'
 import { Canvas, useFrame, useLoader, useThree, type ThreeEvent } from '@react-three/fiber'
-import { Suspense, useEffect, useMemo, useRef } from 'react'
-import type { Group, PerspectiveCamera } from 'three'
+import { Suspense, useEffect, useMemo, useRef, type ReactNode } from 'react'
+import type { BufferGeometry, Group, PerspectiveCamera } from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { STLLoader } from 'three/addons/loaders/STLLoader.js'
 import type { ProjectSpec, Wiring } from './contracts'
@@ -46,6 +48,33 @@ function Part({ url, lid, x = 0 }: { url: string; lid: boolean; x?: number }) {
   )
 }
 
+/** A device's extra printed parts as they print: in a row past the case's +x side, on the case's floor. */
+function Beside({ base, prints }: { base: string; prints: Print[] }) {
+  const caseGeo = useLoader(STLLoader, base)
+  const geos = useLoader(
+    STLLoader,
+    prints.map((p) => p.url),
+  )
+  const bbox = (g: BufferGeometry) => (g.computeBoundingBox(), g.boundingBox!)
+  const box = bbox(caseGeo)
+  const boxes = geos.map(bbox)
+  // each part's left edge: past the case and the parts before it
+  const xs = boxes.map((_, i) => boxes.slice(0, i).reduce((x, b) => x + b.max.x - b.min.x + PRINT_GAP_MM, box.max.x + PRINT_GAP_MM))
+  return (
+    <>
+      {geos.map((g, i) => (
+        <mesh
+          key={prints[i].url}
+          geometry={g}
+          position={[xs[i] - boxes[i].min.x, (box.min.y + box.max.y - boxes[i].min.y - boxes[i].max.y) / 2, box.min.z - boxes[i].min.z]}
+        >
+          <meshStandardMaterial color={SHELL} />
+        </mesh>
+      ))}
+    </>
+  )
+}
+
 /** Centres the picture in the part of the view right of a card (`left` px), like the spike: the
  * card covers the left of the canvas. Off on narrow screens, where the card spans the width. */
 function ViewOffset({ left, bottom }: { left: number; bottom: number }) {
@@ -69,6 +98,7 @@ function DeviceView({
   build,
   selected,
   onSelect,
+  children,
 }: {
   url: string
   spec: ProjectSpec | null
@@ -77,6 +107,8 @@ function DeviceView({
   build: { steps: SceneStep[]; index: number } | null
   selected: { ref: string; label: string } | null
   onSelect?: (ref: string) => void
+  /** Drawn beside the device and framed with it, unless assembly.glb has the extra printed parts. */
+  children?: ReactNode
 }) {
   const gltf = useLoader(GLTFLoader, url)
   const device = useMemo(() => new Device(gltf.scene, spec, wiring), [gltf, spec, wiring])
@@ -124,6 +156,7 @@ function DeviceView({
           onPointerOut={() => device.setHoverPart(null)}
         />
         {!build && <primitive object={device.frame} />}
+        {device.printed.size === 0 && children}
       </Bounds>
       {!build && (
         <primitive
@@ -160,7 +193,8 @@ export default function Viewer3D({
 }: {
   base: string | null
   lid: string | null
-  /** Printed parts besides base and lid (a print-only project's parts). */
+  /** Printed parts besides base and lid: a print-only project's parts (base null), or a device's
+   * extras, drawn beside the case. */
   prints?: Print[]
   /** When set, draw the device from the assembly instead of the bare STLs. */
   assembly: string | null
@@ -183,6 +217,7 @@ export default function Viewer3D({
 }) {
   // each part's centre: past the ones before it, plus half its own width
   const xs = prints.map((_, i) => prints.slice(0, i).reduce((x, p) => x + p.width + PRINT_GAP_MM, prints[i].width / 2))
+  const beside = base && prints.length > 0 ? <Beside base={base} prints={prints} /> : null
   return (
     <Canvas
       camera={{ position: [120, -160, 140], up: [0, 0, 1], far: 5000 }}
@@ -207,14 +242,16 @@ export default function Viewer3D({
             build={build}
             selected={selected}
             onSelect={onSelect}
-          />
+          >
+            {beside}
+          </DeviceView>
         ) : (
           <Bounds key="enclosure" fit clip observe margin={1.3}>
             {base && <Part url={base} lid={false} />}
             {lid && <Part url={lid} lid />}
-            {prints.map((p, i) => (
-              <Part key={p.url} url={p.url} lid={false} x={xs[i]} />
-            ))}
+            {base
+              ? beside
+              : prints.map((p, i) => <Part key={p.url} url={p.url} lid={false} x={xs[i]} />)}
           </Bounds>
         )}
       </Suspense>

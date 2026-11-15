@@ -731,6 +731,22 @@
       "additionalProperties": false,
       "description": "cad/manifest.json, written by build_enclosure or build_custom_model: which opening serves which\npart feature, and which parts get printed.",
       "properties": {
+        "assembled": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Pose"
+          },
+          "default": {},
+          "description": "A custom device's extra printed parts, by name.",
+          "type": "object"
+        },
+        "build_order": {
+          "default": [],
+          "description": "The names in `assembled` and refs in `mounts` in an order they can be put together: each\nafter the part it attaches to.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "cavity_mm": {
           "description": "(0, 0, 0) for a print-only project: there is no case.",
           "items": [
@@ -753,6 +769,14 @@
             "$ref": "#/$defs/CutoutRecord"
           },
           "type": "array"
+        },
+        "mounts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Pose"
+          },
+          "default": {},
+          "description": "External parts that a printed part holds (a servo in an arm link), by ref. The others sit\nbeside the device.",
+          "type": "object"
         },
         "outer_mm": {
           "description": "Outside size of the closed box, lid included; for a print-only project, of its biggest part.",
@@ -823,7 +847,10 @@
         "outer_mm",
         "cutouts",
         "prints",
-        "unmeasured_refs"
+        "unmeasured_refs",
+        "assembled",
+        "mounts",
+        "build_order"
       ],
       "title": "EnclosureManifest",
       "type": "object"
@@ -1569,6 +1596,29 @@
         "against_wall"
       ],
       "title": "Placement",
+      "type": "object"
+    },
+    "Pose": {
+      "additionalProperties": false,
+      "description": "Where a custom device's extra printed part or mounted external part sits once assembled\n(written by build_custom_model).",
+      "properties": {
+        "on": {
+          "description": "What it attaches to, put in before it: \"base\", \"lid\", an extra printed part's name or a\nmounted part's ref.",
+          "type": "string"
+        },
+        "transform": {
+          "description": "4x4 row-major, into the enclosure frame: for a printed part, from the part as exported (its\nprint position); for a mounted part, from its box (x 0..l, y 0..w, z 0..h of its board_mm).",
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "on",
+        "transform"
+      ],
+      "title": "Pose",
       "type": "object"
     },
     "ProjectSpec": {
