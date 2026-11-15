@@ -302,7 +302,8 @@ Starter list:
 | Sensors | BME280, capacitive soil moisture, HC-SR04 ultrasonic, PIR motion, DS18B20, INMP441 I2S microphone |
 | Displays and light | SSD1306 OLED, WS2812B LED ring or strip |
 | Input | Tactile button, arcade button, KY-040 rotary encoder |
-| Output | Passive buzzer, vibration motor module, SG90 servo, MAX98357A I2S amplifier + speaker, relay module |
+| Output | Passive buzzer, vibration motor module, MAX98357A I2S amplifier + speaker, relay module |
+| Motors | SG90, MG90S and MG996R servos, 28BYJ-48 stepper on a ULN2003 board |
 | Power | USB-C power only |
 
 Pricing: `scripts/prefetch_prices.py` queries Nexar by MPN before the event and writes

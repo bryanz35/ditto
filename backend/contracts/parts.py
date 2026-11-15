@@ -41,7 +41,9 @@ HC-SR04 TRIG), gpio_in means the MCU reads it (button, PIR OUT), uart_tx goes to
 i2s_din carries data into the MCU (microphone SD). "gpio" is a bidirectional board header pin.
 "config" is a strap or select pin tied to 3V3 or GND (I2C address select, mic L/R channel)."""
 
-Category = Literal["mcu", "sensor", "display", "light", "input", "output", "power"]
+Category = Literal[
+    "mcu", "sensor", "display", "light", "input", "output", "motor", "power"
+]
 FeatureKind = Literal[
     "usb", "display_window", "lens", "button", "led", "sound", "vent", "cable"
 ]

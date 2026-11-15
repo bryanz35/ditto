@@ -1,0 +1,31 @@
+# TowerPro MG996R metal-gear standard servo, 3-wire plug: brown GND, red VCC, orange PWM (50 Hz, 1-2 ms pulses).
+# Wire colours and PWM timing: components101, https://components101.com/motors/mg996r-servo-motor-datasheet
+# 4.8-6.6 V, 40.7 x 19.7 x 42.9 mm, 9.4 kg-cm at 4.8 V, 11 kg-cm at 6 V, 170 mA running, 1400 mA stall:
+# source (TowerPro page). components101 gives 2.5 A at 6 V: run it from 5 V, never from a board's 3V3.
+# 3.3 V on the signal wire usually works (not stated in the datasheet). l excludes the mounting tabs.
+id: servo_mg996r
+name: Metal-gear standard servo (TowerPro MG996R)
+category: motor
+logic_voltage: 3.3
+supply_voltage: [5.0]
+max_current_ma: 1400
+pins:
+  - {name: GND, type: gnd}  # brown
+  - {name: VCC, type: power, voltage: 5.0}  # red
+  - {name: PWM, type: gpio_out}  # orange
+board_mm: {l: 40.7, w: 19.7, h: 42.9}
+mounting: external
+provisional: true
+dims_source: datasheet
+mount_holes: []
+features: []
+pio_lib_deps: ["madhephaestus/ESP32Servo"]
+snippet: snippets/servo_mg996r.cpp
+mpn: MG996R
+vendor_url: https://www.towerpro.com.tw/product/mg996r/
+manual_price_usd: null  # no price on the TowerPro page
+owned_alternatives: []
+wokwi_type: wokwi-servo
+wokwi_pins: {VCC: V+}  # Wokwi: PWM, V+, GND
+wokwi_attrs: {}
+source: https://www.towerpro.com.tw/product/mg996r/

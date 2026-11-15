@@ -7,7 +7,7 @@
 # the case and the enclosure gets a cable hole; l excludes the mounting tabs (~32 mm across).
 id: servo_sg90
 name: Micro servo (TowerPro SG90)
-category: output
+category: motor
 logic_voltage: 3.3
 supply_voltage: [5.0]
 max_current_ma: 500
@@ -26,7 +26,7 @@ snippet: snippets/servo_sg90.cpp
 mpn: SG90
 vendor_url: https://www.towerpro.com.tw/product/sg90-7/
 manual_price_usd: null  # no price on the TowerPro page
-owned_alternatives: []
+owned_alternatives: [servo_mg90s]  # same size, metal gears
 wokwi_type: wokwi-servo
 wokwi_pins: {VCC: V+}  # Wokwi: PWM, V+, GND
 wokwi_attrs: {}

@@ -21,7 +21,7 @@ import {
   type BufferGeometry,
 } from 'three'
 
-export type Category = 'mcu' | 'sensor' | 'display' | 'light' | 'input' | 'output' | 'power'
+export type Category = 'mcu' | 'sensor' | 'display' | 'light' | 'input' | 'output' | 'motor' | 'power'
 
 /** The fields of backend/parts/library/*.yaml the 3D view needs: category, board_mm (l, w, h),
  * pins in header order, and whether the part sits outside the case. Keep in step with the YAML. */
@@ -202,8 +202,20 @@ export const LIBRARY: Record<
       'GP16',
     ],
   },
+  servo_mg90s: {
+    cat: 'motor',
+    mm: [22.8, 12.2, 28.5],
+    pins: ['GND', 'VCC', 'PWM'],
+    external: true,
+  },
+  servo_mg996r: {
+    cat: 'motor',
+    mm: [40.7, 19.7, 42.9],
+    pins: ['GND', 'VCC', 'PWM'],
+    external: true,
+  },
   servo_sg90: {
-    cat: 'output',
+    cat: 'motor',
     mm: [23, 12.2, 29],
     pins: ['GND', 'VCC', 'PWM'],
     external: true,
@@ -219,6 +231,12 @@ export const LIBRARY: Record<
     cat: 'display',
     mm: [28, 28, 12],
     pins: ['GND', 'VCC', 'SCL', 'SDA'],
+  },
+  stepper_28byj48: {
+    cat: 'motor',
+    mm: [42, 31, 29],
+    pins: ['IN1', 'IN2', 'IN3', 'IN4', 'VCC', 'GND'],
+    external: true,
   },
   vibration_motor_module: {
     cat: 'output',
@@ -324,10 +342,23 @@ interface Look {
   pcb: string | null
   /** Height of the PCB's underside above the floor (posts or headers below it). */
   lift?: number
+  /** The part size (l, w, h) the shapes are drawn for: boxes and cylinders then scale to the part's box. */
+  mm?: [number, number, number]
   shapes: Shape[]
 }
 
 const SILVER = '#c9ccd2'
+// One servo, drawn at SG90 size and scaled to each servo's box.
+const servo = (color: string): Look => ({
+  pcb: null,
+  mm: [23, 12.2, 29],
+  shapes: [
+    { box: [23, 12.2, 22], at: [0, 0], color },
+    { box: [32, 12.2, 2.5], at: [0, 0], color, on: 15 },
+    { cyl: [2.5, 5], at: [-0.25, 0], color: '#f2f2f2', on: 22 },
+    { box: [16, 4, 1.5], at: [-0.25, 0], color: '#f2f2f2', on: 27 },
+  ],
+})
 const LOOKS: Record<string, Look> = {
   esp32_devkitc: {
     pcb: '#23262d',
@@ -488,13 +519,19 @@ const LOOKS: Record<string, Look> = {
       { cyl: [5, 6.6], at: [0, 0], color: SILVER, metal: 0.6 },
     ],
   },
-  servo_sg90: {
+  servo_sg90: servo('#2563eb'),
+  servo_mg90s: servo('#1c1c1f'),
+  servo_mg996r: servo('#1c1c1f'),
+  // Kiatronics drawing: a 28 mm can 19 mm tall with its ears on top, the blue wire cover on +y (the
+  // header side) and the shaft 8 mm off-centre opposite it. The can's centre is 1.5 mm below the box's.
+  stepper_28byj48: {
     pcb: null,
     shapes: [
-      { box: [23, 12.2, 22], at: [0, 0], color: '#2563eb' },
-      { box: [32, 12.2, 2.5], at: [0, 0], color: '#2563eb', on: 15 },
-      { cyl: [2.5, 5], at: [-0.25, 0], color: '#f2f2f2', on: 22 },
-      { box: [16, 4, 1.5], at: [-0.25, 0], color: '#f2f2f2', on: 27 },
+      { cyl: [14, 19], at: [0, -0.048], color: SILVER, metal: 0.6 },
+      { box: [42, 7, 0.8], at: [0, -0.048], color: SILVER, metal: 0.6, on: 18.2 },
+      { box: [14.6, 6, 17], at: [0, 0.4], color: '#2f6fd6' },
+      { cyl: [4.5, 1.5], at: [0, -0.306], color: SILVER, metal: 0.6, on: 19 },
+      { cyl: [2.5, 8.5], at: [0, -0.306], color: '#d9c37c', metal: 0.7, on: 20.5 },
     ],
   },
   relay_module_1ch: {
@@ -555,6 +592,8 @@ const BY_CATEGORY: Record<Category, Look> = {
     lift: 2,
     shapes: [{ cyl: [5, 7], at: [0, -0.1], color: '#141414' }],
   },
+  // most custom motors are servos (an MG996R the library lacks)
+  motor: servo('#3f3f46'),
   power: {
     pcb: '#3f3f46',
     lift: 2,
@@ -675,6 +714,7 @@ export function buildPart(
   const [a, b] = footprint(quarter)
   const h = size.z
   const floor = -h / 2
+  const [kx, ky, kz] = look.mm ? [a / look.mm[0], b / look.mm[1], h / look.mm[2]] : [1, 1, 1]
 
   const root = new Group()
   const body = new Group()
@@ -747,19 +787,20 @@ export function buildPart(
   const leds: MeshStandardMaterial[] = []
   for (const s of look.shapes) {
     if ('box' in s) {
-      const [sx, sy, sz] = [Math.min(s.box[0], a - 0.5), Math.min(s.box[1], b - 0.5), s.box[2]]
+      const [sx, sy, sz] = [Math.min(s.box[0] * kx, a - 0.5), Math.min(s.box[1] * ky, b - 0.5), s.box[2] * kz]
       add(body, new BoxGeometry(sx, sy, sz), std(s.color, s.metal), [
         s.at[0] * a,
         s.at[1] * b,
-        top + (s.on ?? 0) + sz / 2,
+        top + (s.on ?? 0) * kz + sz / 2,
       ])
     } else if ('cyl' in s) {
-      const r = Math.min(s.cyl[0], a / 2 - 0.3, b / 2 - 0.3)
+      const r = Math.min(s.cyl[0] * Math.min(kx, ky), a / 2 - 0.3, b / 2 - 0.3)
+      const ch = s.cyl[1] * kz
       add(
         body,
-        zcyl(r, s.cyl[1]),
+        zcyl(r, ch),
         std(s.color, s.metal),
-        [s.at[0] * a, s.at[1] * b, top + (s.on ?? 0) + s.cyl[1] / 2],
+        [s.at[0] * a, s.at[1] * b, top + (s.on ?? 0) * kz + ch / 2],
         false,
       )
     } else if ('led' in s) {
