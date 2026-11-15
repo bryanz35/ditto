@@ -4,7 +4,8 @@ Real artifacts reach the run directory only through these: spec.json is saved af
 stage passes, enclosure changes (parameters, or model-written build123d code) after layout and
 enclosure pass. Every stage tool shares one retry
 guard: after MAX_FAILURES failures in a row (1 try + 3 retries) it refuses without running the stage.
-Stage events come from the StageRunner; the guard only adds data.attempt to them.
+Stage events come from the StageRunner; the guard adds data.attempt to them, and holds a layout or
+enclosure draft's passed events with files until the draft is saved (sent without files if it isn't).
 """
 
 import json
@@ -145,13 +146,21 @@ def guarded(
     if attempt > MAX_FAILURES:
         return _limit(key)
 
-    def emit(e: Event) -> None:
-        ctx.emit(e.model_copy(update={"data": {**e.data, "attempt": attempt}}))
-
     # layout and enclosure build into cad/ in place, then check: a draft that fails (or is
     # cancelled) after building must leave the saved spec's files there
     cad = run_dir_for(ctx.run_id) / "cad"
     draft = bool({"layout", "enclosure"} & set(stages))
+    held: list[Event] = []
+
+    def emit(e: Event) -> None:
+        e = e.model_copy(update={"data": {**e.data, "attempt": attempt}})
+        if draft and e.status == "passed" and e.artifacts:
+            held.append(
+                e
+            )  # its files are the draft's: announced only once the draft is saved
+        else:
+            ctx.emit(e)
+
     with tempfile.TemporaryDirectory() as tmp:
         saved = Path(tmp) / "cad"
         if draft and cad.is_dir():
@@ -166,11 +175,18 @@ def guarded(
                 if saved.is_dir():
                     shutil.copytree(saved, cad)
     if not passed:
+        for (
+            e
+        ) in held:  # the stage passed, but its files were thrown away with the draft
+            note = f"{e.message}; not kept, the rest of the draft failed"
+            ctx.emit(e.model_copy(update={"artifacts": {}, "message": note}))
         ctx.failures[key] = attempt
         left = MAX_FAILURES - attempt
         return f"FAILED (attempt {attempt}, {left} retries left). Fix these and try again: {_report(results)}"
     ctx.failures[key] = 0
     on_pass()
+    for e in held:
+        ctx.emit(e)
     return f"PASSED: {_report(results)}"
 
 
