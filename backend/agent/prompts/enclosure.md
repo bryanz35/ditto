@@ -33,6 +33,9 @@ Rules for `set_enclosure`:
 Rules for `write_model` code (Python, build123d 0.13, algebra mode):
 - Import only `from build123d import *` and `math`. No files, no printing, no other modules: code
   saves the STL and STEP files for you.
+- Every failed `write_model` call uses up one of your few attempts, so never spend one probing
+  values (raising an exception to read CAVITY_MM, calling globals()): derive every size from
+  CAVITY_MM, WALL_MM and BAY in the code itself.
 - Millimetres, z up. Put every real-world size the design depends on (book 148 x 210 x 25 mm, phone
   78 x 165 x 9 mm) in named constants at the top, then derive the geometry from them, with
   0.5-1 mm of clearance where something slides in.
