@@ -58,6 +58,26 @@ def test_write_spec_saves_with_code_owned_fields(events):
     assert not (folder / "spec.json.tmp").exists()
 
 
+def test_a_draft_that_builds_then_fails_its_checks_keeps_the_saved_case(events):
+    ctx = _ctx(FakeStageRunner(), events)
+    tools = make_tools(ctx)
+    tools["write_spec"].invoke({"spec_json": fixture_spec_json()})
+    assert tools["set_enclosure"].invoke({}).startswith("PASSED")
+    cad = ctx.spec_path.parent / "cad"
+    saved = {p.name: p.read_bytes() for p in cad.iterdir()}
+
+    def builds_then_fails(run_id, stages, spec, emit):
+        (cad / "base.stl").write_text("the draft's base")
+        (cad / "knob.stl").write_text("a part only the draft has")
+        leak = ToolError(code="not_watertight", message="base.stl has open edges")
+        return {"enclosure": ToolResult(ok=False, errors=[leak])}
+
+    ctx.run_stages = builds_then_fails
+    assert tools["set_enclosure"].invoke({"wall_mm": 3.0}).startswith("FAILED")
+    assert {p.name: p.read_bytes() for p in cad.iterdir()} == saved
+    assert ctx.load_spec().rev == 2
+
+
 def test_schema_errors_count_as_attempts(events):
     ctx = _ctx(FakeStageRunner(), events)
     reply = make_tools(ctx)["write_spec"].invoke({"spec_json": '{"title": "x"}'})

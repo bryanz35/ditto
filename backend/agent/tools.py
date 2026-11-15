@@ -8,6 +8,8 @@ Stage events come from the StageRunner; the guard only adds data.attempt to them
 """
 
 import json
+import shutil
+import tempfile
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -146,8 +148,24 @@ def guarded(
     def emit(e: Event) -> None:
         ctx.emit(e.model_copy(update={"data": {**e.data, "attempt": attempt}}))
 
-    results = ctx.run_stages(ctx.run_id, stages, spec, emit)
-    if any(not r.ok and not r.skipped for r in results.values()):
+    # layout and enclosure build into cad/ in place, then check: a draft that fails (or is
+    # cancelled) after building must leave the saved spec's files there
+    cad = run_dir_for(ctx.run_id) / "cad"
+    draft = bool({"layout", "enclosure"} & set(stages))
+    with tempfile.TemporaryDirectory() as tmp:
+        saved = Path(tmp) / "cad"
+        if draft and cad.is_dir():
+            shutil.copytree(cad, saved)
+        passed = False
+        try:
+            results = ctx.run_stages(ctx.run_id, stages, spec, emit)
+            passed = not any(not r.ok and not r.skipped for r in results.values())
+        finally:
+            if draft and not passed:
+                shutil.rmtree(cad, ignore_errors=True)
+                if saved.is_dir():
+                    shutil.copytree(saved, cad)
+    if not passed:
         ctx.failures[key] = attempt
         left = MAX_FAILURES - attempt
         return f"FAILED (attempt {attempt}, {left} retries left). Fix these and try again: {_report(results)}"
