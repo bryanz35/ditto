@@ -23,7 +23,9 @@ The code runs with these names already defined (and anything it imports from bui
   (its board_mm box, x 0..l, y 0..w, z 0..h) in or on a printed part. Code then checks the
   assembled device: every part and mounted box comes within TOUCH_MM of something that leads back
   to the case, and no two overlap, nor any of them and a part inside the case, by more than
-  OVERLAP_SHARE of the smaller.
+  OVERLAP_SHARE of the smaller; none of them sits in an opening's path (box_lid.opening_paths:
+  above a lid opening, out from a wall opening), and every cable hole has a way out (a side of
+  its path less than EXIT_SOLID_SHARE solid).
   shortcut: the electronics always sit in one axis-aligned box bay; free placement (a tilted screen,
   parts spread through the body) needs model-proposed placements and collision checks.
 """
@@ -42,6 +44,10 @@ CASE = ("base", "lid")
 TOUCH_MM = 5.0
 """How close a part must come to what holds it: servo horns, screws and washers bridge small gaps."""
 OVERLAP_SHARE = 0.05
+BLOCK_MM3 = 1.0
+"""More of a part than this inside an opening's path blocks it (faces that touch share ~0)."""
+EXIT_SOLID_SHARE = 0.75
+"""A side of a cable hole's path at least this solid is closed: the cable can't leave that way."""
 
 
 class _Bad(Exception):
@@ -65,7 +71,7 @@ def main(root: str, job_path: str) -> None:
     result = Path(job["result"])
     from build123d import Shape
 
-    from backend.cad.box_lid import box_lid_shapes, export_parts
+    from backend.cad.box_lid import box_lid_shapes, export_parts, opening_paths
     from backend.contracts.artifacts import CutoutRecord
 
     box = job.get("box")
@@ -161,8 +167,9 @@ def main(root: str, job_path: str) -> None:
     assembled, mounts, order = {}, {}, []
     if box:
         try:
+            paths = opening_paths(tuple(box["cavity_mm"]), box["wall_mm"], cutouts)
             assembled, mounts, order = _assemble(
-                prints, env, box.get("external", {}), box.get("inside", {})
+                prints, env, box.get("external", {}), box.get("inside", {}), paths
             )
         except _Bad as e:
             return _fail(result, *e.args)
@@ -194,12 +201,15 @@ def main(root: str, job_path: str) -> None:
 
 
 def _assemble(
-    prints: dict, env: dict, external: dict, inside: dict
+    prints: dict, env: dict, external: dict, inside: dict, paths: list
 ) -> tuple[dict, dict, list]:
     """A device's assembled poses (`assembled`, `mounts`) and a build order, after checking that
-    the assembled device holds together and keeps clear of the electronics in the case (inside:
-    {ref: [x, y, z, l, w, h]}, each part's box from the layout). Raises _Bad."""
+    the assembled device holds together, keeps clear of the electronics in the case (inside:
+    {ref: [x, y, z, l, w, h]}, each part's box from the layout) and of the openings' paths (paths:
+    [(CutoutRecord, path shape)]). Raises _Bad."""
     from build123d import Align, Box, Location, Pos
+
+    from backend.cad.box_lid import CABLE_REACH_MM, path_exits
 
     extras = sorted(n for n in prints if n not in CASE)
     poses, held = env.get("assembled", {}), env.get("mounts", {})
@@ -274,21 +284,18 @@ def _assemble(
         touching[a].add(b)
         touching[b].add(a)
         if dist(a, b) < 0.01 and {a, b} != set(CASE):
-            shared = (nodes[a] & nodes[b]).volume
-            if shared > OVERLAP_SHARE * min(nodes[a].volume, nodes[b].volume):
+            shared = nodes[a] & nodes[b]
+            if shared.volume > OVERLAP_SHARE * min(nodes[a].volume, nodes[b].volume):
                 problems.append(
-                    f"{a} and {b} overlap by {shared:.0f} mm³ in the assembled device; move one "
-                    "of them, or cut a pocket for the other"
+                    f"{a} and {b} overlap by {shared.volume:.0f} mm³ in the assembled device, "
+                    f"within {_span(shared.bounding_box())}; move one of them, or cut a pocket "
+                    "for the other there"
                 )
     for ref, (x, y, z, l, w, h) in sorted(inside.items()):
         board = Pos(x, y, z) * Box(l, w, h, align=(Align.MIN,) * 3)
         bb = board.bounding_box()
         for n in sorted(set(nodes) - set(CASE)):
-            if any(
-                getattr(bb.min, k) >= getattr(boxes[n].max, k)
-                or getattr(boxes[n].min, k) >= getattr(bb.max, k)
-                for k in "XYZ"
-            ):
+            if _apart(bb, boxes[n]):
                 continue
             shared = (board & nodes[n]).volume
             if shared > OVERLAP_SHARE * min(board.volume, nodes[n].volume):
@@ -296,6 +303,52 @@ def _assemble(
                     f"{n} overlaps {ref} inside the case by {shared:.0f} mm³ in the assembled "
                     f"device ({ref} spans {_span(bb)}); keep it out of the cavity or move it"
                 )
+    for c, path in paths:
+        pb = path.bounding_box()
+        u, v = c.center_mm
+        where = "lid" if c.face == "top" else f"{c.face} wall"
+        what = f"{c.for_ref}'s {c.feature} opening in the {where} (centre {u:g}, {v:g})"
+        if c.face == "top":
+            need = "the column straight above it"
+        elif c.feature == "cable":
+            need = f"the first {CABLE_REACH_MM:g} mm out through the wall"
+        else:
+            need = "the straight path out from it"
+        # a cable hole's own part is where its cable goes, not in its way
+        for n in sorted(set(nodes) - set(CASE) - {c.for_ref}):
+            if _apart(pb, boxes[n]):
+                continue
+            shared = nodes[n] & path
+            if shared.volume > BLOCK_MM3:
+                problems.append(
+                    f"{n} blocks {what}: it fills {_span(shared.bounding_box())} of {need}; move "
+                    "it clear, or cut it away there"
+                )
+        if c.feature != "cable":
+            continue
+        walls = []  # per side of the path: what closes it, or None if the cable can leave there
+        for slab in path_exits(c, path):
+            sb = slab.bounding_box()
+            fill = {
+                n: (slab & s).volume
+                for n, s in nodes.items()
+                if not _apart(sb, boxes[n])
+            }
+            solid = (
+                fill.pop(c.for_ref, 0) == 0
+                and sum(fill.values()) >= EXIT_SOLID_SHARE * slab.volume
+            )
+            walls.append(
+                sorted(n for n, vol in fill.items() if vol > 0) if solid else None
+            )
+        if all(w is not None for w in walls):
+            closers = sorted({n for w in walls for n in w})
+            problems.append(
+                f"{what} has no way out: {need} is walled in on every side by "
+                f"{', '.join(closers)} (the path spans {_span(pb)}, and base includes your body), "
+                "so leave one side open for the cable to bend away, or cut a channel from it to "
+                "the outside"
+            )
     # breadth first from the case: each part attaches to the one that reached it
     on, order, i = {}, list(CASE), 0
     while i < len(order):
@@ -326,6 +379,14 @@ def _matrix(loc) -> list[float]:
     t = loc.wrapped.Transformation()
     rows = [[t.Value(r, c) for c in (1, 2, 3, 4)] for r in (1, 2, 3)]
     return [round(v, 6) + 0.0 for row in rows for v in row] + [0.0, 0.0, 0.0, 1.0]
+
+
+def _apart(A, B) -> bool:
+    """Two bounding boxes that don't meet (touching faces count as apart)."""
+    return any(
+        getattr(A.min, k) >= getattr(B.max, k) or getattr(B.min, k) >= getattr(A.max, k)
+        for k in "XYZ"
+    )
 
 
 def _span(bb) -> str:

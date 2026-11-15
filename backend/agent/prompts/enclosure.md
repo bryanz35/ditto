@@ -70,8 +70,12 @@ Rules for `write_model` code (Python, build123d 0.13, algebra mode):
   Code checks the assembled device: every printed part and mounted part must come within 5 mm of
   something that leads back to the case (a servo horn or screw can bridge that gap; it is shown as
   is), and no two may overlap by more than 5% of the smaller, nor any of them and a part inside
-  the case (the board and modules where the layout put them). A part "doesn't attach" error names
-  the nearest part and the gap: fix that part's entry. The build guide follows the same chain, so
+  the case (the board and modules where the layout put them). Nor may any of them sit in an
+  opening's path: the column straight above a lid opening (a button, screen, vent) or the straight
+  line out from a wall opening (a USB plug); a cable hole needs its first 15 mm out through the wall
+  kept clear, with at least one side of that space left open so the cable can bend away (your
+  body too). A part "doesn't attach" error names the nearest part and the gap: fix that part's
+  entry. The build guide follows the same chain, so
   a robot arm reads base servo -> turntable -> turret -> shoulder servo -> upper arm -> ...
   Easiest: one Location per joint built from the constants that shaped the parts, chained with `*`
   (`T_upper = T_turret * Location(Plane(origin=(0, 34, 75), x_dir=(0, 0, 1), z_dir=(0, -1, 0)))`:
