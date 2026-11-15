@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from backend.agent.tools import RunContext, make_tools
+from backend.contracts.events import Event
 from backend.contracts.parts import load_library
 from backend.contracts.results import ToolError, ToolResult
 from backend.contracts.spec import UserContext
@@ -76,6 +77,75 @@ def test_a_draft_that_builds_then_fails_its_checks_keeps_the_saved_case(events):
     assert tools["set_enclosure"].invoke({"wall_mm": 3.0}).startswith("FAILED")
     assert {p.name: p.read_bytes() for p in cad.iterdir()} == saved
     assert ctx.load_spec().rev == 2
+
+
+def _draft_runner(cad, enclosure_ok: bool):
+    """layout passes with its file, then enclosure passes or fails."""
+
+    def run(run_id, stages, spec, emit):
+        (cad / "layout.json").write_text("the draft's layout")
+        emit(
+            Event(
+                run_id=run_id,
+                stage="layout",
+                status="passed",
+                message="layout passed",
+                spec_rev=spec.rev,
+                artifacts={"layout_json": "cad/layout.json"},
+            )
+        )
+        enclosure = (
+            ToolResult(ok=True)
+            if enclosure_ok
+            else ToolResult(
+                ok=False,
+                errors=[ToolError(code="not_watertight", message="open edges")],
+            )
+        )
+        emit(
+            Event(
+                run_id=run_id,
+                stage="enclosure",
+                status="passed" if enclosure_ok else "failed",
+                spec_rev=spec.rev,
+            )
+        )
+        return {"layout": ToolResult(ok=True), "enclosure": enclosure}
+
+    return run
+
+
+def test_a_failed_draft_announces_no_files(events):
+    ctx = _ctx(FakeStageRunner(), events)
+    tools = make_tools(ctx)
+    tools["write_spec"].invoke({"spec_json": fixture_spec_json()})
+    assert tools["set_enclosure"].invoke({}).startswith("PASSED")
+    cad = ctx.spec_path.parent / "cad"
+    events.clear()
+
+    ctx.run_stages = _draft_runner(cad, enclosure_ok=False)
+    assert tools["set_enclosure"].invoke({"wall_mm": 3.0}).startswith("FAILED")
+    assert [(e.stage, e.status) for e in events] == [
+        ("enclosure", "failed"),
+        ("layout", "passed"),
+    ]
+    assert all(not e.artifacts for e in events)
+    assert "not kept" in events[-1].message
+    assert (cad / "layout.json").read_text() != "the draft's layout"
+
+
+def test_a_saved_draft_announces_its_files_after_the_save(events):
+    ctx = _ctx(FakeStageRunner(), events)
+    tools = make_tools(ctx)
+    tools["write_spec"].invoke({"spec_json": fixture_spec_json()})
+    cad = ctx.spec_path.parent / "cad"
+    cad.mkdir(parents=True, exist_ok=True)
+    seen = []
+    ctx.emit = lambda e: seen.append((e.stage, bool(e.artifacts), ctx.load_spec().rev))
+
+    ctx.run_stages = _draft_runner(cad, enclosure_ok=True)
+    assert tools["set_enclosure"].invoke({"wall_mm": 3.0}).startswith("PASSED")
+    assert seen == [("enclosure", False, 1), ("layout", True, 2)]
 
 
 def test_schema_errors_count_as_attempts(events):
