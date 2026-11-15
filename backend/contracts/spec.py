@@ -156,6 +156,11 @@ class ProjectSpec(Model):
                     f'custom part {p.id!r}: nobody measured it, so dims_source is "listing" '
                     'or "datasheet"'
                 )
+            if p.snippet is not None:
+                raise ValueError(
+                    f"custom part {p.id!r}: snippet names a hand-checked example file of a "
+                    "library part; leave it unset"
+                )
         ids = [p.id for p in self.custom_parts]
         if len(ids) != len(set(ids)):
             raise ValueError(f"custom_parts ids repeat: {sorted(ids)}")
