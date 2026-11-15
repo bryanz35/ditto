@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from deepagents.backends.utils import create_file_data
+from langchain_core.callbacks import UsageMetadataCallbackHandler
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
@@ -149,7 +150,17 @@ class AgentRunner:
             user,
             ctx.pin_macros,
         )
-        config = {"configurable": {"thread_id": ctx.run_id}, "recursion_limit": 200}
+        # Every event of this turn carries the turn's token count so far (data.tokens), sub-agents included.
+        usage = UsageMetadataCallbackHandler()
+        emit = ctx.emit
+        ctx.emit = lambda e: emit(
+            e.model_copy(update={"data": e.data | {"tokens": _tokens(usage)}})
+        )
+        config = {
+            "configurable": {"thread_id": ctx.run_id},
+            "recursion_limit": 200,
+            "callbacks": [usage],
+        }
         todos = (await agent.aget_state(config)).values.get("todos")
         while True:
             async for state in agent.astream(payload, config, stream_mode="values"):
@@ -234,6 +245,15 @@ def _event(ctx: RunContext, stage: Stage, status, message: str, **kw) -> Event:
 
 def _plan(ctx: RunContext, status, message: str) -> None:
     ctx.emit(_event(ctx, "plan", status, message))
+
+
+def _tokens(usage: UsageMetadataCallbackHandler) -> dict[str, int]:
+    """Input and output tokens summed over every model the turn called."""
+    totals = usage.usage_metadata.values()
+    return {
+        "input": sum(u.get("input_tokens", 0) for u in totals),
+        "output": sum(u.get("output_tokens", 0) for u in totals),
+    }
 
 
 def _text(message) -> str:

@@ -335,7 +335,7 @@ describe('Overview', () => {
     expect(within(log).getByRole('status').textContent).toBe('Dittoing…') // nothing specific to say yet
     stream.emit([chat(last + 4, 'user', 'add a buzzer')]) // its own turn replaces the pending one
     expect(users()).toEqual(['make the walls 3 mm', 'add a buzzer'])
-    expect(within(log).getByRole('status').textContent).toBe('Dittoing…')
+    expect(within(log).getByRole('status').textContent).toMatch(/^Dittoing…\d/)
     stream.emit([chat(last + 5, 'agent', 'Added a buzzer on GPIO 4.')])
     expect(within(log).queryByRole('status')).toBeNull()
   })

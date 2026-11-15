@@ -11,6 +11,8 @@ answer: "plan" for clarifying questions, "bom" for approving an over-budget part
   "stopped, trying again" note on "plan").
 - "chat": "user" | "agent", an event whose message is a turn of the project's conversation: the
   user's follow-up message (the engine records it) or the agent's reply.
+- "tokens": {"input": int, "output": int}, model tokens the agent's current turn has used so far
+  (on every event the agent emits while it works).
 """
 
 from typing import Any, Literal, get_args

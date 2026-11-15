@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import runJsonl from '../../fixtures/events/plant_monitor.jsonl?raw'
 import editJsonl from '../../fixtures/events/plant_monitor_edit.jsonl?raw'
 import type { Event } from './contracts'
-import { chatTurns, initialState, isStale, reduce, statusLine } from './state'
+import { chatTurns, initialState, isStale, reduce, statusLine, turnUsage } from './state'
 
 const parseJsonl = (text: string): Event[] =>
   text
@@ -85,6 +85,17 @@ describe('chatTurns', () => {
     const reply = { ...run[0], seq: 901, message: 'Added one.', data: { chat: 'agent' } } as Event
     expect(chatTurns(fold(run))).toEqual([])
     expect(chatTurns(fold([...run, said, reply])).map((e) => e.message)).toEqual(['add a buzzer', 'Added one.'])
+  })
+})
+
+describe('turnUsage', () => {
+  it('times the turn from the user message and sums the latest token count', () => {
+    const said = { ...run[0], seq: 900, ts: 100, message: 'add a buzzer', data: { chat: 'user' } } as Event
+    const step = (seq: number, input: number) =>
+      ({ ...run[0], seq, data: { tokens: { input, output: 50 } } }) as Event
+    expect(turnUsage(fold(run))).toBeNull()
+    expect(turnUsage(fold([...run, said]))).toEqual({ since: 100, tokens: null })
+    expect(turnUsage(fold([...run, said, step(901, 1000), step(902, 3000)]))).toEqual({ since: 100, tokens: 3050 })
   })
 })
 

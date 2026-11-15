@@ -221,6 +221,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .chat-log .from-user { white-space: pre-wrap; }
 .chat-log .working { display: flex; align-items: center; gap: var(--space-8); color: var(--color-text-secondary); }
 .chat-log .working .sprite { --size: 32px; }
+.chat-log .working .usage { margin-left: auto; font-size: 12px; opacity: 0.8; }
 .chat-log .from-user { align-self: flex-end; padding: var(--space-6) var(--space-12); background: var(--color-surface-raised); border-radius: var(--radius-md); }
 .thinking { display: flex; align-items: flex-start; gap: var(--space-20); }
 /* Ditto sprite: a 4×4 sheet of 64 px frames, shown at 2× (128 px), 16 frames at 10 fps */
