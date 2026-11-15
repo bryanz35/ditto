@@ -180,7 +180,12 @@ def check_source(code: str) -> list[ToolError]:
             or node.id.startswith("__")
             or _io_name(node.id)
         ):
-            problems.append(f"line {line}: `{node.id}` isn't allowed")
+            why = (
+                " (a module build123d exports; rename your variable)"
+                if node.id in FORBIDDEN_ATTRS
+                else ""
+            )
+            problems.append(f"line {line}: `{node.id}` isn't allowed{why}")
         elif isinstance(node, ast.Attribute) and (
             node.attr.startswith("_")
             or _io_name(node.attr)
@@ -240,12 +245,6 @@ def build_custom_model(
             "standoffs": standoffs(spec, layout, lib),
             "external": external,
         }
-    model_py = out_dir / "model.py"
-    model_py.write_text(code)
-    for old in [*out_dir.glob("*.stl"), *out_dir.glob("*.step")]:
-        if not (device and old.stem in ("base", "lid")):
-            old.unlink()  # a part the previous model had
-
     with tempfile.TemporaryDirectory() as tmp:
         job["result"] = str(Path(tmp) / "result.json")
         job_path = Path(tmp) / "job.json"
@@ -279,6 +278,12 @@ def build_custom_model(
         out = json.loads(result_path.read_text())
     if not out["ok"]:
         return _failed(out["code"], out["message"])
+    # only now: a failed draft must leave the saved model's files in place
+    model_py = out_dir / "model.py"
+    model_py.write_text(code)
+    for old in [*out_dir.glob("*.stl"), *out_dir.glob("*.step")]:
+        if old.stem not in out["prints"]:
+            old.unlink()  # a part the previous model had
 
     prints = {n: tuple(v) for n, v in sorted(out["prints"].items())}
     warnings = []

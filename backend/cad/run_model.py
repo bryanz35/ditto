@@ -260,7 +260,8 @@ def _assemble(prints: dict, env: dict, external: dict) -> tuple[dict, dict, list
         where = "`mounts`" if n in held else "`assembled`"
         problems.append(
             f"{n} doesn't attach to the device: nothing within {TOUCH_MM:g} mm of it leads back to "
-            f"the case (nearest: {near}, {dist(n, near):.1f} mm away); fix its entry in {where}"
+            f"the case (nearest: {near}, {dist(n, near):.1f} mm away; assembled, {n} spans "
+            f"{_span(boxes[n])} and {near} spans {_span(boxes[near])}); fix its entry in {where}"
         )
     if problems:
         raise _Bad("not_assembled", "; ".join(problems[:8]))
@@ -276,6 +277,12 @@ def _matrix(loc) -> list[float]:
     t = loc.wrapped.Transformation()
     rows = [[t.Value(r, c) for c in (1, 2, 3, 4)] for r in (1, 2, 3)]
     return [round(v, 6) + 0.0 for row in rows for v in row] + [0.0, 0.0, 0.0, 1.0]
+
+
+def _span(bb) -> str:
+    return ", ".join(
+        f"{k.lower()} {getattr(bb.min, k):.1f}..{getattr(bb.max, k):.1f}" for k in "XYZ"
+    )
 
 
 def _size(bb) -> list[float]:

@@ -102,9 +102,13 @@ def test_errors_point_at_the_models_line(tmp_path, lib):
 
 @pytest.mark.slow
 def test_wrong_output_is_explained(tmp_path, lib):
+    (tmp_path / "arm.stl").write_text("the saved model's part")
     result = build_custom_model(with_code("x = 1"), None, lib, tmp_path)
     assert result.errors[0].code == "bad_model_output"
     assert "parts" in result.errors[0].message
+    # a failed draft leaves the saved model's files alone
+    assert (tmp_path / "arm.stl").exists()
+    assert not (tmp_path / "model.py").exists()
 
 
 @pytest.mark.slow
