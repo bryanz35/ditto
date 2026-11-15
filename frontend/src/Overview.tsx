@@ -31,6 +31,7 @@ export function Overview({
   onOwn,
   onDetails,
   onBuild,
+  onStop,
   onExit,
 }: {
   state: RunState
@@ -43,6 +44,8 @@ export function Overview({
   onOwn: (partId: string) => Promise<void>
   onDetails: () => void
   onBuild: () => void
+  /** Stops the edit Ditto is working on. */
+  onStop: () => Promise<void>
   onExit: () => void
 }) {
   const bom = useJson<Bom>(urlOf('bom_json'))
@@ -158,7 +161,7 @@ export function Overview({
       </aside>
       {buying === 'all' && bom && <BuyAllPanel bom={bom} onClose={() => setBuying(null)} />}
       {buying && buying !== 'all' && <BuyPanel line={buying} onClose={() => setBuying(null)} />}
-      <Dock reply={reply} onSend={() => setChatShown(true)} onBuild={onBuild} />
+      <Dock reply={reply} busy={!state.done} onSend={() => setChatShown(true)} onBuild={onBuild} onStop={onStop} />
     </main>
   )
 }
@@ -538,7 +541,20 @@ function ChatPanel({
   )
 }
 
-function Dock({ reply, onSend, onBuild }: { reply: Reply; onSend: () => void; onBuild: () => void }) {
+function Dock({
+  reply,
+  busy,
+  onSend,
+  onBuild,
+  onStop,
+}: {
+  reply: Reply
+  busy: boolean
+  onSend: () => void
+  onBuild: () => void
+  onStop: () => Promise<void>
+}) {
+  const stop = useSend()
   const [text, setText] = useState('')
   const submit = async (value: string) => {
     if (!value.trim() || !reply.ready) return
@@ -581,16 +597,29 @@ function Dock({ reply, onSend, onBuild }: { reply: Reply; onSend: () => void; on
           <button type="button" className="icon-btn" aria-label="Add image" {...soon(null)}>
             <Icon name="image-plus" />
           </button>
-          <button type="submit" className="icon-btn send" aria-label="Send" disabled={!reply.ready || !text.trim()}>
-            <Icon name="arrow-up" />
-          </button>
+          {/* while Ditto works, Send can only answer its question: otherwise it becomes Stop */}
+          {busy && !reply.question ? (
+            <button
+              type="button"
+              className="icon-btn send"
+              aria-label="Stop"
+              disabled={stop.sending}
+              onClick={() => void stop.send(onStop)}
+            >
+              <Icon name="square" />
+            </button>
+          ) : (
+            <button type="submit" className="icon-btn send" aria-label="Send" disabled={!reply.ready || !text.trim()}>
+              <Icon name="arrow-up" />
+            </button>
+          )}
         </span>
         <button type="button" className="btn primary tall" onClick={onBuild}>
           <Icon name="hammer" />
           Start building
         </button>
       </form>
-      {reply.error && <p role="alert">{reply.error}</p>}
+      {(reply.error ?? stop.error) && <p role="alert">{reply.error ?? stop.error}</p>}
     </div>
   )
 }
