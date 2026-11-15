@@ -101,12 +101,7 @@ export function Planning({
           )}
           {!state.done && (
             <div className="thinking">
-              {/* shortcut: placeholder sprite from the design until the pixel-art frames exist */}
-              <div className="sprite" aria-hidden="true">
-                {Array.from({ length: 9 }, (_, i) => (
-                  <span key={i} />
-                ))}
-              </div>
+              <div className="sprite" aria-hidden="true" />
               <div className="status">
                 <p className="status-line">
                   {statusLine(state, project, Math.floor(now / 3))}
