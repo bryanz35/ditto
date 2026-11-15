@@ -6,7 +6,7 @@ import runManifest from '../../fixtures/runs/plant_monitor/manifest.json'
 import specJson from '../../fixtures/runs/plant_monitor/spec.json'
 import wiringJson from '../../fixtures/runs/plant_monitor/wiring.json'
 import type { Bom, EnclosureManifest, Layout, ProjectSpec, Wiring } from './contracts'
-import { buildSteps, loadProgress, partNoun, saveProgress, WIRE_COLOURS, wireId } from './guide'
+import { buildSteps, loadProgress, partNoun, saveProgress, stepText, WIRE_COLOURS, wireId } from './guide'
 import { printsOf } from './ui'
 
 const artifacts = runManifest.artifacts as Record<string, { path: string }>
@@ -93,6 +93,14 @@ describe('buildSteps on the plant monitor', () => {
   it('colours each wire by its pin type', () => {
     const screen = steps.find((s) => s.id === 'wire-oled1')!.wires
     expect(screen.map((w) => WIRE_COLOURS[w.pin_type])).toEqual(['red', 'black', 'yellow', 'blue'])
+  })
+
+  it('tells Ask Ditto the step with its wires and their colours', () => {
+    const i = steps.findIndex((s) => s.id === 'wire-oled1')
+    const text = stepText(steps[i], i, steps.length)
+    expect(text).toMatch(/^Step 8 of 12: Connect the screen \(Wiring\)\n/)
+    expect(text).toContain('screen VCC → ESP32 3V3 (red wire)')
+    expect(text).toContain('Tip: 3V3, GND')
   })
 
   it('links the files each step needs', () => {

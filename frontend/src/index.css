@@ -436,7 +436,8 @@ pre {
 .build .pill:hover { background: var(--color-surface-raised); }
 .caps { margin: 0; font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.66px; text-transform: uppercase; color: var(--color-text-secondary); }
 .step-card {
-  position: absolute; top: 64px; left: 16px; width: 360px; max-height: calc(100% - 64px - 80px - 16px); overflow-y: auto;
+  /* bottom: clears the tracker (80) and the Ask Ditto sprite (64) with 16 px gaps */
+  position: absolute; top: 64px; left: 16px; width: 360px; max-height: calc(100% - 64px - 80px - 16px - 64px - 16px); overflow-y: auto;
   display: flex; flex-direction: column; gap: var(--space-16); padding: var(--space-16);
   background: var(--color-surface-panel); border: 1px solid var(--color-border-default); border-radius: var(--radius-md);
 }
@@ -493,6 +494,51 @@ a.btn { text-decoration: none; }
 .progress { display: flex; flex-direction: column; gap: var(--space-6); width: 120px; flex: none; font-size: 12px; line-height: 16px; font-weight: 500; }
 .track { height: 4px; border-radius: 2px; background: var(--color-surface-control); overflow: hidden; }
 .track span { display: block; height: 100%; border-radius: 2px; background: var(--color-accent-default); }
+/* Ask Ditto: a bouncing Ditto under the step card (ditto-bounce.png: 4 × 2 frames of 64 px) */
+.ditto-button {
+  --size: 64px; position: absolute; left: 16px; bottom: 96px; width: var(--size); height: var(--size);
+  padding: 0; border: none; border-radius: var(--radius-md); cursor: pointer;
+  background: url('./assets/ditto-bounce.png') 0 0 / calc(var(--size) * 4) calc(var(--size) * 2) no-repeat;
+  image-rendering: pixelated;
+  animation: sprite-x 0.4s steps(4) infinite, bounce-y 0.8s steps(2) infinite;
+}
+@keyframes bounce-y { to { background-position-y: calc(var(--size) * -2); } }
+/* Its speech bubble. ditto-dialog.png: 15 frames (3 × 5 cells of 304 × 224) of a bubble 288 px wide growing
+   from 40 to 208 px tall; in each cell the bubble starts at x 8 and its tail tip is on row 213, 20 px in.
+   Opening plays the frames, then the chat shows in the last frame cut in three (top 3 px and bottom 9 px with
+   the tail from the sheet, the middle row redrawn as a gradient) so it can be taller, and rises to full height. */
+.bubble-open {
+  position: absolute; left: 32px; bottom: 134px; width: 304px; height: 224px; pointer-events: none;
+  background: url('./assets/ditto-dialog.png') 0 0 no-repeat;
+  animation: bubble-x 0.09s steps(3, jump-none) 5 forwards, bubble-y 0.45s steps(5, jump-none) forwards;
+}
+@keyframes bubble-x { to { background-position-x: -608px; } }
+@keyframes bubble-y { to { background-position-y: -896px; } }
+.ask-panel {
+  --ink: #3d1d4d; --fill: #faf6fd; --shade: #e1d3ea;
+  position: absolute; left: 40px; bottom: 144px; width: 288px; height: min(360px, calc(100% - 48px - 144px - 16px));
+  display: flex; flex-direction: column; gap: var(--space-6); padding: var(--space-6) var(--space-8) var(--space-16) var(--space-8);
+  color: var(--ink);
+  background: linear-gradient(to right, var(--ink) 1px, var(--fill) 1px 2px, #fff 2px 3px, var(--fill) 3px calc(100% - 3px), var(--shade) calc(100% - 3px) calc(100% - 1px), var(--ink) calc(100% - 1px))
+    0 3px / 100% calc(100% - 12px) no-repeat;
+  animation: bubble-show 0s 0.45s both, bubble-rise 0.12s steps(4) 0.45s backwards;
+}
+.ask-panel::before, .ask-panel::after { content: ''; position: absolute; left: 0; width: 288px; background: url('./assets/ditto-dialog.png') no-repeat; }
+.ask-panel::before { top: 0; height: 3px; background-position: -616px -902px; }
+.ask-panel::after { bottom: 0; height: 9px; background-position: -616px -1101px; }
+@keyframes bubble-show { from { visibility: hidden; } }
+@keyframes bubble-rise { from { height: 208px; } }
+.ask-panel header { display: flex; align-items: center; flex: none; padding-left: var(--space-4); }
+.ask-panel .caps, .ask-panel .icon-btn, .ask-panel .chat-log li { color: var(--ink); }
+.ask-panel .icon-btn:hover, .ask-panel .icon-btn.send { background: var(--shade); }
+.ask-panel .chat-log { padding: 0 var(--space-4); }
+.ask-panel .chat-log .from-user, .ask-panel .chat-log .from-agent :is(code, pre) { background: var(--shade); }
+.ask-panel .chat-log .from-agent a { color: var(--ink); }
+.ask-panel .compact { height: 36px; background: #fff; border-color: var(--shade); }
+.ask-panel .compact:focus-within { border-color: var(--ink); }
+.ask-panel .compact input { color: var(--ink); }
+.ask-panel [role='alert'] { padding: 0 var(--space-4); font-size: 12px; line-height: 16px; color: #a1263a; }
+@media (prefers-reduced-motion: reduce) { .ditto-button, .ask-panel { animation: none; } .bubble-open { display: none; } }
 
 /* ---------- narrow screens: the design is desktop-first ---------- */
 @media (max-width: 760px) {

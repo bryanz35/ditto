@@ -12,7 +12,9 @@ from pathlib import Path
 from typing import Any
 
 from deepagents.backends.utils import create_file_data
+from langchain.chat_models import init_chat_model
 from langchain_core.callbacks import UsageMetadataCallbackHandler
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
@@ -22,6 +24,7 @@ from backend.agent.orchestrator import (
     build_agent,
     house_rules,
     model_spec,
+    prompt,
     reference_files,
 )
 from backend.agent.tools import RunContext, make_tools
@@ -29,6 +32,7 @@ from backend.contracts.events import Event, Question, Stage, Todo
 from backend.contracts.parts import PartLibrary, load_library
 from backend.contracts.runner import (
     AnswerRequest,
+    AskRequest,
     EditRequest,
     Emit,
     NoSpec,
@@ -44,6 +48,10 @@ LIMIT_REACHED = (
     "Question limit reached: don't ask again. "
     "State your assumption in the spec's assumptions and continue."
 )
+
+
+ASK_FILES = ["spec.json", "wiring.json", "bom.json", "firmware/src/main.cpp"]
+"""What Runner.ask reads from the run directory (each only if it exists)."""
 
 
 class AgentRunner:
@@ -95,6 +103,30 @@ class AgentRunner:
         future = self._pending.get((run_id, request.question_id))
         if future and not future.done():
             future.set_result(request.answer)
+
+    async def ask(self, run_id: str, request: AskRequest) -> str:
+        run_dir = run_dir_for(run_id)
+        files = "\n\n".join(
+            f"## {name}\n```\n{(run_dir / name).read_text()}\n```"
+            for name in ASK_FILES
+            if (run_dir / name).is_file()
+        )
+        model = (
+            init_chat_model(self.model) if isinstance(self.model, str) else self.model
+        )
+        history = [
+            HumanMessage(t.text) if t.role == "user" else AIMessage(t.text)
+            for t in request.history
+        ]
+        question = f"Current step:\n{request.step}\n\nQuestion: {request.question}"
+        reply = await model.with_retry(stop_after_attempt=3).ainvoke(
+            [
+                SystemMessage(f"{prompt('ask')}\n\n# The run's files\n\n{files}"),
+                *history,
+                HumanMessage(question),
+            ]
+        )
+        return _text(reply)
 
     def _ctx(self, run_id: str, emit: Emit, prompt: str) -> RunContext:
         return RunContext(run_id, emit, self.run_stages, self.lib, prompt)

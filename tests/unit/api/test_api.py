@@ -37,6 +37,21 @@ async def test_fake_runner_streams_a_complete_run(client, monkeypatch):
     assert manifest["artifacts"]["bom_json"]["path"] == "bom.json"
 
 
+async def test_ask_answers_questions_about_a_run(client):
+    run_id = await start(client)
+    await read_stream(client, run_id)
+
+    response = await client.post(
+        f"/runs/{run_id}/ask", json={"question": "Which wire?"}
+    )
+
+    assert response.status_code == 200 and response.json()["answer"]
+    empty = await client.post(f"/runs/{run_id}/ask", json={"question": ""})
+    assert empty.status_code == 422
+    missing = await client.post("/runs/nope/ask", json={"question": "Which wire?"})
+    assert missing.status_code == 404
+
+
 def test_p2d_runner_fake_needs_no_keys(monkeypatch):
     monkeypatch.setenv("P2D_RUNNER", "fake")
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)

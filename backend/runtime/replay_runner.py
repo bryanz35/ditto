@@ -8,6 +8,7 @@ from pathlib import Path
 from backend.contracts.events import Event
 from backend.contracts.runner import (
     AnswerRequest,
+    AskRequest,
     EditRequest,
     Emit,
     RunRequest,
@@ -97,6 +98,12 @@ class ReplayRunner:
 
     async def answer(self, run_id: str, request: AnswerRequest) -> None:
         """Recorded runs don't wait for answers."""
+
+    async def ask(self, run_id: str, request: AskRequest) -> str:
+        return (
+            "This is a recorded run with no model, so I can't answer here. "
+            "Run the API with `P2D_RUNNER=real` to ask me about your build."
+        )
 
 
 def _save(run_dir: Path, spec: ProjectSpec) -> None:

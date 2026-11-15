@@ -1,6 +1,6 @@
 // The API calls the UI makes (backend/app/routers/runs.py and files.py, behind the /api proxy).
 import { useEffect, useMemo, useReducer, useState } from 'react'
-import type { AnswerRequest, EditRequest, Event as RunEvent, RunSummary, UserContext } from './contracts'
+import type { AnswerRequest, AskReply, AskRequest, EditRequest, Event as RunEvent, RunSummary, UserContext } from './contracts'
 import { initialState, reduce, type RunState } from './state'
 
 /** ?v busts the browser cache when a stage rewrites the same file. */
@@ -32,6 +32,17 @@ export const editRun = (runId: string, request: EditRequest) =>
 
 export const answerQuestion = (runId: string, request: AnswerRequest) =>
   postJson(`/api/runs/${encodeURIComponent(runId)}/answer`, request)
+
+/** A build-guide question; the reply is markdown. Read-only: the run never changes. */
+export async function askBuild(runId: string, request: AskRequest): Promise<string> {
+  const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/ask`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  })
+  if (!res.ok) throw new Error(`Ditto couldn't answer (${res.status}): ${await res.text()}`)
+  return ((await res.json()) as AskReply).answer
+}
 
 /** The API answers 409 when the run isn't working; the stream then ends with a failed `done`. */
 export const cancelRun = (runId: string) => postJson(`/api/runs/${encodeURIComponent(runId)}/cancel`, {})

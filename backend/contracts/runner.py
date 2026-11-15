@@ -9,6 +9,7 @@ Who does what (one owner per job):
   stages: it calls the ToolBox with each stage's out_dir and emits running/passed/failed/skipped
   events with run-relative artifact paths. The firmware stage uses the main.cpp already in the run
   directory and never calls the model.
+- Runner.ask answers a build-guide question from the saved run files: read-only, no events.
 - The run engine (T14; edits in T22) owns the pipeline. After runner.run() or runner.edit() returns,
   it emits `stale` for the stages the change affects (edits only), runs every stage that hasn't
   passed at the current spec rev through the StageRunner, then `checks`, then emits `done`.
@@ -30,7 +31,9 @@ Run directory (runs/<id>/, under $P2D_RUNS_DIR):
 import os
 from collections.abc import Callable
 from pathlib import Path
-from typing import Protocol
+from typing import Literal, Protocol
+
+from pydantic import Field
 
 from backend.contracts.base import Model
 from backend.contracts.events import Event, Stage, Status
@@ -93,6 +96,28 @@ class AnswerRequest(Model):
     answer: str
 
 
+class ChatTurn(Model):
+    role: Literal["user", "ditto"]
+    text: str = Field(max_length=8000)
+
+
+class AskRequest(Model):
+    """Body of POST /runs/{id}/ask: a question about the build. Read-only: never changes the spec."""
+
+    question: str = Field(min_length=1, max_length=2000)
+    step: str = ""
+    """The step the user is on, as the guide shows it (title, body, wires with colours)."""
+    history: list[ChatTurn] = Field([], max_length=40)
+    """Earlier turns of this chat, oldest first. The UI keeps them; the API is stateless."""
+
+
+class AskReply(Model):
+    """Reply of POST /runs/{id}/ask."""
+
+    answer: str
+    """Markdown."""
+
+
 class RunSummary(Model):
     """One item of GET /runs (newest first by ts)."""
 
@@ -128,4 +153,9 @@ class Runner(Protocol):
 
     async def answer(self, run_id: str, request: AnswerRequest) -> None:
         """Deliver an answer to a pending question; unknown or expired ids are ignored."""
+        ...
+
+    async def ask(self, run_id: str, request: AskRequest) -> str:
+        """Answer a question about the build (markdown) from the run's saved files. Never writes
+        files or emits events, so it's safe while the run works."""
         ...

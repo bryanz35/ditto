@@ -53,6 +53,53 @@
       "title": "ArtifactInfo",
       "type": "object"
     },
+    "AskReply": {
+      "additionalProperties": false,
+      "description": "Reply of POST /runs/{id}/ask.",
+      "properties": {
+        "answer": {
+          "description": "Markdown.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "answer"
+      ],
+      "title": "AskReply",
+      "type": "object"
+    },
+    "AskRequest": {
+      "additionalProperties": false,
+      "description": "Body of POST /runs/{id}/ask: a question about the build. Read-only: never changes the spec.",
+      "properties": {
+        "history": {
+          "default": [],
+          "description": "Earlier turns of this chat, oldest first. The UI keeps them; the API is stateless.",
+          "items": {
+            "$ref": "#/$defs/ChatTurn"
+          },
+          "maxItems": 40,
+          "type": "array"
+        },
+        "question": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "step": {
+          "default": "",
+          "description": "The step the user is on, as the guide shows it (title, body, wires with colours).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "question",
+        "step",
+        "history"
+      ],
+      "title": "AskRequest",
+      "type": "object"
+    },
     "BoardDef": {
       "additionalProperties": false,
       "description": "A microcontroller board: load_library uses this model for files with category \"mcu\".\nSignal pins are named GPIO<n>, GP<n>, D<n> or A<n> (see pin_code).",
@@ -615,6 +662,28 @@
         "in_stock"
       ],
       "title": "BomOffer",
+      "type": "object"
+    },
+    "ChatTurn": {
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "enum": [
+            "user",
+            "ditto"
+          ],
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 8000,
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "text"
+      ],
+      "title": "ChatTurn",
       "type": "object"
     },
     "Connection": {

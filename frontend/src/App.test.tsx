@@ -94,6 +94,7 @@ const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
   }
   if (url.endsWith('/cancel')) return { ok: true, status: 202, text: async () => '{}' }
   if (url.endsWith('/answer')) return { ok: true, status: 200, text: async () => '{"ok":true}' }
+  if (url.endsWith('/ask')) return { ok: true, json: async () => ({ answer: 'Use the **red** wire.' }) }
   if (url === '/api/memory' && init?.method === 'PUT') {
     if (putStatus >= 300) return { ok: false, status: putStatus, text: async () => '{"detail":"unknown part id: nope"}' }
     const sent = JSON.parse(init.body as string)
@@ -542,6 +543,21 @@ describe('Build guide', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Overview' }))
     screen.getByRole('region', { name: 'Parts list' })
+  })
+
+  it('answers questions about the step from the sprite in the corner', async () => {
+    await startBuilding()
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Steps' })).getByRole('button', { name: /Wire screen/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Ask Ditto' }))
+    const chat = within(screen.getByRole('region', { name: 'Ask Ditto' }))
+    fireEvent.change(chat.getByRole('textbox', { name: 'Ask about the build' }), { target: { value: 'Which wire is VCC?' } })
+    fireEvent.click(chat.getByRole('button', { name: 'Send' }))
+
+    expect((await chat.findByText('red')).tagName).toBe('STRONG') // the answer, as markdown
+    chat.getByText('Which wire is VCC?')
+    const body = JSON.parse(lastCall('/api/runs/plant_monitor/ask', 'POST')![1]!.body as string)
+    expect(body).toMatchObject({ question: 'Which wire is VCC?', history: [] })
+    expect(body.step).toMatch(/Connect the screen[\s\S]*screen VCC → ESP32 3V3 \(red wire\)/)
   })
 })
 

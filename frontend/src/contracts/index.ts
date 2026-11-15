@@ -37,6 +37,45 @@ export interface ArtifactInfo {
     | "done";
 }
 /**
+ * Reply of POST /runs/{id}/ask.
+ *
+ * This interface was referenced by `P2DContracts`'s JSON-Schema
+ * via the `definition` "AskReply".
+ */
+export interface AskReply {
+  /**
+   * Markdown.
+   */
+  answer: string;
+}
+/**
+ * Body of POST /runs/{id}/ask: a question about the build. Read-only: never changes the spec.
+ *
+ * This interface was referenced by `P2DContracts`'s JSON-Schema
+ * via the `definition` "AskRequest".
+ */
+export interface AskRequest {
+  /**
+   * Earlier turns of this chat, oldest first. The UI keeps them; the API is stateless.
+   *
+   * @maxItems 40
+   */
+  history: ChatTurn[];
+  question: string;
+  /**
+   * The step the user is on, as the guide shows it (title, body, wires with colours).
+   */
+  step: string;
+}
+/**
+ * This interface was referenced by `P2DContracts`'s JSON-Schema
+ * via the `definition` "ChatTurn".
+ */
+export interface ChatTurn {
+  role: "user" | "ditto";
+  text: string;
+}
+/**
  * A microcontroller board: load_library uses this model for files with category "mcu".
  * Signal pins are named GPIO<n>, GP<n>, D<n> or A<n> (see pin_code).
  *

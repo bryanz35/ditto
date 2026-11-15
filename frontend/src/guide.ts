@@ -344,6 +344,17 @@ export function printSteps({ enclosure, urlOf }: { enclosure: EnclosureManifest;
   })
 }
 
+/** The step as plain text for Ask Ditto, with what the card shows: body, wires (with colours), tip. */
+export const stepText = (s: Step, index: number, total: number) =>
+  [
+    `Step ${index + 1} of ${total}: ${s.title} (${s.kind})`,
+    s.body,
+    ...s.wires.map((w) => `${s.noun} ${w.part_pin} → ${s.board} ${w.mcu_pin} (${WIRE_COLOURS[w.pin_type]} wire)`),
+    s.tip && `Tip: ${s.tip.note}`,
+  ]
+    .filter(Boolean)
+    .join('\n')
+
 export interface Progress {
   /** Id of the step on screen. */
   at: string | null

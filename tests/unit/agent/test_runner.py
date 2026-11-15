@@ -6,7 +6,14 @@ from langchain_core.messages import AIMessage
 from backend.agent import AgentRunner
 from backend.agent.runner import NO_ANSWER
 from backend.contracts.results import ToolError, ToolResult
-from backend.contracts.runner import AnswerRequest, EditRequest, NoSpec, RunRequest
+from backend.contracts.runner import (
+    AnswerRequest,
+    AskRequest,
+    ChatTurn,
+    EditRequest,
+    NoSpec,
+    RunRequest,
+)
 from backend.contracts.spec import ProjectSpec, UserContext
 from backend.tools.fakes import fake_toolbox
 from tests.unit.agent.conftest import (
@@ -280,3 +287,37 @@ async def test_past_projects_reach_every_agent(events, tmp_path, monkeypatch):
     assert "fetch.py" not in system_prompt(orchestrator)
     read = orchestrator.seen[1][-1]
     assert read.type == "tool" and "# Servo arm" in read.text
+
+
+async def test_ask_answers_from_the_run_files_and_changes_nothing(runs_dir):
+    run = runs_dir / "r1"
+    (run / "firmware/src").mkdir(parents=True)
+    (run / "spec.json").write_text(fixture_spec_json())
+    (run / "firmware/src/main.cpp").write_text('#include "pins.h" // beep()')
+    before = {p: p.read_text() for p in run.rglob("*") if p.is_file()}
+    model = script(AIMessage("Use the **red** wire."))
+    agent = AgentRunner(fake_toolbox(), model, FakeStageRunner())
+
+    answer = await agent.ask(
+        "r1",
+        AskRequest(
+            question="Which wire is VCC?",
+            step="Step 8 of 12: Connect the screen (Wiring)",
+            history=[
+                ChatTurn(role="user", text="hi"),
+                ChatTurn(role="ditto", text="hello"),
+            ],
+        ),
+    )
+
+    assert answer == "Use the **red** wire."
+    [messages] = model.seen
+    system, *history, question = messages
+    assert "go back to Overview" in system.content and "beep()" in system.content
+    assert ProjectSpec.model_validate_json(fixture_spec_json()).title in system.content
+    assert [m.content for m in history] == ["hi", "hello"]
+    assert (
+        "Connect the screen" in question.content
+        and "Which wire is VCC?" in question.content
+    )
+    assert {p: p.read_text() for p in run.rglob("*") if p.is_file()} == before

@@ -1,9 +1,10 @@
 // Build guide: one step card at a time over the 3D view, a step tracker below (Figma 25:735, 28:900).
 import confetti from 'canvas-confetti'
-import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
-import { useJson, useSend } from './api'
-import type { Bom, EnclosureManifest, Layout, ProjectSpec, Wiring } from './contracts'
-import { buildSteps, loadProgress, printSteps, saveProgress, WIRE_COLOURS, wireId, type Progress, type Step } from './guide'
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
+import Markdown from 'react-markdown'
+import { askBuild, useJson, useSend } from './api'
+import type { Bom, ChatTurn, EnclosureManifest, Layout, ProjectSpec, Wiring } from './contracts'
+import { buildSteps, loadProgress, printSteps, saveProgress, stepText, WIRE_COLOURS, wireId, type Progress, type Step } from './guide'
 import { Icon } from './Icon'
 import type { UrlOf } from './panels'
 import { printsOf, soon, type Print } from './ui'
@@ -250,6 +251,7 @@ function Guide({
           </button>
         </nav>
       </section>
+      <AskDitto runId={runId} step={stepText(step, index, steps.length)} />
 
       <nav className="tracker" aria-label="Steps">
         <button type="button" className="btn secondary" onClick={onBack}>
@@ -277,6 +279,93 @@ function Guide({
         </span>
       </nav>
     </main>
+  )
+}
+
+/** Ditto in the corner and its speech-bubble chat: questions about the build, answered from the run's files. */
+function AskDitto({ runId, step }: { runId: string; step: string }) {
+  const [open, setOpen] = useState(false)
+  // kept while the panel is closed and across steps; gone on reload (shortcut: not saved)
+  const [turns, setTurns] = useState<ChatTurn[]>([])
+  const [text, setText] = useState('')
+  const { sending, error, send } = useSend()
+  const log = useRef<HTMLOListElement>(null)
+  useEffect(() => {
+    if (log.current) log.current.scrollTop = log.current.scrollHeight
+  }, [turns.length, sending, open])
+  const submit = async () => {
+    const question = text.trim()
+    if (!question || sending) return
+    const history = turns
+    setTurns([...history, { role: 'user', text: question }])
+    setText('')
+    const ok = await send(async () => {
+      const answer = await askBuild(runId, { question, step, history })
+      setTurns([...history, { role: 'user', text: question }, { role: 'ditto', text: answer }])
+    })
+    if (!ok) {
+      setTurns(history)
+      setText(question)
+    }
+  }
+  return (
+    <>
+      {open && <span className="bubble-open" aria-hidden="true" />}
+      {open && (
+        <section className="ask-panel" aria-label="Ask Ditto">
+          <header>
+            <span className="caps">Ask Ditto</span>
+            <span className="spacer" />
+            <button type="button" className="icon-btn sm" aria-label="Close the chat" onClick={() => setOpen(false)}>
+              <Icon name="x" />
+            </button>
+          </header>
+          <ol ref={log} className="chat-log" aria-label="Conversation">
+            {turns.length === 0 && <li className="from-agent">Stuck on this step? Ask me anything about the build.</li>}
+            {turns.map((t, i) =>
+              t.role === 'user' ? (
+                <li key={i} className="from-user">
+                  {t.text}
+                </li>
+              ) : (
+                <li key={i} className="from-agent">
+                  <Markdown>{t.text}</Markdown>
+                </li>
+              ),
+            )}
+            {sending && (
+              <li className="working" role="status">
+                <span className="sprite" aria-hidden="true" />
+                <span className="status-text">Thinking…</span>
+              </li>
+            )}
+          </ol>
+          <form
+            className="input-row"
+            onSubmit={(e) => {
+              e.preventDefault()
+              void submit()
+            }}
+          >
+            <span className="compact">
+              <input aria-label="Ask about the build" value={text} onChange={(e) => setText(e.target.value)} placeholder="Ask about this step…" />
+              <button type="submit" className="icon-btn send" aria-label="Send" disabled={sending || !text.trim()}>
+                <Icon name="arrow-up" />
+              </button>
+            </span>
+          </form>
+          {error && <p role="alert">{error}</p>}
+        </section>
+      )}
+      <button
+        type="button"
+        className="ditto-button"
+        aria-label={open ? 'Close Ask Ditto' : 'Ask Ditto'}
+        aria-expanded={open}
+        title="Ask Ditto"
+        onClick={() => setOpen(!open)}
+      />
+    </>
   )
 }
 

@@ -1,4 +1,5 @@
-"""Runs API: list runs, start one, stream its events (SSE), edit it, answer its questions, cancel it."""
+"""Runs API: list runs, start one, stream its events (SSE), edit it, answer its questions, ask about
+the build, cancel it."""
 
 import asyncio
 import uuid
@@ -13,6 +14,8 @@ from sse_starlette import EventSourceResponse
 from backend.app.routers.files import existing_run_dir
 from backend.contracts.runner import (
     AnswerRequest,
+    AskReply,
+    AskRequest,
     EditRequest,
     RunRequest,
     RunSummary,
@@ -110,6 +113,17 @@ async def answer_question(
     existing_run_dir(run_id)
     await engine.runner.answer(run_id, request)
     return {"ok": True}
+
+
+@router.post("/runs/{run_id}/ask")
+async def ask_about_build(run_id: str, request: AskRequest, engine: Engine) -> AskReply:
+    """A question from the build guide. Read-only, so it's fine while the run works."""
+    if not (existing_run_dir(run_id) / "spec.json").is_file():
+        raise HTTPException(409, "The run has no spec yet; ask once the plan is done")
+    try:
+        return AskReply(answer=await engine.runner.ask(run_id, request))
+    except Exception as exc:  # the model failed for good (key, quota, overload)
+        raise HTTPException(502, f"Ditto couldn't answer: {exc}") from exc
 
 
 @router.post("/runs/{run_id}/cancel", status_code=202)
