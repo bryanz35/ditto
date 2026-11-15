@@ -35,7 +35,7 @@ Rules for `write_model` code (Python, build123d 0.13, algebra mode):
   saves the STL and STEP files for you.
 - Every failed `write_model` call uses up one of your few attempts, so never spend one probing
   values (raising an exception to read CAVITY_MM, calling globals()): derive every size from
-  CAVITY_MM, WALL_MM and BAY in the code itself.
+  CAVITY_MM, WALL_MM, EXTERNAL_MM and BAY in the code itself.
 - Millimetres, z up. Put every real-world size the design depends on (book 148 x 210 x 25 mm, phone
   78 x 165 x 9 mm) in named constants at the top, then derive the geometry from them, with
   0.5-1 mm of clearance where something slides in.
@@ -44,23 +44,31 @@ Rules for `write_model` code (Python, build123d 0.13, algebra mode):
   steeper than 45 degrees from vertical need a chamfer instead; split anything bigger than the printer
   bed (the default printer is 180 x 180 x 180 mm; the check names the real one) into parts that
   join with a peg or screw. This holds for a device's extra `parts` too: model each in its print
-  orientation, not where it sits on the case.
+  orientation; `assembled` then moves it to where it sits on the device.
 - Device bodies: the enclosure frame has its origin at the cavity's front-left floor corner;
   `CAVITY_MM = (L, W, H)` and `WALL_MM` are defined. `BAY` spans x -WALL_MM..L+WALL_MM,
   y -WALL_MM..W+WALL_MM, z -WALL_MM..H+WALL_MM. The body must overlap `BAY` by at least 1 mm (it
-  fuses into the base), and must not rise above the lid (the lid lifts straight up); anything that
-  should come off or sit above the lid goes in `parts` instead.
+  fuses into the base) and stays out of the column above the lid (the lid lifts straight up);
+  beside the box it may rise as high as you like. Anything that comes off or sits on the lid goes
+  in `parts` instead.
+- The lid keeps its shape, but `lid_cut = shape` cuts holes through its top plate (a servo shaft
+  up into a turntable, a cable up to an arm, screw holes for a part fixed on the lid); code cuts
+  only the plate, so the lip still fits. A part fixed on the lid is its own entry in `parts`,
+  screwed through holes cut this way.
 - Solids that touch must overlap by at least 0.5 mm; never let shapes meet only at an edge.
 - Assembly (a device with `parts`): set `assembled = {"name": Location, ...}` with one entry per
   part: the move from where the part is exported (its print position, including any offset you
   used to lay parts out) to where it sits in the finished device, in the enclosure frame. Set
   `mounts = {"ref": Location, ...}` for every external electronic part that a printed part holds (a
   servo in an arm link or turntable, a sensor in a bracket): it places that part's box, x 0..l,
-  y 0..w, z 0..h of its board_mm, so work out where its shaft or face is from the part's datasheet.
+  y 0..w, z 0..h, where `EXTERNAL_MM = {"ref": (l, w, h)}` (predefined) holds each external part's
+  size: size pockets and brackets from it, never from a guessed datasheet value. Work out where
+  its shaft or face sits within that box from the part's datasheet.
   Parts nothing holds (a wall supply, a probe on a cable) stay out of `mounts`.
   Code checks the assembled device: every printed part and mounted part must come within 5 mm of
   something that leads back to the case (a servo horn or screw can bridge that gap; it is shown as
-  is), and no two may overlap by more than 5% of the smaller. A part "doesn't attach" error names
+  is), and no two may overlap by more than 5% of the smaller, nor any of them and a part inside
+  the case (the board and modules where the layout put them). A part "doesn't attach" error names
   the nearest part and the gap: fix that part's entry. The build guide follows the same chain, so
   a robot arm reads base servo -> turntable -> turret -> shoulder servo -> upper arm -> ...
   Easiest: one Location per joint built from the constants that shaped the parts, chained with `*`

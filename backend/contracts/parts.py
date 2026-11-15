@@ -101,7 +101,7 @@ class PartDef(Model):
     board_mm: Dims
     mounting: Literal["inside", "external"] = "inside"
     """external: sits outside the case (soil probe, servo arm); the enclosure gets a cable hole
-    instead of a placement."""
+    instead of a placement. The default: a spec's PartInstance.mounting overrides it."""
     mount_holes: list[MountHole] = []
     features: list[Feature] = []
     provisional: bool = True

@@ -195,6 +195,32 @@ def test_device_body_keeps_cavity_openings_and_lid_path_clear(tmp_path, lib):
 
 
 @pytest.mark.slow
+def test_cable_hole_clears_room_for_the_cable_not_a_slot_through_the_stand(
+    tmp_path, lib
+):
+    from build123d import import_step
+
+    from backend.tools.layout import layout_parts
+
+    block = (  # 40 mm of stand behind the back wall
+        "from build123d import *\nL, W, H = CAVITY_MM\nw = WALL_MM\n"
+        "body = Pos(-w, W + w - 1, -w) * Box(L + 2 * w, 40, H + w, "
+        "align=(Align.MIN,) * 3)"
+    )
+    spec = device_with(block)
+    layout, _ = layout_parts(spec, lib)
+    result = build_custom_model(spec, layout, lib, tmp_path)
+    assert result.ok, result.errors
+    cable = next(
+        c for c in result.data["manifest"]["cutouts"] if c["feature"] == "cable"
+    )
+    (u, v), W, w = cable["center_mm"], layout.cavity_mm[1], spec.enclosure.wall_mm
+    base = import_step(tmp_path / "base.step")
+    assert not base.is_inside((u, W + w + 5, v))  # room behind the hole
+    assert base.is_inside((u, W + w + 30, v))  # the stand further back stays solid
+
+
+@pytest.mark.slow
 def test_device_body_that_misses_the_bay_is_loose(tmp_path, lib):
     from backend.tools.layout import layout_parts
 
@@ -212,6 +238,7 @@ def test_device_body_that_misses_the_bay_is_loose(tmp_path, lib):
 # A plain case with a knob on the lid and a clip behind it that holds the soil probe.
 CLIP_AND_KNOB = """from build123d import *
 L, W, H = CAVITY_MM
+PROBE_L, PROBE_W, PROBE_H = EXTERNAL_MM["soil1"]
 MIN = (Align.MIN,) * 3
 knob = Cylinder(8, 12, align=(Align.CENTER, Align.CENTER, Align.MIN))
 parts = {"knob": knob, "clip": Pos(50, 0, 0) * Box(30, 10, 12, align=MIN)}
@@ -259,7 +286,17 @@ def test_device_parts_and_mounts_are_assembled_in_build_order(tmp_path, lib):
 @pytest.mark.parametrize(
     ("change", "code", "says"),
     [
-        (("assembled = {",), "bad_model_output", "Missing: ['clip', 'knob']"),
+        (("assembled = {",), "bad_model_output", "`assembled` isn't set"),
+        (
+            ('"knob": Pos(L / 2, W / 2, H + WALL_MM),', ""),
+            "bad_model_output",
+            "`assembled` has no entry for ['knob']",
+        ),
+        (
+            ('    "clip": Pos(10,', '    "dial": Pos(0, 0, 0),\n    "clip": Pos(10,'),
+            "bad_model_output",
+            "entries for ['dial'], which aren't in `parts`",
+        ),
         (
             ('"knob": Pos(L / 2', '"knob": Pos(L / 2 + 300'),
             "not_assembled",
@@ -290,3 +327,42 @@ def test_assembly_problems_are_explained(tmp_path, lib, change, code, says):
     error = build_custom_model(spec, layout, lib, tmp_path).errors[0]
     assert error.code == code
     assert says in error.message, error.message
+
+
+@pytest.mark.slow
+def test_lid_cut_goes_through_the_plate_and_leaves_the_lip(tmp_path, lib):
+    from build123d import import_step
+
+    from backend.cad.box_lid import LIP_GAP_MM, LIP_T_MM
+    from backend.tools.layout import LIP_MM, layout_parts
+
+    y = LIP_GAP_MM + LIP_T_MM / 2  # over the front lip strip
+    spec = device_with(
+        "from build123d import *\nL, W, H = CAVITY_MM\n"
+        f"lid_cut = Pos(L / 2, {y}, H - 20) * Cylinder(3, 60, align=(Align.CENTER,) * 2 + (Align.MIN,))"
+    )
+    layout, _ = layout_parts(spec, lib)
+    assert build_custom_model(spec, layout, lib, tmp_path).ok
+    L, _, H = layout.cavity_mm
+    w = spec.enclosure.wall_mm
+    lid = import_step(tmp_path / "lid.step")
+    assert not lid.is_inside((L / 2, y, H + w / 2))  # the hole in the plate
+    assert lid.is_inside((L / 2 + 6, y, H + w / 2))  # plate beside it
+    assert lid.is_inside((L / 2, y, H - LIP_MM / 2))  # the lip under it is whole
+
+
+@pytest.mark.slow
+def test_a_part_placed_into_the_board_fails_with_the_boards_ref(tmp_path, lib):
+    from backend.tools.layout import footprint, layout_parts
+
+    spec = device_with(CLIP_AND_KNOB)
+    layout, _ = layout_parts(spec, lib)
+    board = next(p for p in layout.placements if p.ref == "esp32")
+    x0, y0, x1, y1 = footprint(board, lib.get(spec.mcu.part_id))
+    into = f'"knob": Pos({(x0 + x1) / 2}, {(y0 + y1) / 2}, {board.z_mm}),'
+    spec = device_with(
+        CLIP_AND_KNOB.replace('"knob": Pos(L / 2, W / 2, H + WALL_MM),', into)
+    )
+    error = build_custom_model(spec, layout, lib, tmp_path).errors[0]
+    assert error.code == "not_assembled"
+    assert "knob overlaps esp32 inside the case" in error.message, error.message

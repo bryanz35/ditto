@@ -12,7 +12,13 @@ from pathlib import Path
 
 from backend.contracts.parts import PartDef, PartLibrary
 from backend.contracts.results import ToolError, ToolResult
-from backend.contracts.spec import Layout, PartInstance, Placement, ProjectSpec
+from backend.contracts.spec import (
+    Layout,
+    PartInstance,
+    Placement,
+    ProjectSpec,
+    mounting,
+)
 
 CORNER_POST_MM = 6.0
 """Square screw post in each cavity corner: nothing is placed there."""
@@ -43,7 +49,7 @@ def part_wall(part: PartDef) -> str | None:
 def inside_parts(spec: ProjectSpec, lib: PartLibrary) -> list[PartInstance]:
     parts = spec.instances
     return sorted(
-        (p for p in parts if lib.get(p.part_id).mounting == "inside"),
+        (p for p in parts if mounting(p, lib) == "inside"),
         key=lambda p: p.ref,
     )
 

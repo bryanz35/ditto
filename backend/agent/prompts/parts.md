@@ -20,6 +20,10 @@ Rules for a device:
   `reserved_pins`; inputs only on `input_only_pins`; analog reads on `adc1_pins` (ADC2 fails with
   Wi-Fi); avoid `strapping_pins` for outputs.
 - I2C parts share one SDA/SCL pair; give each an `i2c_address` from the part's list, all different.
+- A part that sits outside the case in this design (a camera or distance sensor on an arm, head or
+  bracket) gets `"mounting": "external"`: it then has a cable hole instead of a place in the case,
+  and the enclosure engineer mounts it on a printed part. Leave it unset otherwise (never on the
+  `mcu`); servos and probes are already external.
 - Restate the request as testable `requirements`; list what you assumed in `assumptions`; set
   `firmware.behaviors` to what the device does. Leave `enclosure` at its defaults.
 - `rev`, `prompt` and `user` are set by code; you may leave them as they are.

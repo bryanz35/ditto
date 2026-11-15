@@ -23,8 +23,9 @@ from pathlib import Path
 from backend.contracts.artifacts import EnclosureManifest
 from backend.contracts.parts import PartLibrary
 from backend.contracts.results import ToolError, ToolResult
-from backend.contracts.spec import Layout, ProjectSpec
+from backend.contracts.spec import Layout, ProjectSpec, mounting
 from backend.tools.build_enclosure import enclosure_manifest, layout_error, standoffs
+from backend.tools.layout import footprint
 
 ROOT = Path(__file__).resolve().parents[2]
 RUN_MODEL = ROOT / "backend" / "cad" / "run_model.py"
@@ -236,10 +237,17 @@ def build_custom_model(
         external = {}  # ref -> board size, for `mounts`
         for p in spec.parts:
             part = lib.get(p.part_id)
-            if part.mounting == "external":
+            if mounting(p, lib) == "external":
                 external[p.ref] = [part.board_mm.l, part.board_mm.w, part.board_mm.h]
+        insts = {p.ref: p for p in spec.instances}
+        inside = {}  # ref -> [x, y, z, l, w, h], for the assembled overlap check
+        for pl in layout.placements:
+            part = lib.get(insts[pl.ref].part_id)
+            x0, y0, x1, y1 = footprint(pl, part)
+            inside[pl.ref] = [x0, y0, pl.z_mm, x1 - x0, y1 - y0, part.board_mm.h]
         job["box"] = {
             "cavity_mm": layout.cavity_mm,
+            "inside": inside,
             "wall_mm": manifest.wall_mm,
             "cutouts": [c.model_dump(mode="json") for c in manifest.cutouts],
             "standoffs": standoffs(spec, layout, lib),

@@ -12,7 +12,7 @@ from typing import Annotated, Literal
 from pydantic import Field, model_validator
 
 from backend.contracts.base import I2cAddress, Model, Wall
-from backend.contracts.parts import CUSTOM_PREFIX, BoardDef, PartDef
+from backend.contracts.parts import CUSTOM_PREFIX, BoardDef, PartDef, PartLibrary
 
 Ref = Annotated[str, Field(pattern=r"^[a-z][a-z0-9]*$")]
 """Part reference such as "oled1": lowercase letters and digits only, because it becomes part of the
@@ -49,6 +49,15 @@ class PartInstance(Model):
     i2c_address: I2cAddress | None = None
     """For I2C parts: the address this instance uses, one of PartDef.i2c_addresses (None = the
     first). If the part has an i2c_address_pin, its wiring must select this address."""
+    mounting: Literal["inside", "external"] | None = None
+    """Where this one sits, when not where the part usually does (PartDef.mounting): "external"
+    for a sensor or camera on an arm, head or bracket, which gets a cable hole instead of a place
+    in the case. None = the part's default. Never "external" for the mcu."""
+
+
+def mounting(p: PartInstance, lib: PartLibrary) -> Literal["inside", "external"]:
+    """Where a part instance sits: its own `mounting`, else the library part's."""
+    return p.mounting or lib.get(p.part_id).mounting
 
 
 class Connection(Model):
@@ -123,6 +132,11 @@ class ProjectSpec(Model):
                 "mcu and firmware go together: set both for a device with electronics, or "
                 "neither (null) for a print-only object"
             )
+        if self.mcu is not None and self.mcu.mounting == "external":
+            raise ValueError(
+                'the mcu sits inside the case: leave its mounting unset; "external" is for '
+                "parts on an arm, head or bracket"
+            )
         if self.mcu is None and (self.parts or self.connections):
             raise ValueError(
                 "parts and connections need an mcu; a print-only object has neither"
@@ -171,7 +185,7 @@ class Placement(Model):
 
 class Layout(Model):
     placements: list[Placement]
-    """One per part mounted inside (`PartDef.mounting == "inside"`), the mcu included, sorted by
+    """One per part mounted inside (`mounting(p, lib) == "inside"`), the mcu included, sorted by
     ref."""
     cavity_mm: tuple[float, float, float]
     """Inside length (x), width (y) and height (z)."""

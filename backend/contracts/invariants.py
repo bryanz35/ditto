@@ -13,7 +13,7 @@ from pathlib import Path
 from backend.contracts.artifacts import Bom, EnclosureManifest, RunManifest, Wiring
 from backend.contracts.events import Event
 from backend.contracts.parts import PartLibrary, load_library, pin_code
-from backend.contracts.spec import Layout, PartInstance, ProjectSpec
+from backend.contracts.spec import Layout, PartInstance, ProjectSpec, mounting
 
 TOL = 0.01  # mm / USD: float slack for computed values
 PIPELINE = (
@@ -79,9 +79,7 @@ def _footprint(p, lib: PartLibrary, ref_to_part: dict[str, str]):
 def check_layout(layout: Layout, spec: ProjectSpec, lib: PartLibrary) -> list[str]:
     """One placement per inside part (mcu included), sorted by ref; each inside the cavity, none
     overlapping, and against_wall really touching that wall."""
-    inside = sorted(
-        p.ref for p in _known(spec, lib) if lib.get(p.part_id).mounting == "inside"
-    )
+    inside = sorted(p.ref for p in _known(spec, lib) if mounting(p, lib) == "inside")
     refs = [p.ref for p in layout.placements]
     problems = []
     if refs != inside:
@@ -128,7 +126,7 @@ def check_cutouts(
     expected = []
     for p in _known(spec, lib):
         part = lib.get(p.part_id)
-        if part.mounting == "external":
+        if mounting(p, lib) == "external":
             expected.append((p.ref, "cable"))
         else:
             expected += [(p.ref, f.kind) for f in part.features]
