@@ -31,6 +31,8 @@ Rules for `set_enclosure`:
   and shape it into the body, or add it as a separate entry in `parts`.
 
 Rules for `write_model` code (Python, build123d 0.13, algebra mode):
+- When changing an existing custom shape, call `read_model` first and edit that code; don't
+  rewrite it from scratch.
 - Import only `from build123d import *` and `math`. No files, no printing, no other modules: code
   saves the STL and STEP files for you.
 - Every failed `write_model` call uses up one of your few attempts, so never spend one probing

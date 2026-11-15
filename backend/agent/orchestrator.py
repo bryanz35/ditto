@@ -64,7 +64,7 @@ SUBAGENTS = {
             "electronics, a custom body around it, or a print-only object written as build123d "
             "code. Use after the spec is saved and for any shape, wall or size change."
         ),
-        ["set_enclosure", "write_model", "request_change"],
+        ["set_enclosure", "write_model", "read_model", "request_change"],
     ),
 }
 ORCHESTRATOR_TOOLS = ["ask_user", "price_bom"]

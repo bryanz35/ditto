@@ -308,6 +308,19 @@ def make_tools(ctx: RunContext) -> dict[str, BaseTool]:
             return guarded(ctx, "enclosure", stages, spec, lambda: ctx.save_spec(spec))
 
     @tool
+    def read_model() -> str:
+        """Return the saved build123d code for the printed parts (the last version that passed),
+        to edit it and send the full code back to write_model."""
+        spec = ctx.load_spec()
+        if spec is None:
+            return (
+                "No validated spec yet: the parts-and-pins agent must save one first."
+            )
+        if not spec.enclosure.code:  # the spec only allows code with template "custom"
+            return "No saved model code: the case is the plain box. Start one with write_model."
+        return spec.enclosure.code
+
+    @tool
     def price_bom() -> str:
         """Price the saved spec's parts list (owned parts are free) and compare it to the budget."""
         spec = ctx.load_spec()
@@ -343,6 +356,7 @@ def make_tools(ctx: RunContext) -> dict[str, BaseTool]:
         write_firmware,
         set_enclosure,
         write_model,
+        read_model,
         price_bom,
         request_change,
         ask_user,
