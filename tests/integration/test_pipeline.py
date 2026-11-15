@@ -203,10 +203,10 @@ def no_network():
         yield
 
 
-def price(tools, lib, spec, out: Path, ok: bool = True) -> Bom:
-    """ok=False: over budget is a failed check, but the BOM is still written."""
+def price(tools, lib, spec, out: Path) -> Bom:
+    """Over budget is a warning: the BOM still passes, so the user can approve it."""
     result = tools.price_bom(spec, lib, None, out)
-    path = assert_artifacts(result, {"bom_json"}, out, ok)["bom_json"]
+    path = assert_artifacts(result, {"bom_json"}, out)["bom_json"]
     bom = Bom.model_validate_json(path.read_text())
     assert Bom.model_validate(result.data) == bom
     assert inv.check_bom(bom, spec, lib) == []
@@ -230,7 +230,7 @@ def test_price_bom_budget_boundary(tools, lib, spec, tmp_path, no_network):
     spec.user.budget_usd = total
     assert price(tools, lib, spec, tmp_path / "b").over_budget is False
     spec.user.budget_usd = total - 0.01
-    assert price(tools, lib, spec, tmp_path / "c", ok=False).over_budget is True
+    assert price(tools, lib, spec, tmp_path / "c").over_budget is True
 
 
 # --- cross-checks (T21) and the whole chain through run_stages --------------------------------------------------
