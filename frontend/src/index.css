@@ -449,8 +449,9 @@ pre {
 .wire {
   display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 10px 7px var(--space-8);
   border: none; border-radius: var(--radius-sm); background: var(--color-surface-raised); cursor: pointer;
-  font-weight: 500; color: var(--color-text-bright); white-space: nowrap; text-align: left;
+  font-weight: 500; color: var(--color-text-bright); overflow-wrap: anywhere; text-align: left;
 }
+.wire .box, .wire .arrow, .wire .mono { flex: none; }
 .wire:hover { background: var(--color-surface-control); }
 .wire[aria-checked='true'] { color: var(--color-text-secondary); }
 .wire[aria-checked='true'] .box { color: var(--color-status-passed); }
