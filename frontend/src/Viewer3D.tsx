@@ -14,6 +14,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { STLLoader } from 'three/addons/loaders/STLLoader.js'
 import type { EnclosureManifest, ProjectSpec, Wiring } from './contracts'
 import { Device, type SceneStep } from './scene/device'
+import Skip from './Skip'
 import type { Print } from './ui'
 
 // Figma viewport variables (index.css has the same values for the page).
@@ -222,7 +223,13 @@ export default function Viewer3D({
 }) {
   // each part's centre: past the ones before it, plus half its own width
   const xs = prints.map((_, i) => prints.slice(0, i).reduce((x, p) => x + p.width + PRINT_GAP_MM, prints[i].width / 2))
-  const beside = base && prints.length > 0 ? <Beside base={base} prints={prints} /> : null
+  // files load under a Skip: a missing one drops its part (or the row beside the case), not the whole view
+  const beside =
+    base && prints.length > 0 ? (
+      <Skip key={[base, ...prints.map((p) => p.url)].join()}>
+        <Beside base={base} prints={prints} />
+      </Skip>
+    ) : null
   return (
     <Canvas
       camera={{ position: [120, -160, 140], up: [0, 0, 1], far: 5000 }}
@@ -239,25 +246,39 @@ export default function Viewer3D({
       <ViewOffset left={leftInset} bottom={bottomInset} />
       <Suspense fallback={null}>
         {assembly ? (
-          <DeviceView
-            url={assembly}
-            spec={spec}
-            wiring={wiring}
-            manifest={manifest}
-            exploded={exploded}
-            build={build}
-            selected={selected}
-            onSelect={onSelect}
-          >
-            {beside}
-          </DeviceView>
+          <Skip key={assembly}>
+            <DeviceView
+              url={assembly}
+              spec={spec}
+              wiring={wiring}
+              manifest={manifest}
+              exploded={exploded}
+              build={build}
+              selected={selected}
+              onSelect={onSelect}
+            >
+              {beside}
+            </DeviceView>
+          </Skip>
         ) : (
           <Bounds key="enclosure" fit clip observe margin={1.3}>
-            {base && <Part url={base} lid={false} />}
-            {lid && <Part url={lid} lid />}
+            {base && (
+              <Skip key={base}>
+                <Part url={base} lid={false} />
+              </Skip>
+            )}
+            {lid && (
+              <Skip key={lid}>
+                <Part url={lid} lid />
+              </Skip>
+            )}
             {base
               ? beside
-              : prints.map((p, i) => <Part key={p.url} url={p.url} lid={false} x={xs[i]} />)}
+              : prints.map((p, i) => (
+                  <Skip key={p.url}>
+                    <Part url={p.url} lid={false} x={xs[i]} />
+                  </Skip>
+                ))}
           </Bounds>
         )}
       </Suspense>
