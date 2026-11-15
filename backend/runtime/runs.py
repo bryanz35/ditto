@@ -276,7 +276,13 @@ class RunEngine:
         """The stages to run now. After an edit, emits `stale` for the affected ones (then their
         passed event again if runner.edit() already passed them at the new rev) and carries the
         unaffected settled ones forward to the new rev."""
-        last = {e.stage: e for e in read_events(run_id) if e.stage in ORDER}
+        # events above the saved rev come from drafts that were never saved: they say nothing
+        # about whether the saved spec's stages are current
+        last = {
+            e.stage: e
+            for e in read_events(run_id)
+            if e.stage in ORDER and e.spec_rev <= spec.rev
+        }
         passed = {s: e.spec_rev for s, e in last.items() if e.status == "passed"}
         run_dir = run_dir_for(run_id)
         if old is None:
