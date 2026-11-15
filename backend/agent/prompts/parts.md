@@ -34,7 +34,13 @@ Rules for a device:
   max current, `board_mm` from the listing, `dims_source: "listing"` (or `"datasheet"`), a
   `manual_price_usd` estimate and a `source` URL for the facts. Name it in `assumptions` as
   unverified. Its `pio_lib_deps` may name only libraries a library part already uses; leave
-  `snippet` unset. Boards always come from the library: if none fits, call `request_change` and stop.
+  `snippet` unset. Set its `look` to the 3D model closest to it (only the 3D view reads it): one of
+  `pot_rotary`, `pot_slide`, `joystick`, `switch_rocker`, `servo`, `dc_motor`, `tt_gearmotor`,
+  `n20_gearmotor`, `driver_l298n`, `driver_small` (any small motor-driver breakout), `driver_uln2003`,
+  `capacitor`, `barrel_jack`, `buck_module`, `battery_holder`, `led_5mm`, `ldr_module`,
+  `relay_module_1ch`, `stepper_28byj48`, `ky040_encoder`, `button_tactile_6mm`, `button_arcade_30mm`,
+  `buzzer_passive`, `speaker_40mm_4ohm`; null when none is close (a sensor or display module).
+  Boards always come from the library: if none fits, call `request_change` and stop.
 
 Finish with your report: status `done` once `write_spec` passed, the parts chosen as the summary, and
 what you assumed.

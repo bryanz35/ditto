@@ -46,3 +46,14 @@ def test_changed_fields():
     old = {"rev": 1, "enclosure": {"wall_mm": 2.0}, "title": "a"}
     new = {"rev": 2, "enclosure": {"wall_mm": 3.0}, "title": "a"}
     assert changed_fields(old, new) == {"rev", "enclosure"}
+
+
+def test_a_custom_part_look_reruns_nothing():
+    part = {"id": "x_pot", "name": "pot"}
+    old = {"rev": 1, "custom_parts": [part]}  # saved before the field existed
+    assert changed_fields(
+        old, {"rev": 2, "custom_parts": [{**part, "look": "pot_rotary"}]}
+    ) == {"rev"}
+    assert changed_fields(
+        old, {"rev": 2, "custom_parts": [{**part, "name": "knob"}]}
+    ) == {"rev", "custom_parts"}

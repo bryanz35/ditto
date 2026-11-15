@@ -22,7 +22,17 @@ DEPENDS_ON: dict[str, set[str]] = {  # stage -> spec fields or stages it reads
 ORDER = list(DEPENDS_ON)  # topological
 
 
+def _without_looks(spec: dict) -> dict:
+    # a custom part's look is the 3D view's alone (and specs saved before it existed lack the key)
+    parts = spec.get("custom_parts") or []
+    return {
+        **spec,
+        "custom_parts": [{k: v for k, v in p.items() if k != "look"} for p in parts],
+    }
+
+
 def changed_fields(old: dict, new: dict) -> set[str]:
+    old, new = _without_looks(old), _without_looks(new)
     return {k for k in new if old.get(k) != new.get(k)}
 
 

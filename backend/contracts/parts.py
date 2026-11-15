@@ -44,6 +44,34 @@ i2s_din carries data into the MCU (microphone SD). "gpio" is a bidirectional boa
 Category = Literal[
     "mcu", "sensor", "display", "light", "input", "output", "motor", "power"
 ]
+PartLook = Literal[
+    "pot_rotary",
+    "pot_slide",
+    "joystick",
+    "switch_rocker",
+    "servo",
+    "dc_motor",
+    "tt_gearmotor",
+    "n20_gearmotor",
+    "driver_l298n",
+    "driver_small",
+    "driver_uln2003",
+    "capacitor",
+    "barrel_jack",
+    "buck_module",
+    "battery_holder",
+    "led_5mm",
+    "ldr_module",
+    "relay_module_1ch",
+    "stepper_28byj48",
+    "ky040_encoder",
+    "button_tactile_6mm",
+    "button_arcade_30mm",
+    "buzzer_passive",
+    "speaker_40mm_4ohm",
+]
+"""3D models a custom part can borrow (frontend/src/scene/parts.ts, GENERIC; preview at
+/parts.html in a dev server). The last seven are library parts' own models."""
 FeatureKind = Literal[
     "usb", "display_window", "lens", "button", "led", "sound", "vent", "cable"
 ]
@@ -125,6 +153,10 @@ class PartDef(Model):
     """Static attributes; per-instance values (e.g. the I2C address) come from the spec."""
     source: str
     """Datasheet or vendor URL for the pins, voltages and addresses."""
+    look: PartLook | None = None
+    """Custom parts only: the 3D model closest to the part (a panel pot: pot_rotary). Only the 3D
+    view reads it, and boards and displays ignore it. None: guessed from the name, else a plain
+    module."""
 
     @model_validator(mode="after")
     def _check_pins(self):

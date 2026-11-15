@@ -264,6 +264,7 @@ YAML file per part, checked against its datasheet and measured with calipers.
 | `mpn`, `vendor_url`, `manual_price_usd` | Pricing | Generic modules have no MPN: manual price and link |
 | `owned_alternatives` | Inventory memory | Parts that can stand in |
 | `source` | Reviewers | Datasheet or vendor URL for every pin, voltage and address |
+| `look` (custom parts only) | 3D view | Which stock model to draw it with (`pot_rotary`, `dc_motor`, ...); no stage reads it, so changing it reruns nothing |
 | Boards only: `reserved_pins`, `input_only_pins`, `strapping_pins`, `adc2_pins`, `pio_board` | Validator, firmware | Board facts live here, never in code |
 
 ```yaml
