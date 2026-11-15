@@ -7,7 +7,7 @@ import specJson from '../../../fixtures/runs/plant_monitor/spec.json'
 import wiringJson from '../../../fixtures/runs/plant_monitor/wiring.json'
 import type { EnclosureManifest, ProjectSpec, Wiring } from '../contracts'
 import { Device } from './device'
-import { clips, route, shell, solid, type Obstacles } from './route'
+import { clips, field, reserve, route, shell, solid, WIRE_R, type Obstacles, type RouteOptions } from './route'
 
 const v = (x: number, y: number, z: number) => new Vector3(x, y, z)
 const part = (name: string, c: Vector3, size: Vector3) => solid(name, c, new Quaternion(), size)
@@ -21,6 +21,21 @@ const maxZ = (c: Curve<Vector3>) => Math.max(...c.getSpacedPoints(200).map((p) =
 const from = v(0, 0, 10)
 const to = v(60, 0, 10)
 const straight = new CatmullRomCurve3([v(0, 0, 12), v(30, 0, 12), v(60, 0, 12)])
+const none: Obstacles = { solids: [], shells: [] }
+/** The closest two curves come (sampled every 0.25 mm). */
+const gap = (a: Curve<Vector3>, b: Curve<Vector3>) => {
+  const pb = b.getSpacedPoints(Math.ceil(b.getLength() * 4))
+  let min = Infinity
+  for (const p of a.getSpacedPoints(Math.ceil(a.getLength() * 4))) for (const q of pb) min = Math.min(min, p.distanceTo(q))
+  return min
+}
+/** Routes wires the way device.ts does: every pin reserved, then each wire in turn on one field. */
+const routeAll = (ends: Vector3[][], o: Omit<RouteOptions, 'field' | 'id'>) => {
+  const f = field()
+  const opts = ends.map((_, i) => ({ ...o, field: f, id: `w${i}` }))
+  ends.forEach(([a, b], i) => reserve(f, `w${i}`, a, b, opts[i]))
+  return ends.map(([a, b], i) => route(a, b, none, opts[i]))
+}
 
 describe('route', () => {
   it('goes over a taller part it cannot go round', () => {
@@ -91,8 +106,46 @@ describe('route', () => {
   })
 })
 
+describe('wires together', () => {
+  it('takes the straight way when nothing is in it', () => {
+    const end = v(40, 30, 10)
+    const r = route(from, end, none, { spread: 0, ceiling: 30 })
+    expect(r.hits).toEqual([])
+    expect(r.curve.getLength()).toBeLessThan(from.distanceTo(end) * 1.1 + 6) // 6: the rises off the pins
+  })
+
+  it('hops a part a little taller than the pins rather than going far round it', () => {
+    const obs: Obstacles = { solids: [part('bump', v(30, 0, 8), v(10, 30, 16))], shells: [] }
+    const r = route(from, to, obs, { spread: 0, ceiling: 30 })
+    expect(r.hits).toEqual([])
+    expect(r.curve.getLength()).toBeLessThan(60 * 1.1 + 6)
+  })
+
+  it('keeps two crossing wires apart', () => {
+    const [a, b] = routeAll(
+      [
+        [v(0, 0, 10), v(40, 40, 10)],
+        [v(0, 40, 10), v(40, 0, 10)],
+      ],
+      { spread: 0, ceiling: 30 },
+    )
+    expect([a.hits, b.hits]).toEqual([[], []])
+    expect(gap(a.curve, b.curve)).toBeGreaterThanOrEqual(2 * WIRE_R)
+  })
+
+  it('keeps four header wires apart when they swap order', () => {
+    const rs = routeAll(
+      [0, 1, 2, 3].map((k) => [v(0, 2.54 * k, 10), v(40, 2.54 * (3 - k), 10)]),
+      { spread: 0, ceiling: 30 },
+    )
+    for (const r of rs) expect(r.hits).toEqual([])
+    for (let i = 0; i < 4; i++)
+      for (let j = i + 1; j < 4; j++) expect(gap(rs[i].curve, rs[j].curve)).toBeGreaterThanOrEqual(2 * WIRE_R)
+  })
+})
+
 describe('the plant_monitor device', () => {
-  it('routes every inside wire clear of the case and the parts', async () => {
+  it('routes every inside wire clear of the case, the parts and each other', async () => {
     const bin = atob(glbData.slice(glbData.indexOf(',') + 1))
     const buf = Uint8Array.from(bin, (c) => c.charCodeAt(0)).buffer
     const gltf = await new GLTFLoader().parseAsync(buf, '')

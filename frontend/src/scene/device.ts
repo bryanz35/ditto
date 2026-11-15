@@ -27,7 +27,7 @@ import {
 } from 'three'
 import type { EnclosureManifest, ProjectSpec, Wiring, WiringRow } from '../contracts'
 import { buildPart, categoryOf, LIBRARY, pinsOf, type Category, type PartModel } from './parts'
-import { route, shell, solid, WIRE_R, type Route, type RouteOptions } from './route'
+import { field, reserve, route, shell, solid, WIRE_R, type Route, type RouteOptions } from './route'
 
 /** The bits of a build step the scene animates (guide.ts's Step has them). */
 export interface SceneStep {
@@ -74,6 +74,9 @@ interface PartEntry {
   turn: Quaternion
   explode: Vector3
   size: Vector3
+  /** What the drawn part fills, in its holder's frame: often less than `size` (a board's box runs
+   * above its pin tips). */
+  body: Box3
   outline: LineSegments<EdgesGeometry, LineBasicMaterial>
 }
 
@@ -291,6 +294,8 @@ export class Device {
           ? [...(custom.get(partId)?.pins.map((p) => p.name) ?? []), ...used]
           : pinsOf(partId, [...used, ...mcuUsed])
       const model = buildPart(partId, catOf(partId), size, toward, [...new Set(pins)], custom.get(partId))
+      model.root.updateMatrixWorld(true)
+      const body = new Box3().setFromObject(model.root) // before it joins the holder: in the holder's frame
       const holder = new Group()
       holder.position.copy(center)
       holder.quaternion.copy(turn)
@@ -320,6 +325,7 @@ export class Device {
         turn,
         explode: new Vector3(),
         size,
+        body,
         outline,
       })
     }
@@ -372,17 +378,22 @@ export class Device {
     // wires: a jumper per wiring row, from the board's pin to the part's pin, round whatever is between
     this.root.updateMatrixWorld(true)
     const obs = {
-      solids: [...this.parts.values()].map((e) => solid(e.ref, e.home, e.turn, e.size)),
+      solids: [...this.parts.values()].map((e) =>
+        solid(e.ref, e.body.getCenter(new Vector3()).applyQuaternion(e.turn).add(e.home), e.turn, e.body.getSize(new Vector3())),
+      ),
       shells: shells.map(shell),
     }
     const mounted = new Set(boxes.filter((b) => b.mounted).map((b) => b.ref))
     const wall = manifest?.wall_mm ?? 2
-    // under the lid: the cavity's height (a custom body's own top can be far above where the parts are)
-    const ceiling = (manifest?.cavity_mm[2] ?? caseTop) - 1.5
+    // under the lid: the cavity's height (a custom body's own top can be far above where the parts are),
+    // less a wire's clearance
+    const ceiling = (manifest?.cavity_mm[2] ?? caseTop) - 1
     const mcu = this.mcuRef ? this.parts.get(this.mcuRef) : undefined
     const taken = new Set<string>()
+    const wired = field()
     const worldPin = (e: PartEntry, at: Vector3) => at.clone().applyQuaternion(e.turn).add(e.home)
     const byPart = new Map<string, number>()
+    const plans: { row: WiringRow; from: Vector3; to: Vector3; opts: RouteOptions }[] = []
     for (const row of rows) {
       const part = this.parts.get(row.part_ref)
       if (!part || !mcu) continue
@@ -401,7 +412,9 @@ export class Device {
       if (cands[0]) taken.add(`${cands[0].i}`)
       const k = byPart.get(row.part_ref) ?? 0
       byPart.set(row.part_ref, k + 1)
-      const opts: RouteOptions = { spread: (k - 1.5) * 1.6, ceiling, own: [mcu.ref, part.ref] }
+      const id = `${row.part_ref}.${row.part_pin}`
+      const opts: RouteOptions = { spread: (k - 1.5) * 1.6, ceiling, own: [mcu.ref, part.ref], id, field: wired }
+      opts.floor = this.caseBox.min.z + wall
       if (!part.inside) {
         // an outside part (laid behind the case, or mounted on a custom device's prints): out through
         // the cable hole build_enclosure cuts for it in the back wall
@@ -415,7 +428,6 @@ export class Device {
         } else if (mounted.has(row.part_ref)) {
           // no hole: it sits on the shell, so its cable goes through right there
           opts.allow = obs.solids.find((s) => s.name === row.part_ref)?.aabb.clone().expandByScalar(3)
-          opts.ignore = [row.part_ref]
         } else {
           // an old manifest (or none): through the back wall about where build_enclosure puts the hole
           const x = Math.min(this.caseBox.max.x - wall - 4, Math.max(this.caseBox.min.x + wall + 4, to.x))
@@ -424,11 +436,19 @@ export class Device {
           if (import.meta.env.DEV) console.warn(`[wires] no cable hole for ${row.part_ref} in cad/manifest.json`)
         }
       }
-      const r = route(from, to, obs, opts)
-      if (import.meta.env.DEV && r.hits.length)
-        console.warn(`[wires] ${this.mcuRef}.${row.mcu_pin} → ${row.part_ref}.${row.part_pin} clips ${r.hits.join(', ')}`)
-      this.wires.push(this.buildWire(row, from, to, r))
+      plans.push({ row, from, to, opts })
     }
+    // every pin's way up is taken before any wire is laid, then the shortest wires (least room to move)
+    // go first; the wires keep wiring-row order for the build steps
+    for (const p of plans) reserve(wired, p.opts.id!, p.from, p.to, p.opts)
+    const routes = new Map<(typeof plans)[number], Route>()
+    for (const p of [...plans].sort((a, b) => a.from.distanceTo(a.to) - b.from.distanceTo(b.to))) {
+      const r = route(p.from, p.to, obs, p.opts)
+      if (import.meta.env.DEV && r.hits.length)
+        console.warn(`[wires] ${this.mcuRef}.${p.row.mcu_pin} → ${p.opts.id} clips ${r.hits.join(', ')}`)
+      routes.set(p, r)
+    }
+    for (const p of plans) this.wires.push(this.buildWire(p.row, p.from, p.to, routes.get(p)!))
 
     // USB cable for the code step: plug from the board's socket out through the nearest wall
     if (mcu?.model.usb) {
@@ -525,7 +545,7 @@ export class Device {
 
   private buildWire(row: WiringRow, from: Vector3, to: Vector3, r: Route): WireEntry {
     const g = new Group()
-    const tube = new Mesh(new TubeGeometry(r.curve, 90, WIRE_R, 8, false), this.std(WIRE_HEX[row.pin_type] ?? '#8b8b8b'))
+    const tube = new Mesh(new TubeGeometry(r.curve, Math.max(90, Math.ceil(r.curve.getLength() / 0.75)), WIRE_R, 8, false), this.std(WIRE_HEX[row.pin_type] ?? '#8b8b8b'))
     const housing = (p: Vector3) => {
       const m = new Mesh(new BoxGeometry(2.5, 2.5, 6), this.std('#151618'))
       m.position.copy(p).setZ(p.z - 1)
