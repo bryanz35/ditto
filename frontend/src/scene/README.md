@@ -2,8 +2,12 @@
 
 The device in the overview and the build guide, ported from the 3D instruction spike.
 
-- `parts.ts`: one procedural model per library part (`LOOKS`, keyed by part id), with a fallback per
-  category for anything else. Header pins sit on the edge facing the board; a board's USB faces its
+- `parts.ts`: one procedural model per library part (`LOOKS`, keyed by part id). A custom part borrows
+  one of `GENERIC` (preview them all at `/parts.html`): the spec's `look` (PartDef.look, which the
+  parts agent sets), else one its name suggests (`NAMED` regexes: "pot" → `pot_rotary`, ...), else
+  its category's fallback. Boards and displays never borrow. Adding a look: a `PartLook` value in
+  `backend/contracts/parts.py`, `make types`, the `GENERIC` entry (tsc fails until it exists) and
+  the list in `backend/agent/prompts/parts.md`. Header pins sit on the edge facing the board; a board's USB faces its
   nearest wall. `LIBRARY` copies the bits of `backend/parts/library/*.yaml` the view needs (category,
   size, pin order, external): add a row when you add a library part.
 - `device.ts`: builds the scene from what the app already loads: `assembly.glb` (case, lid, one box per

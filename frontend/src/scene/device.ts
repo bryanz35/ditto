@@ -290,7 +290,7 @@ export class Device {
         custom.has(partId) && !lib
           ? [...(custom.get(partId)?.pins.map((p) => p.name) ?? []), ...used]
           : pinsOf(partId, [...used, ...mcuUsed])
-      const model = buildPart(partId, catOf(partId), size, toward, [...new Set(pins)])
+      const model = buildPart(partId, catOf(partId), size, toward, [...new Set(pins)], custom.get(partId))
       const holder = new Group()
       holder.position.copy(center)
       holder.quaternion.copy(turn)
