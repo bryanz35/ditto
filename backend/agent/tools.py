@@ -44,6 +44,13 @@ class RunContext:
     failures: dict[str, int] = field(default_factory=dict)
     lock: threading.Lock = field(default_factory=threading.Lock)
     """Serialises spec writes (firmware and enclosure sub-agents run in parallel)."""
+    kept_main: str | None = None
+    """main.cpp to put back when a firmware draft fails: the code this turn started with, then the
+    last draft that passed. None in a run's first turn: a failed draft stays for the model to fix."""
+
+    def __post_init__(self) -> None:
+        main = run_dir_for(self.run_id) / "firmware/src/main.cpp"
+        self.kept_main = main.read_text() if main.is_file() else None
 
     @property
     def spec_path(self) -> Path:
@@ -157,6 +164,9 @@ def guarded(
         if draft and e.status == "passed" and e.artifacts:
             # its files are the draft's: announced only once the draft is saved
             held.append(e)
+        elif draft and e.artifacts:
+            # a failed draft's files are thrown away (cad/ is restored): don't point the UI at them
+            ctx.emit(e.model_copy(update={"artifacts": {}}))
         else:
             ctx.emit(e)
 
@@ -275,16 +285,27 @@ def make_tools(ctx: RunContext) -> dict[str, BaseTool]:
         main = run_dir_for(ctx.run_id) / "firmware/src/main.cpp"
         main.parent.mkdir(parents=True, exist_ok=True)
         main.write_text(main_cpp)
-        if behaviors is None or behaviors == spec.firmware.behaviors:
-            # No lock: the compile runs in parallel with the enclosure build.
-            return guarded(ctx, "firmware", ["firmware"], spec)
-        with ctx.lock:
-            spec = ctx.load_spec() or spec
-            firmware = spec.firmware.model_copy(update={"behaviors": behaviors})
-            spec = spec.model_copy(update={"rev": spec.rev + 1, "firmware": firmware})
-            return guarded(
-                ctx, "firmware", ["firmware"], spec, lambda: ctx.save_spec(spec)
-            )
+        reply = ""
+        try:
+            if behaviors is None or behaviors == spec.firmware.behaviors:
+                # No lock: the compile runs in parallel with the enclosure build.
+                reply = guarded(ctx, "firmware", ["firmware"], spec)
+            else:
+                with ctx.lock:
+                    spec = ctx.load_spec() or spec
+                    firmware = spec.firmware.model_copy(update={"behaviors": behaviors})
+                    spec = spec.model_copy(
+                        update={"rev": spec.rev + 1, "firmware": firmware}
+                    )
+                    reply = guarded(
+                        ctx, "firmware", ["firmware"], spec, lambda: ctx.save_spec(spec)
+                    )
+        finally:  # failed or cancelled: an edit's draft doesn't replace code that compiled
+            if reply.startswith("PASSED"):
+                ctx.kept_main = main_cpp
+            elif ctx.kept_main is not None:
+                main.write_text(ctx.kept_main)
+        return reply
 
     @tool
     def set_enclosure(wall_mm: float = 2.0, clearance_mm: float = 1.0) -> str:

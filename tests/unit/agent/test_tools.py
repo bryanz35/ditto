@@ -108,6 +108,8 @@ def _draft_runner(cad, enclosure_ok: bool):
                 stage="enclosure",
                 status="passed" if enclosure_ok else "failed",
                 spec_rev=spec.rev,
+                # like run_stages: a failed build-then-check still lists what it built
+                artifacts={} if enclosure_ok else {"base_stl": "cad/base.stl"},
             )
         )
         return {"layout": ToolResult(ok=True), "enclosure": enclosure}
@@ -181,6 +183,21 @@ def test_retry_limit_leaves_main_cpp_alone(events):
 
     assert reply.startswith("Retry limit reached")
     assert main.read_text() == "// try 3"
+
+
+def test_a_failed_firmware_draft_in_an_edit_keeps_the_code_that_compiled(events):
+    ctx = _ctx(FakeStageRunner(), events)
+    tools = make_tools(ctx)
+    tools["write_spec"].invoke({"spec_json": fixture_spec_json()})
+    assert tools["write_firmware"].invoke({"main_cpp": "// works"}).startswith("PASSED")
+    main = ctx.spec_path.parent / "firmware/src/main.cpp"
+
+    bad = ToolResult(ok=False, errors=[ToolError(code="compile", message="x")])
+    edit = _ctx(FakeStageRunner(fail={"firmware": bad}), events)  # the next turn
+    reply = make_tools(edit)["write_firmware"].invoke({"main_cpp": "// broken"})
+
+    assert reply.startswith("FAILED")
+    assert main.read_text() == "// works"
 
 
 BOOK = (
