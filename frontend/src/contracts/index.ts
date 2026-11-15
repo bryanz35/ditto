@@ -76,6 +76,39 @@ export interface BoardDef {
   id: string;
   input_only_pins: string[];
   logic_voltage: number;
+  /**
+   * Custom parts only: the 3D model closest to the part (a panel pot: pot_rotary). Only the 3D
+   * view reads it, and boards and displays ignore it. None: guessed from the name, else a plain
+   * module.
+   */
+  look:
+    | (
+        | "pot_rotary"
+        | "pot_slide"
+        | "joystick"
+        | "switch_rocker"
+        | "servo"
+        | "dc_motor"
+        | "tt_gearmotor"
+        | "n20_gearmotor"
+        | "driver_l298n"
+        | "driver_small"
+        | "driver_uln2003"
+        | "capacitor"
+        | "barrel_jack"
+        | "buck_module"
+        | "battery_holder"
+        | "led_5mm"
+        | "ldr_module"
+        | "relay_module_1ch"
+        | "stepper_28byj48"
+        | "ky040_encoder"
+        | "button_tactile_6mm"
+        | "button_arcade_30mm"
+        | "buzzer_passive"
+        | "speaker_40mm_4ohm"
+      )
+    | null;
   manual_price_usd: number | null;
   max_current_ma: number;
   mount_holes: MountHole[];
@@ -613,6 +646,39 @@ export interface PartDef {
    */
   id: string;
   logic_voltage: number;
+  /**
+   * Custom parts only: the 3D model closest to the part (a panel pot: pot_rotary). Only the 3D
+   * view reads it, and boards and displays ignore it. None: guessed from the name, else a plain
+   * module.
+   */
+  look:
+    | (
+        | "pot_rotary"
+        | "pot_slide"
+        | "joystick"
+        | "switch_rocker"
+        | "servo"
+        | "dc_motor"
+        | "tt_gearmotor"
+        | "n20_gearmotor"
+        | "driver_l298n"
+        | "driver_small"
+        | "driver_uln2003"
+        | "capacitor"
+        | "barrel_jack"
+        | "buck_module"
+        | "battery_holder"
+        | "led_5mm"
+        | "ldr_module"
+        | "relay_module_1ch"
+        | "stepper_28byj48"
+        | "ky040_encoder"
+        | "button_tactile_6mm"
+        | "button_arcade_30mm"
+        | "buzzer_passive"
+        | "speaker_40mm_4ohm"
+      )
+    | null;
   manual_price_usd: number | null;
   max_current_ma: number;
   mount_holes: MountHole[];

@@ -174,6 +174,44 @@
         "logic_voltage": {
           "type": "number"
         },
+        "look": {
+          "anyOf": [
+            {
+              "enum": [
+                "pot_rotary",
+                "pot_slide",
+                "joystick",
+                "switch_rocker",
+                "servo",
+                "dc_motor",
+                "tt_gearmotor",
+                "n20_gearmotor",
+                "driver_l298n",
+                "driver_small",
+                "driver_uln2003",
+                "capacitor",
+                "barrel_jack",
+                "buck_module",
+                "battery_holder",
+                "led_5mm",
+                "ldr_module",
+                "relay_module_1ch",
+                "stepper_28byj48",
+                "ky040_encoder",
+                "button_tactile_6mm",
+                "button_arcade_30mm",
+                "buzzer_passive",
+                "speaker_40mm_4ohm"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Custom parts only: the 3D model closest to the part (a panel pot: pot_rotary). Only the 3D\nview reads it, and boards and displays ignore it. None: guessed from the name, else a plain\nmodule."
+        },
         "manual_price_usd": {
           "anyOf": [
             {
@@ -373,6 +411,7 @@
         "wokwi_pins",
         "wokwi_attrs",
         "source",
+        "look",
         "pio_board",
         "pio_platform",
         "has_wifi",
@@ -1264,6 +1303,44 @@
         "logic_voltage": {
           "type": "number"
         },
+        "look": {
+          "anyOf": [
+            {
+              "enum": [
+                "pot_rotary",
+                "pot_slide",
+                "joystick",
+                "switch_rocker",
+                "servo",
+                "dc_motor",
+                "tt_gearmotor",
+                "n20_gearmotor",
+                "driver_l298n",
+                "driver_small",
+                "driver_uln2003",
+                "capacitor",
+                "barrel_jack",
+                "buck_module",
+                "battery_holder",
+                "led_5mm",
+                "ldr_module",
+                "relay_module_1ch",
+                "stepper_28byj48",
+                "ky040_encoder",
+                "button_tactile_6mm",
+                "button_arcade_30mm",
+                "buzzer_passive",
+                "speaker_40mm_4ohm"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Custom parts only: the 3D model closest to the part (a panel pot: pot_rotary). Only the 3D\nview reads it, and boards and displays ignore it. None: guessed from the name, else a plain\nmodule."
+        },
         "manual_price_usd": {
           "anyOf": [
             {
@@ -1423,7 +1500,8 @@
         "wokwi_type",
         "wokwi_pins",
         "wokwi_attrs",
-        "source"
+        "source",
+        "look"
       ],
       "title": "PartDef",
       "type": "object"

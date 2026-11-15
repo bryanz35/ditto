@@ -20,6 +20,7 @@ import {
   Vector3,
   type BufferGeometry,
 } from 'three'
+import type { PartDef } from '../contracts'
 
 export type Category = 'mcu' | 'sensor' | 'display' | 'light' | 'input' | 'output' | 'motor' | 'power'
 
@@ -332,10 +333,14 @@ type Shape =
       color: string
       metal?: number
       on?: number
+      /** Lying along x or y instead of standing; `on` is then its underside. */
+      axis?: 'x' | 'y'
+      /** Lights up with the LEDs once the code runs. */
+      glow?: true
     }
   | { screen: [number, number]; at: [number, number] }
   | { led: [number, number, number]; at: [number, number]; color: string }
-  | { dome: number; at: [number, number]; color: string }
+  | { dome: number; at: [number, number]; color: string; on?: number; glow?: true }
   | { ring: [number, number]; leds: number }
 
 interface Look {
@@ -551,7 +556,21 @@ const LOOKS: Record<string, Look> = {
   ws2812b_ring_12: { pcb: null, shapes: [{ ring: [18.4, 12.5], leds: 12 }] },
 }
 
-// A part with no look of its own (a custom part, or one added to the library later) gets its category's.
+// A plain breakout: chip, passives, LED. Drawn true size whatever the box.
+const MODULE: Look = {
+  pcb: '#1f5e8a',
+  lift: 2,
+  shapes: [
+    { box: [5, 5, 1.2], at: [0, -0.12], color: '#141414' },
+    { box: [2, 1.25, 0.6], at: [-0.28, -0.12], color: '#c9a35a' },
+    { box: [2, 1.25, 0.6], at: [0.28, -0.12], color: '#c9a35a' },
+    { box: [1.6, 0.8, 0.5], at: [0, -0.38], color: '#3f3f46' },
+    { led: [1.6, 1, 0.8], at: [0.32, 0.18], color: '#55ff55' },
+  ],
+}
+
+// A part with no look of its own that no name matches (a custom part, or one added to the library
+// later) gets its category's.
 const BY_CATEGORY: Record<Category, Look> = {
   mcu: {
     pcb: '#1d6b8f',
@@ -582,23 +601,279 @@ const BY_CATEGORY: Record<Category, Look> = {
       { led: [5, 5, 1.6], at: [0.25, -0.1], color: '#f5f5f5' },
     ],
   },
-  input: {
-    pcb: '#1f2937',
-    lift: 2,
-    shapes: [{ cyl: [4, 5], at: [0, -0.1], color: '#141414' }],
-  },
-  output: {
-    pcb: '#14532d',
-    lift: 2,
-    shapes: [{ cyl: [5, 7], at: [0, -0.1], color: '#141414' }],
-  },
+  input: MODULE,
+  output: MODULE,
   // most custom motors are servos (an MG996R the library lacks)
   motor: servo('#3f3f46'),
-  power: {
-    pcb: '#3f3f46',
-    lift: 2,
-    shapes: [{ box: [10, 8, 6], at: [0, -0.1], color: '#141414' }],
+  power: MODULE,
+}
+
+const BLACK = '#18181b'
+const BLUE_PCB = '#1d5fa8'
+const BRASS = '#d9c37c'
+const TERMINAL = '#2563eb'
+export type PartLook = NonNullable<PartDef['look']>
+
+/** The looks a custom part can borrow (PartDef.look, else by name: NAMED): common parts the library
+ * lacks, drawn at a typical size (`mm`) and scaled to the part's box, plus a few library parts'.
+ * Preview: /parts.html. */
+export const GENERIC: Record<PartLook, Look> = {
+  pot_rotary: {
+    pcb: null,
+    mm: [17, 17, 25],
+    shapes: [
+      { cyl: [6.5, 7], at: [0, -0.12], color: SILVER, metal: 0.6 },
+      { cyl: [3.5, 4], at: [0, -0.12], color: SILVER, metal: 0.6, on: 7 },
+      { cyl: [3, 6], at: [0, -0.12], color: '#b0b4ba', metal: 0.6, on: 11 },
+      { cyl: [6.5, 7.7], at: [0, -0.12], color: BLACK, on: 17 },
+      { box: [1, 4, 0.3], at: [0, -0.3], color: '#f2f2f2', on: 24.7 },
+    ],
   },
+  pot_slide: {
+    pcb: BLUE_PCB,
+    lift: 2,
+    mm: [60, 12, 15],
+    shapes: [
+      { box: [52, 8, 6], at: [0, -0.1], color: BLACK },
+      { box: [44, 1.2, 0.2], at: [0, -0.1], color: '#050505', on: 6 },
+      { box: [2.5, 1, 2], at: [0.12, -0.1], color: SILVER, metal: 0.6, on: 6 },
+      { box: [5, 8, 3.4], at: [0.12, -0.1], color: '#e4e4e7', on: 8 },
+    ],
+  },
+  joystick: {
+    pcb: BLUE_PCB,
+    lift: 2,
+    mm: [34, 26, 32],
+    shapes: [
+      { box: [20, 20, 10], at: [0, -0.1], color: BLACK },
+      { dome: 8, at: [0, -0.1], color: '#27272a', on: 10 },
+      { cyl: [2, 8], at: [0, -0.1], color: '#3f3f46', on: 16 },
+      { cyl: [7, 4.4], at: [0, -0.1], color: BLACK, on: 24 },
+    ],
+  },
+  servo: servo('#1c1c1f'),
+  dc_motor: {
+    pcb: null,
+    mm: [38, 20, 20],
+    shapes: [
+      { cyl: [10, 25], axis: 'x', at: [-0.05, 0], color: SILVER, metal: 0.6 },
+      { cyl: [8, 3], axis: 'x', at: [-0.42, 0], color: '#e8e8e8', on: 1.7 },
+      { box: [1.5, 0.4, 4], at: [-0.44, 0.2], color: BRASS, metal: 0.7, on: 15 },
+      { box: [1.5, 0.4, 4], at: [-0.44, -0.2], color: BRASS, metal: 0.7, on: 15 },
+      { cyl: [3, 2], axis: 'x', at: [0.305, 0], color: SILVER, metal: 0.6, on: 6.7 },
+      { cyl: [1, 8], axis: 'x', at: [0.4, 0], color: BRASS, metal: 0.7, on: 8.7 },
+    ],
+  },
+  tt_gearmotor: {
+    pcb: null,
+    mm: [64, 22.5, 19],
+    shapes: [
+      { box: [36, 18, 19], at: [0.203, 0], color: '#f2c230' },
+      { cyl: [9.5, 22], axis: 'x', at: [-0.25, 0], color: SILVER, metal: 0.6 },
+      { cyl: [8, 4], axis: 'x', at: [-0.453, 0], color: BLACK, on: 1.5 },
+      { cyl: [2.7, 22.5], axis: 'y', at: [0.375, 0], color: '#f2f2f2', on: 7 },
+    ],
+  },
+  n20_gearmotor: {
+    pcb: null,
+    mm: [34, 12, 10],
+    shapes: [
+      { cyl: [5, 15], axis: 'x', at: [-0.22, 0], color: SILVER, metal: 0.6 },
+      { cyl: [4.5, 2], axis: 'x', at: [-0.47, 0], color: BLACK, on: 0.5 },
+      { box: [9, 12, 10], at: [0.132, 0], color: '#a1a5ad', metal: 0.6 },
+      { cyl: [1.5, 8], axis: 'x', at: [0.382, 0], color: SILVER, metal: 0.6, on: 3.5 },
+    ],
+  },
+  capacitor: {
+    pcb: null,
+    mm: [13, 13, 25],
+    shapes: [
+      { cyl: [5, 1.5], at: [0, -0.1], color: '#111' },
+      { cyl: [5, 23], at: [0, -0.1], color: '#1f2a44', on: 1.5 },
+      { box: [0.4, 3, 23], at: [0.385, -0.1], color: '#cbd5e1', on: 1.5 },
+      { cyl: [4.8, 0.4], at: [0, -0.1], color: SILVER, metal: 0.6, on: 24.5 },
+      { box: [6, 0.4, 0.1], at: [0, -0.1], color: '#71717a', on: 24.9 },
+      { box: [0.4, 6, 0.1], at: [0, -0.1], color: '#71717a', on: 24.9 },
+    ],
+  },
+  barrel_jack: {
+    pcb: BLUE_PCB,
+    lift: 2,
+    mm: [30, 20, 15],
+    shapes: [
+      { box: [14, 9, 11], at: [-0.26, -0.15], color: BLACK },
+      { cyl: [3.2, 0.6], axis: 'x', at: [-0.495, -0.15], color: '#050505', on: 2.3 },
+      { cyl: [1, 0.8], axis: 'x', at: [-0.5, -0.15], color: SILVER, metal: 0.6, on: 4.5 },
+      { box: [8, 7.5, 9], at: [0.3, -0.15], color: '#1fa37a' },
+      { cyl: [1.4, 0.4], at: [0.23, -0.15], color: SILVER, metal: 0.6, on: 9 },
+      { cyl: [1.4, 0.4], at: [0.37, -0.15], color: SILVER, metal: 0.6, on: 9 },
+    ],
+  },
+  buck_module: {
+    pcb: BLUE_PCB,
+    lift: 2,
+    mm: [43, 21, 14],
+    shapes: [
+      { box: [12, 12, 7], at: [0.05, 0.05], color: '#232326' },
+      { cyl: [4, 10], at: [-0.38, -0.08], color: BLACK },
+      { cyl: [4, 10], at: [0.38, -0.08], color: BLACK },
+      { cyl: [3.8, 0.3], at: [-0.38, -0.08], color: SILVER, metal: 0.6, on: 10 },
+      { cyl: [3.8, 0.3], at: [0.38, -0.08], color: SILVER, metal: 0.6, on: 10 },
+      { box: [9, 9, 4.4], at: [-0.18, 0.1], color: '#141414' },
+      { box: [9.5, 4.5, 9.5], at: [0.16, -0.36], color: '#2b6cdf' },
+      { cyl: [1.1, 0.6], at: [0.23, -0.36], color: BRASS, metal: 0.7, on: 9.5 },
+    ],
+  },
+  driver_l298n: {
+    pcb: '#c0262d',
+    lift: 2,
+    mm: [43, 43, 27],
+    shapes: [
+      { box: [23, 3, 23], at: [0, 0.15], color: '#1a1a1a', metal: 0.3 },
+      ...[-0.2, -0.1, 0, 0.1, 0.2].map((x) => ({
+        box: [1.2, 6, 20] as [number, number, number],
+        at: [x, 0.045] as [number, number],
+        color: '#1a1a1a',
+        metal: 0.3,
+      })),
+      { box: [20, 4, 10], at: [0, 0.24], color: '#141414' },
+      { box: [7.5, 10, 10], at: [-0.41, 0.05], color: TERMINAL },
+      { box: [7.5, 10, 10], at: [0.41, 0.05], color: TERMINAL },
+      { box: [15, 7.5, 10], at: [0, -0.4], color: TERMINAL },
+      { cyl: [4, 11], at: [-0.25, -0.22], color: BLACK },
+      { cyl: [4, 11], at: [0.25, -0.22], color: BLACK },
+      { led: [1.6, 1, 0.8], at: [0.15, -0.3], color: '#ff4d4d' },
+    ],
+  },
+  driver_small: {
+    pcb: '#5b3c8c',
+    lift: 2,
+    mm: [21, 19, 10],
+    shapes: [
+      { box: [6.5, 5, 1.2], at: [0, -0.1], color: '#141414' },
+      { box: [2, 1.2, 1], at: [-0.3, -0.25], color: '#c9a35a' },
+      { box: [2, 1.2, 1], at: [0.3, -0.25], color: '#c9a35a' },
+      { box: [15, 2.54, 2.5], at: [0, -0.43], color: '#18191b' },
+      { led: [1.6, 1, 0.8], at: [0.32, 0.1], color: '#ff4d4d' },
+    ],
+  },
+  driver_uln2003: {
+    pcb: '#1f6b3a',
+    lift: 2,
+    mm: [35, 32, 15],
+    shapes: [
+      { box: [20, 7, 3.5], at: [-0.05, -0.05], color: '#141414' },
+      { box: [13, 6, 7], at: [0, -0.38], color: '#f2f2f2' },
+      ...[0.2, 0.07, -0.06, -0.19].map((y) => ({
+        cyl: [1.5, 4] as [number, number],
+        at: [0.4, y] as [number, number],
+        color: '#ff4d4d',
+        glow: true as const,
+      })),
+    ],
+  },
+  battery_holder: {
+    pcb: null,
+    mm: [58, 31, 16],
+    shapes: [
+      { box: [58, 31, 1.5], at: [0, 0], color: BLACK },
+      { box: [58, 1.5, 9], at: [0, 0.475], color: BLACK },
+      { box: [58, 1.5, 9], at: [0, -0.475], color: BLACK },
+      { box: [2, 31, 12], at: [-0.483, 0], color: BLACK },
+      { box: [2, 31, 12], at: [0.483, 0], color: BLACK },
+      { cyl: [7, 50], axis: 'x', at: [-0.01, -0.235], color: '#2563eb', on: 1.5 },
+      { cyl: [7, 50], axis: 'x', at: [0.01, 0.235], color: '#2563eb', on: 1.5 },
+      { cyl: [2.5, 1.5], axis: 'x', at: [0.44, -0.235], color: SILVER, metal: 0.6, on: 6 },
+      { cyl: [2.5, 1.5], axis: 'x', at: [-0.44, 0.235], color: SILVER, metal: 0.6, on: 6 },
+    ],
+  },
+  switch_rocker: {
+    pcb: null,
+    mm: [21, 15, 16],
+    shapes: [
+      { box: [19, 13, 10], at: [0, -0.05], color: BLACK },
+      { box: [21, 15, 2], at: [0, 0], color: BLACK, on: 10 },
+      { box: [8, 9.5, 4], at: [-0.2, -0.05], color: '#e5484d', on: 12 },
+      { box: [8, 9.5, 2.5], at: [0.2, -0.05], color: '#e5484d', on: 12 },
+    ],
+  },
+  led_5mm: {
+    pcb: null,
+    mm: [6, 6, 9],
+    shapes: [
+      { cyl: [2.9, 1], at: [0, -0.1], color: '#ef4444', glow: true },
+      { cyl: [2.5, 5], at: [0, -0.1], color: '#ef4444', glow: true, on: 1 },
+      { dome: 2.5, at: [0, -0.1], color: '#ef4444', glow: true, on: 6 },
+    ],
+  },
+  ldr_module: {
+    pcb: BLUE_PCB,
+    lift: 2,
+    mm: [32, 14, 10],
+    shapes: [
+      { cyl: [0.3, 3], at: [-0.43, -0.1], color: SILVER, metal: 0.6 },
+      { cyl: [0.3, 3], at: [-0.37, -0.1], color: SILVER, metal: 0.6 },
+      { cyl: [2.6, 2], at: [-0.4, -0.1], color: '#c08a3e', on: 3 },
+      { box: [3, 0.4, 0.1], at: [-0.4, -0.1], color: '#7a4a1a', on: 5 },
+      { box: [6.5, 6.5, 4.5], at: [0.05, -0.1], color: '#2b6cdf' },
+      { cyl: [1.2, 0.5], at: [0.05, -0.1], color: '#f2f2f2', on: 4.5 },
+      { box: [5, 4, 1.5], at: [0.32, -0.1], color: '#141414' },
+      { led: [1.6, 1, 0.8], at: [0.2, 0.3], color: '#ff4d4d' },
+    ],
+  },
+  relay_module_1ch: LOOKS.relay_module_1ch,
+  stepper_28byj48: LOOKS.stepper_28byj48,
+  ky040_encoder: LOOKS.ky040_encoder,
+  button_tactile_6mm: LOOKS.button_tactile_6mm,
+  button_arcade_30mm: LOOKS.button_arcade_30mm,
+  buzzer_passive: LOOKS.buzzer_passive,
+  speaker_40mm_4ohm: LOOKS.speaker_40mm_4ohm,
+}
+
+// Which look a custom part with no `look` borrows, by name. First match wins, so specific names come
+// before general ones ("motor driver" before "motor", "slide pot" before "pot").
+const NAMED: [RegExp, PartLook][] = [
+  [/\brelay\b/, 'relay_module_1ch'],
+  [/\bl298n?\b/, 'driver_l298n'],
+  [/\buln2003\w*\b/, 'driver_uln2003'],
+  [/\b(drv88\d\d|tb6612\w*|a4988|l9110s?|motor driver|h bridge)\b/, 'driver_small'],
+  [/\b(buck|boost|step (up|down)|lm2596\w*|mt3608|xl6009|dc dc)\b/, 'buck_module'],
+  [/\b(servo|sg90|mg90s?|mg99[56]r?)\b/, 'servo'],
+  [/\b(stepper|28byj\w*|nema ?\d+)\b/, 'stepper_28byj48'],
+  [/\b(n20|micro (metal )?gear\w*)\b/, 'n20_gearmotor'],
+  [/\b(tt|gear ?motor|gearbox)\b/, 'tt_gearmotor'],
+  [/\bmotors?\b/, 'dc_motor'],
+  [/\b(joystick|thumb ?stick|ky 023)\b/, 'joystick'],
+  [/\b(rotary )?encoder\b/, 'ky040_encoder'],
+  [/\b(slide pot\w*|slider|fader)\b/, 'pot_slide'],
+  [/\b(pot|potentiometer|trimmer|trim ?pot)\b/, 'pot_rotary'],
+  [/\barcade\b/, 'button_arcade_30mm'],
+  [/\b(button|push ?button|tactile)\b/, 'button_tactile_6mm'],
+  [/\b(buzzer|piezo)\b/, 'buzzer_passive'],
+  [/\bspeaker\b/, 'speaker_40mm_4ohm'],
+  [/^(?!.*\b(module|board|breakout|mosfet|transistor)\b).*\b(switch|rocker|toggle)\b/, 'switch_rocker'],
+  [/\b(capacitor|electrolytic|\d+ ?uf)\b/, 'capacitor'],
+  [/\b(battery|batteries|18650|aaa?|lipo|li ion)\b/, 'battery_holder'],
+  [/\b(barrel|dc jack|power jack|psu|power supply|wall (supply|adapter|wart))\b/, 'barrel_jack'],
+  [/\b(ldr|photoresistor|photocell)\b/, 'ldr_module'],
+  [/^(?!.*\b(strip|matrix|ring|module|board|breakout|panel|bar|neopixel|ws28\w*)\b).*\bleds?\b/, 'led_5mm'],
+]
+
+/** The look a custom part borrows, from its id and its name up to the first bracket, comma or "with":
+ * "DC wall supply with barrel jack (servo rail)" is a supply, not a servo. Null when nothing matches. */
+export const lookFor = (id: string, name: string): PartLook | null => {
+  const text = `${id} ${name.split(/[(,;]| with /i)[0]}`.toLowerCase().replace(/[^a-z0-9]+/g, ' ')
+  return NAMED.find(([re]) => re.test(text))?.[1] ?? null
+}
+
+type Custom = { name: string; look?: PartLook | null }
+
+/** A library part's own look; a custom part's `look`, else one its name suggests; else its category's. */
+export const lookOf = (partId: string, category: Category, custom?: Custom): Look => {
+  // boards and displays keep their category's look: "XIAO with RGB LED" is not an LED
+  const borrowed =
+    category === 'mcu' || category === 'display' ? null : (custom?.look ?? lookFor(partId, custom?.name ?? ''))
+  return LOOKS[partId] ?? (borrowed ? GENERIC[borrowed] : undefined) ?? BY_CATEGORY[category]
 }
 
 export const categoryOf = (partId: string): Category => LIBRARY[partId]?.cat ?? 'sensor'
@@ -658,7 +933,7 @@ function drawScreen(ctx: CanvasRenderingContext2D, state: 'off' | 'upload' | 'on
 /**
  * Builds a part to fill a layout box of `size` (x, y, z mm). `toward` is the direction, in the box's
  * frame, of the board the part wires to (or, for the board itself, of the nearest case wall): the
- * header turns to face it, and a board turns its USB socket to it.
+ * header turns to face it, and a board turns its USB socket to it. `custom`: a custom part's entry.
  */
 export function buildPart(
   partId: string,
@@ -666,8 +941,9 @@ export function buildPart(
   size: Vector3,
   toward: Vector2,
   pinNames: string[],
+  custom?: Custom,
 ): PartModel {
-  const look = LOOKS[partId] ?? BY_CATEGORY[category]
+  const look = lookOf(partId, category, custom)
   const isBoard = category === 'mcu'
   const mats: MeshStandardMaterial[] = []
   const std = (color: string, metal = 0) => {
@@ -785,6 +1061,15 @@ export function buildPart(
   // shapes on top
   let screen: { ctx: CanvasRenderingContext2D; tex: CanvasTexture } | null = null
   const leds: MeshStandardMaterial[] = []
+  const paint = (s: { color: string; metal?: number; glow?: true }) => {
+    const m = std(s.color, s.metal)
+    if (s.glow) {
+      m.emissive.set(s.color)
+      m.emissiveIntensity = 0
+      leds.push(m)
+    }
+    return m
+  }
   for (const s of look.shapes) {
     if ('box' in s) {
       const [sx, sy, sz] = [Math.min(s.box[0] * kx, a - 0.5), Math.min(s.box[1] * ky, b - 0.5), s.box[2] * kz]
@@ -793,16 +1078,17 @@ export function buildPart(
         s.at[1] * b,
         top + (s.on ?? 0) * kz + sz / 2,
       ])
+    } else if ('cyl' in s && s.axis) {
+      const x = s.axis === 'x'
+      const r = Math.min(s.cyl[0] * Math.min(x ? ky : kx, kz), (x ? b : a) / 2 - 0.3, h / 2)
+      const len = Math.min(s.cyl[1] * (x ? kx : ky), x ? a : b)
+      const geo = new CylinderGeometry(r, r, len, 28)
+      if (x) geo.rotateZ(Math.PI / 2)
+      add(body, geo, paint(s), [s.at[0] * a, s.at[1] * b, top + (s.on ?? 0) * kz + r], false)
     } else if ('cyl' in s) {
       const r = Math.min(s.cyl[0] * Math.min(kx, ky), a / 2 - 0.3, b / 2 - 0.3)
       const ch = s.cyl[1] * kz
-      add(
-        body,
-        zcyl(r, ch),
-        std(s.color, s.metal),
-        [s.at[0] * a, s.at[1] * b, top + (s.on ?? 0) * kz + ch / 2],
-        false,
-      )
+      add(body, zcyl(r, ch), paint(s), [s.at[0] * a, s.at[1] * b, top + (s.on ?? 0) * kz + ch / 2], false)
     } else if ('led' in s) {
       const m = std(s.color)
       m.emissive.set(s.color)
@@ -810,9 +1096,9 @@ export function buildPart(
       leds.push(m)
       add(body, new BoxGeometry(...s.led), m, [s.at[0] * a, s.at[1] * b, top + s.led[2] / 2], false)
     } else if ('dome' in s) {
-      const r = Math.min(s.dome, a / 2, b / 2)
+      const r = Math.min(s.dome * Math.min(kx, ky), a / 2, b / 2)
       const geo = new SphereGeometry(r, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2)
-      add(body, geo, std(s.color), [s.at[0] * a, s.at[1] * b, top + 3], false)
+      add(body, geo, paint(s), [s.at[0] * a, s.at[1] * b, top + (s.on ?? 3) * kz], false)
     } else if ('screen' in s) {
       const canvas = document.createElement('canvas')
       canvas.width = 256
