@@ -198,7 +198,7 @@ def test_over_budget_at_the_boundary(budget, over, tmp_path):
     result = price_bom(spec(budget_usd=budget), LIB, tmp_path / "none.json", tmp_path)
     assert result.data["total_usd"] == 25.0
     assert result.data["over_budget"] is over
-    assert result.ok is not over
+    assert result.ok  # a warning: the user may approve the higher total
     assert ("over_budget" in [e.code for e in result.errors]) is over
     assert Path(result.artifacts["bom_json"]).exists()
 

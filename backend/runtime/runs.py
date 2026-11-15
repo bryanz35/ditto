@@ -201,7 +201,7 @@ class RunEngine:
                 if spec is None:
                     spec = await work(emit)
                 rev = spec.rev
-                stages = self._stale_stages(run_id, old, spec, emit)
+                stages = self._stale_stages(run_id, old, spec, emit, since)
                 results = await asyncio.to_thread(
                     self.stage_runner, run_id, [*stages, "checks"], spec, emit
                 )
@@ -271,11 +271,16 @@ class RunEngine:
         return lambda emit: self.runner.run(request, emit)
 
     def _stale_stages(
-        self, run_id: str, old: dict | None, spec: ProjectSpec, emit: Emit
+        self,
+        run_id: str,
+        old: dict | None,
+        spec: ProjectSpec,
+        emit: Emit,
+        since: int = 0,
     ) -> list[str]:
         """The stages to run now. After an edit, emits `stale` for the affected ones (then their
         passed event again if runner.edit() already passed them at the new rev) and carries the
-        unaffected settled ones forward to the new rev."""
+        unaffected settled ones forward to the new rev. since: the last seq before this turn."""
         # events above the saved rev come from drafts that were never saved: they say nothing
         # about whether the saved spec's stages are current
         last = {
@@ -297,11 +302,16 @@ class RunEngine:
         # shortcut: a passed or skipped stage counts as current unless this edit affects it; a crash
         # between runner.edit() saving the spec and the stale events would leave it looking current
         settled = {s for s, e in last.items() if e.status in ("passed", "skipped")}
+        # a stage a sub-agent passed during this turn (firmware rewritten without a spec change)
+        # rewrote its files: what reads them (simulate) reruns, even if it passed at this rev
+        redone = {s for s, e in last.items() if e.status == "passed" and e.seq > since}
+        again = set(stages_to_rerun(redone)) - redone
         # stages that didn't settle earlier rerun too, with everything downstream of them
         rerun = [
             s
-            for s in stages_to_rerun(changed | (set(ORDER) - settled))
-            if passed.get(s) != spec.rev  # runner.edit() may have rerun some already
+            for s in stages_to_rerun(changed | again | (set(ORDER) - settled))
+            if s in again
+            or passed.get(s) != spec.rev  # runner.edit() may have rerun some
         ]
         with self._lock:
             _carry_forward(run_dir, [s for s in ORDER if s not in rerun], spec.rev)
@@ -364,7 +374,11 @@ def _update_manifest(run_dir: Path, event: Event) -> None:
     if rev == manifest.spec_rev and not (event.status == "passed" and event.artifacts):
         return
     manifest.spec_rev = rev
-    if event.status == "passed":
+    if event.status == "passed" and event.artifacts:
+        # the stage's files now are exactly these: a part a new shape dropped isn't listed anymore
+        manifest.artifacts = {
+            n: a for n, a in manifest.artifacts.items() if a.stage != event.stage
+        }
         for name, rel in event.artifacts.items():
             manifest.artifacts[name] = ArtifactInfo(
                 path=rel, stage=event.stage, spec_rev=event.spec_rev
@@ -453,7 +467,7 @@ def _saved_rev(run_dir: Path, default: int = 0) -> int:
 
 
 def engine_from_env() -> RunEngine:
-    """P2D_RUNNER=fake (the fixture run), replay:<run_dir>, or real (the default: T13's agent)."""
+    """P2D_RUNNER=fake (the fixture run), replay:<run_dir>, or real (the default: the agent)."""
     from backend.tools.fakes import fake_toolbox
     from backend.tools.toolbox import real_toolbox
 
@@ -465,13 +479,8 @@ def engine_from_env() -> RunEngine:
         return RunEngine(ReplayRunner(source), stage_runner)
     if mode != "real":
         raise ValueError(f"P2D_RUNNER={mode!r}: use fake, replay:<run_dir> or real")
-    try:
-        from backend.agent import AgentRunner
-    except ImportError as exc:
-        raise RuntimeError(
-            "P2D_RUNNER=real needs backend.agent.AgentRunner (T13); "
-            "use P2D_RUNNER=fake until it merges"
-        ) from exc
+    from backend.agent import AgentRunner
+
     toolbox = real_toolbox()
     stage_runner = partial(run_stages, toolbox=toolbox, lib=lib)
     return RunEngine(AgentRunner(toolbox, None, stage_runner, lib=lib), stage_runner)

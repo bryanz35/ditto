@@ -13,7 +13,8 @@ Each priced line keeps every live or cached offer (BomLine.offers), one per sell
 its unit_price_usd and vendor_url are the cheapest offer's.
 
 Error codes:
-- over_budget (error): the total is above spec.user.budget_usd; bom.json is still written.
+- over_budget (warning): the total is above spec.user.budget_usd; the agent asks the user to approve it
+  or swap parts. A warning, so an approved list doesn't end the run as failed.
 - price_missing (warning): no live, cached or manual price for a part; its line counts as $0.
 - live_prices_unavailable (warning): the Nexar lookup failed (auth, rate limit, timeout, bad reply);
   cached and manual prices were used instead.
@@ -245,6 +246,7 @@ def price_bom(
                 + ", ".join(f"{li.part_id} ${li.line_total_usd:.2f}" for li in costly)
                 + ".",
                 field="user.budget_usd",
+                severity="warning",
                 hint="Swap in cheaper library parts or owned ones, drop optional parts, "
                 "or ask the user to approve the higher total.",
             )
@@ -254,7 +256,7 @@ def price_bom(
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(bom.model_dump_json(indent=2) + "\n")
     return ToolResult(
-        ok=not bom.over_budget,
+        ok=True,
         errors=errors,
         artifacts={"bom_json": str(out.resolve())},
         data=bom.model_dump(mode="json"),

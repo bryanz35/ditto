@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from backend.app.routers import device, files, memory, runs
+from backend.app.routers import files, memory, runs
 from backend.runtime.runs import end_interrupted_runs
 
 
@@ -15,5 +15,5 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Prompt-to-Device", lifespan=lifespan)
-for module in (runs, files, memory, device):
+for module in (runs, files, memory):
     app.include_router(module.router)

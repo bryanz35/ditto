@@ -28,6 +28,8 @@ Error codes (severity "error" unless noted):
 - fixed_bus_pin: an I2C/SPI line on a pin other than the board's `bus_pins` for it.
 - level_shift (warning): the board's logic voltage is above the part's.
 - unverified_part (warning): a part comes from spec.custom_parts, not the library.
+- unknown_lib_dep: a custom part asks for a PlatformIO library no library part uses (a dependency
+  can run code during the compile, so only the hand-checked library's are allowed).
 """
 
 from collections import Counter, defaultdict
@@ -35,7 +37,14 @@ from difflib import get_close_matches
 
 from pydantic import ValidationError
 
-from backend.contracts.parts import BoardDef, PartDef, PartLibrary, PinDef, PinType
+from backend.contracts.parts import (
+    CUSTOM_PREFIX,
+    BoardDef,
+    PartDef,
+    PartLibrary,
+    PinDef,
+    PinType,
+)
 from backend.contracts.results import ToolError, ToolResult
 from backend.contracts.spec import Connection, PartInstance, ProjectSpec
 
@@ -62,6 +71,23 @@ def validate_spec(spec: ProjectSpec, lib: PartLibrary) -> ToolResult:
     # print-only: no electronics to check; its stages check the model
     if spec.mcu is None:
         return _result([])
+    known = {
+        d
+        for p in lib.parts.values()
+        if not p.id.startswith(CUSTOM_PREFIX)
+        for d in p.pio_lib_deps
+    }
+    deps = [
+        ToolError(
+            code="unknown_lib_dep",
+            message=f"custom part {p.id} asks for the PlatformIO library {d!r}, which no "
+            f"library part uses; custom parts may use only: {', '.join(sorted(known))}",
+            field=f"custom_parts[{i}].pio_lib_deps",
+        )
+        for i, p in enumerate(spec.custom_parts)
+        for d in p.pio_lib_deps
+        if d not in known
+    ]
     lib = lib.with_parts(spec.custom_parts)
     unverified = [
         ToolError(
@@ -75,7 +101,7 @@ def validate_spec(spec: ProjectSpec, lib: PartLibrary) -> ToolResult:
         for p in spec.custom_parts
         if p.id == inst.part_id
     ]
-    return _result(_Check(spec, lib).run() + unverified)
+    return _result(_Check(spec, lib).run() + deps + unverified)
 
 
 def _result(errors: list[ToolError]) -> ToolResult:

